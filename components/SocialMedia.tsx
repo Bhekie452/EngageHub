@@ -1,17 +1,18 @@
 
+
 import React, { useState } from 'react';
-import { 
-  Link2, 
-  Calendar, 
-  BarChart2, 
-  AtSign, 
-  MessageCircle, 
-  Mail, 
-  Plus, 
-  Instagram, 
-  Linkedin, 
-  Twitter, 
-  Facebook, 
+import {
+  Link2,
+  Calendar,
+  BarChart2,
+  AtSign,
+  MessageCircle,
+  Mail,
+  Plus,
+  Instagram,
+  Linkedin,
+  Twitter,
+  Facebook,
   CheckCircle2,
   ExternalLink,
   MoreVertical,
@@ -21,11 +22,94 @@ import {
   Store,
   Share2
 } from 'lucide-react';
+import { useAuth } from '../src/hooks/useAuth';
+import { supabase } from '../src/lib/supabase';
+import { initFacebookSDK, loginWithFacebook, getPageTokens } from '../src/lib/facebook';
 
 type SocialTab = 'accounts' | 'schedule' | 'engagement' | 'mentions' | 'comments' | 'dms';
 
 const SocialMedia: React.FC = () => {
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<SocialTab>('accounts');
+  const [connectedAccounts, setConnectedAccounts] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+
+  React.useEffect(() => {
+    if (user) {
+      initFacebookSDK();
+      fetchConnectedAccounts();
+    }
+  }, [user]);
+
+  const fetchConnectedAccounts = async () => {
+    if (!user) return;
+    setIsLoading(true);
+    try {
+      const { data: workspaces } = await supabase.from('workspaces').select('id').eq('owner_id', user.id).limit(1);
+      if (!workspaces?.length) return;
+
+      const { data } = await supabase
+        .from('social_accounts')
+        .select('*')
+        .eq('workspace_id', workspaces[0].id)
+        .eq('is_active', true);
+
+      setConnectedAccounts(data || []);
+    } catch (err) {
+      console.error('Error fetching accounts:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleConnectFacebook = async () => {
+    try {
+      const authResponse: any = await loginWithFacebook();
+      const pages: any = await getPageTokens(authResponse.accessToken);
+
+      if (!pages?.length) {
+        alert('No Facebook Pages found.');
+        return;
+      }
+
+      const page = pages[0];
+      const { data: workspaces } = await supabase.from('workspaces').select('id').eq('owner_id', user!.id).limit(1);
+      if (!workspaces?.length) throw new Error('No workspace found');
+
+      const { error } = await supabase.from('social_accounts').upsert({
+        workspace_id: workspaces[0].id,
+        platform: 'facebook',
+        platform_account_id: page.id,
+        account_name: page.name,
+        access_token: page.access_token,
+        is_active: true
+      }, { onConflict: 'workspace_id,platform,platform_account_id' });
+
+      if (error) throw error;
+
+      alert(`Connected to Facebook Page: ${page.name}!`);
+      fetchConnectedAccounts();
+    } catch (err) {
+      console.error('Connection error:', err);
+      alert('Failed to connect to Facebook.');
+    }
+  };
+
+  const handleDisconnect = async (accountId: string) => {
+    if (!confirm('Are you sure you want to disconnect this account?')) return;
+    try {
+      const { error } = await supabase
+        .from('social_accounts')
+        .update({ is_active: false })
+        .eq('id', accountId);
+
+      if (error) throw error;
+      fetchConnectedAccounts();
+    } catch (err) {
+      console.error('Disconnect error:', err);
+    }
+  };
+
 
   const tabs: { id: SocialTab; label: string; icon: React.ReactNode }[] = [
     { id: 'accounts', label: 'Connected accounts', icon: <Link2 size={16} /> },
@@ -42,40 +126,55 @@ const SocialMedia: React.FC = () => {
         return (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {[
-              { name: 'Instagram', handle: '@engagehub_creations', connected: true, icon: <Instagram className="text-pink-600" /> },
-              { name: 'LinkedIn Profile', handle: 'John Doe', connected: true, icon: <Linkedin className="text-blue-700" /> },
-              { name: 'LinkedIn Page', handle: 'Doe Consulting', connected: true, icon: <Linkedin className="text-blue-600" /> },
-              { name: 'X (Twitter)', handle: '@engagehub', connected: true, icon: <Twitter className="text-sky-500" /> },
-              { name: 'TikTok', handle: '@engagehub_official', connected: true, icon: <Music className="text-black" /> },
-              { name: 'YouTube', handle: 'Engagehub Tutorials', connected: false, icon: <Youtube className="text-red-600" /> },
-              { name: 'Facebook Page', handle: 'Engagehub Community', connected: false, icon: <Facebook className="text-blue-600" /> },
-              { name: 'Pinterest', handle: 'Engagehub Design', connected: false, icon: <Pin className="text-red-700" /> },
-              { name: 'Google Business', handle: 'Engagehub HQ', connected: false, icon: <Store className="text-blue-500" /> },
-            ].map((account, idx) => (
-              <div key={idx} className="bg-white p-5 rounded-xl border border-gray-200 flex items-center justify-between group hover:border-blue-300 transition-all shadow-sm">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-gray-50 flex items-center justify-center shrink-0">
-                    {account.icon}
+              { name: 'Facebook Page', handle: 'Engagehub Community', platform: 'facebook', icon: <Facebook className="text-blue-600" /> },
+              { name: 'Instagram', handle: '@engagehub_creations', platform: 'instagram', icon: <Instagram className="text-pink-600" /> },
+              { name: 'LinkedIn Profile', handle: 'John Doe', platform: 'linkedin', icon: <Linkedin className="text-blue-700" /> },
+              { name: 'X (Twitter)', handle: '@engagehub', platform: 'twitter', icon: <Twitter className="text-sky-500" /> },
+              { name: 'TikTok', handle: '@engagehub_official', platform: 'tiktok', icon: <Music className="text-black" /> },
+              { name: 'YouTube', handle: 'Engagehub Tutorials', platform: 'youtube', icon: <Youtube className="text-red-600" /> },
+              { name: 'Pinterest', handle: 'Engagehub Design', platform: 'pinterest', icon: <Pin className="text-red-700" /> },
+            ].map((account, idx) => {
+              const connectedAccount = connectedAccounts.find(ca => ca.platform === account.platform);
+              const isConnected = !!connectedAccount;
+
+              return (
+                <div key={idx} className="bg-white p-5 rounded-xl border border-gray-200 flex items-center justify-between group hover:border-blue-300 transition-all shadow-sm">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-gray-50 flex items-center justify-center shrink-0">
+                      {account.icon}
+                    </div>
+                    <div className="overflow-hidden">
+                      <h4 className="text-sm font-bold truncate">{account.name}</h4>
+                      <p className="text-xs text-gray-500 truncate">
+                        {isConnected ? connectedAccount.account_name : account.handle}
+                      </p>
+                    </div>
                   </div>
-                  <div className="overflow-hidden">
-                    <h4 className="text-sm font-bold truncate">{account.name}</h4>
-                    <p className="text-xs text-gray-500 truncate">{account.handle}</p>
+                  <div className="flex flex-col items-end gap-2 shrink-0">
+                    {isConnected ? (
+                      <span className="flex items-center gap-1 text-[10px] font-bold text-green-600 bg-green-50 px-2 py-0.5 rounded-full uppercase">
+                        <CheckCircle2 size={10} /> Live
+                      </span>
+                    ) : (
+                      <button
+                        onClick={() => account.platform === 'facebook' ? handleConnectFacebook() : alert(`${account.name} integration coming soon!`)}
+                        className="flex items-center gap-1 text-[10px] font-bold text-white bg-blue-600 hover:bg-blue-700 px-3 py-1.5 rounded-full uppercase shadow-sm transition-all"
+                      >
+                        <Plus size={12} /> Connect
+                      </button>
+                    )}
+                    {isConnected && (
+                      <button
+                        onClick={() => handleDisconnect(connectedAccount.id)}
+                        className="p-1 text-gray-300 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-all"
+                      >
+                        <MoreVertical size={16} />
+                      </button>
+                    )}
                   </div>
                 </div>
-                <div className="flex flex-col items-end gap-2 shrink-0">
-                  {account.connected ? (
-                    <span className="flex items-center gap-1 text-[10px] font-bold text-green-600 bg-green-50 px-2 py-0.5 rounded-full uppercase">
-                      <CheckCircle2 size={10} /> Live
-                    </span>
-                  ) : (
-                    <button className="text-[10px] font-bold text-blue-600 hover:text-blue-800 uppercase tracking-tight">Connect</button>
-                  )}
-                  <button className="p-1 text-gray-300 hover:text-gray-600 opacity-0 group-hover:opacity-100 transition-all">
-                    <MoreVertical size={16} />
-                  </button>
-                </div>
-              </div>
-            ))}
+              );
+            })}
             <button className="border-2 border-dashed border-gray-200 rounded-xl p-5 flex flex-col items-center justify-center gap-2 hover:border-blue-400 hover:bg-blue-50 transition-all group min-h-[94px]">
               <div className="w-8 h-8 rounded-full bg-gray-50 flex items-center justify-center text-gray-400 group-hover:bg-blue-100 group-hover:text-blue-600">
                 <Plus size={18} />
@@ -160,13 +259,13 @@ const SocialMedia: React.FC = () => {
               </div>
             </div>
             <div className="bg-white p-12 rounded-xl border border-gray-200 h-64 flex flex-col items-center justify-center text-gray-400 gap-4">
-               <div className="p-4 bg-gray-50 rounded-full">
-                 <BarChart2 size={32} />
-               </div>
-               <div className="text-center">
-                 <p className="text-sm font-bold text-gray-600">Engagement Visualization</p>
-                 <p className="text-xs text-gray-400">Sync more accounts to see comparative metrics across platforms.</p>
-               </div>
+              <div className="p-4 bg-gray-50 rounded-full">
+                <BarChart2 size={32} />
+              </div>
+              <div className="text-center">
+                <p className="text-sm font-bold text-gray-600">Engagement Visualization</p>
+                <p className="text-xs text-gray-400">Sync more accounts to see comparative metrics across platforms.</p>
+              </div>
             </div>
           </div>
         );
@@ -203,11 +302,10 @@ const SocialMedia: React.FC = () => {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-2 px-6 py-4 text-sm font-bold whitespace-nowrap transition-all border-b-2 -mb-[2px] ${
-                activeTab === tab.id 
-                  ? 'border-blue-600 text-blue-600' 
-                  : 'border-transparent text-gray-400 hover:text-gray-600 hover:border-gray-300'
-              }`}
+              className={`flex items-center gap-2 px-6 py-4 text-sm font-bold whitespace-nowrap transition-all border-b-2 -mb-[2px] ${activeTab === tab.id
+                ? 'border-blue-600 text-blue-600'
+                : 'border-transparent text-gray-400 hover:text-gray-600 hover:border-gray-300'
+                }`}
             >
               <span className={activeTab === tab.id ? 'text-blue-600' : 'text-gray-300'}>{tab.icon}</span>
               {tab.label}

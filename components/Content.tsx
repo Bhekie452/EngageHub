@@ -166,49 +166,9 @@ const Content: React.FC = () => {
     whatsapp: false
   });
 
-  const handleConnect = async (platform: string) => {
-    if (platform !== 'facebook') {
-      alert(`${platform} integration is coming soon! Only Facebook is available for now.`);
-      return;
-    }
-
-    try {
-      const authResponse: any = await loginWithFacebook();
-      const pages: any = await getPageTokens(authResponse.accessToken);
-
-      if (!pages?.length) {
-        alert('No Facebook Pages found associated with your account.');
-        return;
-      }
-
-      // Automatically connect the first page for this startup
-      const page = pages[0];
-
-      const { data: workspaces } = await supabase.from('workspaces').select('id').eq('owner_id', user!.id).limit(1);
-      if (!workspaces?.length) throw new Error('No workspace found');
-
-      const { error } = await supabase.from('social_accounts').upsert({
-        workspace_id: workspaces[0].id,
-        platform: 'facebook',
-        platform_account_id: page.id,
-        account_name: page.name,
-        access_token: page.access_token, // This is the Page Access Token
-        is_active: true
-      }, { onConflict: 'workspace_id,platform,platform_account_id' });
-
-      if (error) throw error;
-
-      alert(`Successfully connected to Facebook Page: ${page.name}! 🎉`);
-      setSocialAccounts(prev => ({ ...prev, facebook: true }));
-    } catch (err) {
-      console.error('Connection error:', err);
-      alert('Failed to connect to Facebook.');
-    }
-  };
-
   const togglePlatform = (id: string) => {
     if (!socialAccounts[id]) {
-      handleConnect(id);
+      alert(`Please connect your ${id} account in the Social Media tab first.`);
       return;
     }
     setSelectedPlatforms(prev =>
@@ -666,43 +626,42 @@ const Content: React.FC = () => {
                     <p className="text-xs text-gray-500">Choose where to publish your post. Select multiple platforms:</p>
                   </div>
                   <div className="flex flex-wrap gap-3">
-                    {platforms.map(p => (
-                      <div key={p.id} className="relative group">
-                        <button
-                          onClick={() => togglePlatform(p.id)}
-                          className={`w-20 h-20 rounded-lg border flex flex-col items-center justify-center gap-2 transition-all group overflow-hidden ${selectedPlatforms.includes(p.id)
-                            ? 'border-blue-500 bg-[#eff8ff]'
-                            : 'border-gray-200 bg-white hover:border-gray-300 shadow-sm'
-                            } ${!socialAccounts[p.id] ? 'opacity-60 grayscale' : ''}`}
-                        >
-                          <div className={`transition-all ${selectedPlatforms.includes(p.id) ? 'scale-110' : 'group-hover:grayscale-0'}`}>
-                            {React.cloneElement(p.icon as React.ReactElement<any>, { size: 32 })}
-                          </div>
-                          {!socialAccounts[p.id] && (
-                            <span className="text-[10px] font-bold text-gray-400">Not Linked</span>
-                          )}
-                        </button>
-                        {!socialAccounts[p.id] && (
+                    {platforms.map(p => {
+                      const isConnected = socialAccounts[p.id];
+                      const isSelected = selectedPlatforms.includes(p.id);
+
+                      return (
+                        <div key={p.id} className="relative group">
                           <button
-                            onClick={(e) => { e.stopPropagation(); handleConnect(p.id); }}
-                            className="absolute -top-2 -right-2 bg-blue-600 text-white p-1 rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity"
-                            title="Connect Account"
+                            onClick={() => togglePlatform(p.id)}
+                            disabled={!isConnected}
+                            className={`w-20 h-20 rounded-lg border flex flex-col items-center justify-center gap-2 transition-all overflow-hidden ${isSelected && isConnected
+                                ? 'border-blue-500 bg-[#eff8ff]'
+                                : isConnected
+                                  ? 'border-gray-200 bg-white hover:border-gray-300 shadow-sm'
+                                  : 'border-gray-200 bg-gray-50 opacity-50 cursor-not-allowed'
+                              }`}
                           >
-                            <Plus size={12} />
+                            <div className={`transition-all ${isSelected && isConnected ? 'scale-110' : !isConnected ? 'grayscale' : ''}`}>
+                              {React.cloneElement(p.icon as React.ReactElement<any>, { size: 32 })}
+                            </div>
+                            {!isConnected && (
+                              <span className="text-[9px] font-bold text-gray-400">Not Connected</span>
+                            )}
                           </button>
-                        )}
-                        {selectedPlatforms.includes(p.id) && (
-                          <div className="absolute bottom-2 left-2 w-4 h-4 bg-blue-600 rounded flex items-center justify-center shadow-sm">
-                            <CheckCircle2 size={10} className="text-white" strokeWidth={4} />
-                          </div>
-                        )}
-                        {socialAccounts[p.id] && (
-                          <div className="absolute bottom-2 right-2">
-                            <CheckCircle2 size={12} className={selectedPlatforms.includes(p.id) ? 'text-blue-500' : 'text-green-500'} />
-                          </div>
-                        )}
-                      </div>
-                    ))}
+                          {isSelected && isConnected && (
+                            <div className="absolute bottom-2 left-2 w-4 h-4 bg-blue-600 rounded flex items-center justify-center shadow-sm">
+                              <CheckCircle2 size={10} className="text-white" strokeWidth={4} />
+                            </div>
+                          )}
+                          {isConnected && (
+                            <div className="absolute bottom-2 right-2">
+                              <CheckCircle2 size={12} className={isSelected ? 'text-blue-500' : 'text-green-500'} />
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-xs font-medium text-gray-500">Accounts Selected: {selectedPlatforms.length} Accounts</span>
