@@ -1,0 +1,8 @@
+{
+  "name": "Engagehub - Unified Business Command",
+  "description": "A comprehensive Buffer-inspired dashboard for solo owner-operators to manage content, CRM, tasks, and AI workflows in one place.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
