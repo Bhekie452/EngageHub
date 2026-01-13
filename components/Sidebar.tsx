@@ -43,8 +43,14 @@ const Sidebar: React.FC<SidebarProps> = ({ currentSection, onSelect, isCollapsed
     <aside
       className={`bg-sidebar border-r border-gray-200 dark:border-slate-800 h-screen transition-all duration-300 flex flex-col fixed left-0 top-0 z-40 theme-transition ${isCollapsed ? 'w-16' : 'w-64'}`}
     >
-      <div className="p-4 flex items-center justify-between border-b border-gray-100 dark:border-slate-800 h-16">
-        {!isCollapsed && <h1 className="text-xl font-black text-brand-600 italic tracking-tighter">Engagehub</h1>}
+      <div className="pt-14 pb-14 flex items-center justify-between border-b border-gray-100 dark:border-slate-800 h-6">
+        {!isCollapsed && (
+          <img
+            src="/nav-logo.jpg"
+            alt="EngageHub"
+            className="h-[102px] w-auto object-contain"
+          />
+        )}
         <button
           onClick={() => setIsCollapsed(!isCollapsed)}
           className="p-1 hover:bg-black/5 dark:hover:bg-white/5 rounded-md text-sidebar-text"
@@ -53,12 +59,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentSection, onSelect, isCollapsed
         </button>
       </div>
 
-      <div className="p-3">
-        <button className={`w-full bg-brand-600 hover:bg-brand-700 text-white rounded-xl flex items-center justify-center gap-2 py-2.5 shadow-lg shadow-brand-100/30 transition-all ${isCollapsed ? 'px-0' : 'px-4'}`}>
-          <Plus size={20} />
-          {!isCollapsed && <span className="font-bold uppercase text-xs tracking-widest">Create</span>}
-        </button>
-      </div>
+
 
       <nav className="flex-1 overflow-y-auto px-2 space-y-1 py-4 no-scrollbar">
         {NAVIGATION_ITEMS.map((item) => (

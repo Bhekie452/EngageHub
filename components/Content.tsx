@@ -35,6 +35,7 @@ import {
   MapPin,
   Save
 } from 'lucide-react';
+import { initFacebookSDK, loginWithFacebook, getPageTokens } from '../src/lib/facebook';
 import { useAuth } from '../src/hooks/useAuth';
 import { supabase } from '../src/lib/supabase';
 import AIStudio from './AIStudio';
@@ -51,12 +52,45 @@ const Content: React.FC = () => {
   const [posts, setPosts] = useState<any[]>([]);
   const [isLoadingPosts, setIsLoadingPosts] = useState(false);
 
-  // Fetch posts when tab changes to a list view
+  // Fetch posts and initialize social accounts
   React.useEffect(() => {
     if (['all', 'all_list', 'drafts', 'scheduled', 'published'].includes(activeTab)) {
       fetchPosts();
     }
   }, [activeTab, user]);
+
+  React.useEffect(() => {
+    if (user) {
+      initFacebookSDK().then(() => {
+        fetchSocialAccounts();
+      });
+    }
+  }, [user]);
+
+  const fetchSocialAccounts = async () => {
+    if (!user) return;
+    try {
+      // Get workspace
+      const { data: workspaces } = await supabase.from('workspaces').select('id').eq('owner_id', user.id).limit(1);
+      if (!workspaces?.length) return;
+
+      const { data } = await supabase
+        .from('social_accounts')
+        .select('platform')
+        .eq('workspace_id', workspaces[0].id)
+        .eq('is_active', true);
+
+      const linked: Record<string, boolean> = {
+        facebook: false, instagram: false, twitter: false, linkedin: false, whatsapp: false
+      };
+      data?.forEach(acc => {
+        linked[acc.platform] = true;
+      });
+      setSocialAccounts(linked);
+    } catch (err) {
+      console.error('Error fetching social accounts:', err);
+    }
+  };
 
   const fetchPosts = async () => {
     if (!user) return;
@@ -94,7 +128,7 @@ const Content: React.FC = () => {
   };
 
   const [postContent, setPostContent] = useState('');
-  const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>(['facebook', 'instagram']);
+  const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([]);
   const [scheduleMode, setScheduleMode] = useState<'now' | 'later'>('now');
   const [isRecur, setIsRecur] = useState(false);
   const [recurFrequency, setRecurFrequency] = useState('Weekly');
@@ -110,7 +144,7 @@ const Content: React.FC = () => {
   const [location, setLocation] = useState('');
   const [showLocationInput, setShowLocationInput] = useState(false);
   const [scheduleDate, setScheduleDate] = useState('');
-  const [scheduleTime, setScheduleTime] = useState('10:00 AM');
+  const [scheduleTime, setScheduleTime] = useState('10:00');
 
   // Refs for file inputs
   const imageInputRef = useRef<HTMLInputElement>(null);
@@ -124,7 +158,59 @@ const Content: React.FC = () => {
     { id: 'whatsapp', icon: <MessageCircle className="text-[#25D366]" />, label: 'WhatsApp' },
   ];
 
+  const [socialAccounts, setSocialAccounts] = useState<Record<string, boolean>>({
+    facebook: false,
+    instagram: false,
+    twitter: false,
+    linkedin: false,
+    whatsapp: false
+  });
+
+  const handleConnect = async (platform: string) => {
+    if (platform !== 'facebook') {
+      alert(`${platform} integration is coming soon! Only Facebook is available for now.`);
+      return;
+    }
+
+    try {
+      const authResponse: any = await loginWithFacebook();
+      const pages: any = await getPageTokens(authResponse.accessToken);
+
+      if (!pages?.length) {
+        alert('No Facebook Pages found associated with your account.');
+        return;
+      }
+
+      // Automatically connect the first page for this startup
+      const page = pages[0];
+
+      const { data: workspaces } = await supabase.from('workspaces').select('id').eq('owner_id', user!.id).limit(1);
+      if (!workspaces?.length) throw new Error('No workspace found');
+
+      const { error } = await supabase.from('social_accounts').upsert({
+        workspace_id: workspaces[0].id,
+        platform: 'facebook',
+        platform_account_id: page.id,
+        account_name: page.name,
+        access_token: page.access_token, // This is the Page Access Token
+        is_active: true
+      }, { onConflict: 'workspace_id,platform,platform_account_id' });
+
+      if (error) throw error;
+
+      alert(`Successfully connected to Facebook Page: ${page.name}! 🎉`);
+      setSocialAccounts(prev => ({ ...prev, facebook: true }));
+    } catch (err) {
+      console.error('Connection error:', err);
+      alert('Failed to connect to Facebook.');
+    }
+  };
+
   const togglePlatform = (id: string) => {
+    if (!socialAccounts[id]) {
+      handleConnect(id);
+      return;
+    }
     setSelectedPlatforms(prev =>
       prev.includes(id) ? prev.filter(p => p !== id) : [...prev, id]
     );
@@ -139,7 +225,7 @@ const Content: React.FC = () => {
         reader.onloadend = () => {
           setUploadedImages(prev => [...prev, reader.result as string]);
         };
-        reader.readAsDataURL(file);
+        reader.readAsDataURL(file as Blob);
       });
     }
   };
@@ -152,7 +238,7 @@ const Content: React.FC = () => {
         reader.onloadend = () => {
           setUploadedVideos(prev => [...prev, reader.result as string]);
         };
-        reader.readAsDataURL(file);
+        reader.readAsDataURL(file as Blob);
       });
     }
   };
@@ -189,6 +275,40 @@ const Content: React.FC = () => {
   // Simple emoji picker data
   const emojis = ['😀', '😃', '😄', '😁', '😆', '😅', '😂', '🤣', '😊', '😇', '🙂', '🙃', '😉', '😌', '😍', '🥰', '😘', '😗', '😙', '😚', '😋', '😛', '😝', '😜', '🤪', '🤨', '🧐', '🤓', '😎', '🥳', '😏', '😒', '😞', '😔', '😟', '😕', '🙁', '☹️', '😣', '😖', '😫', '😩', '🥺', '😢', '😭', '😤', '😠', '😡', '🤬', '🤯', '😳', '🥵', '🥶', '😱', '😨', '😰', '😥', '😓', '🤗', '🤔', '🤭', '🤫', '🤥', '😶', '😐', '😑', '😬', '🙄', '😯', '😦', '😧', '😮', '😲', '🥱', '😴', '🤤', '😪', '😵', '🤐', '🥴', '🤢', '🤮', '🤧', '😷', '🤒', '🤕', '🤑', '🤠', '👍', '👎', '👏', '🙌', '👐', '🤲', '🤝', '🙏', '✍️', '💪', '🦾', '🦿', '🦵', '🦶', '👂', '🦻', '👃', '🧠', '🫀', '🫁', '🦷', '🦴', '👀', '👁️', '👅', '👄', '💋', '🩸', '❤️', '🧡', '💛', '💚', '💙', '💜', '🖤', '🤍', '🤎', '💔', '❣️', '💕', '💞', '💓', '💗', '💖', '💘', '💝', '💟', '☮️', '✝️', '☪️', '🕉️', '☸️', '✡️', '🔯', '🕎', '☯️', '☦️', '🛐', '⛎', '♈', '♉', '♊', '♋', '♌', '♍', '♎', '♏', '♐', '♑', '♒', '♓', '🆔', '⚛️', '🉑', '☢️', '☣️', '📴', '📳', '🈶', '🈚', '🈸', '🈺', '🈷️', '✴️', '🆚', '💮', '🉐', '㊙️', '㊗️', '🈴', '🈵', '🈹', '🈲', '🅰️', '🅱️', '🆎', '🆑', '🅾️', '🆘', '❌', '⭕', '🛑', '⛔', '📛', '🚫', '💯', '💢', '♨️', '🚷', '🚯', '🚳', '🚱', '🔞', '📵', '🚭', '❗', '❕', '❓', '❔', '‼️', '⁉️', '🔅', '🔆', '〽️', '⚠️', '🚸', '🔱', '⚜️', '🔰', '♻️', '✅', '🈯', '💹', '❇️', '✳️', '❎', '🌐', '💠', '➿', '🌀', '✔️', '☑️', '🔘', '🔴', '🟠', '🟡', '🟢', '🔵', '🟣', '⚫', '⚪', '🟤', '🔺', '🔻', '🔸', '🔹', '🔶', '🔷', '🔳', '🔲', '▪️', '▫️', '◾', '◽', '◼️', '◻️', '🟥', '🟧', '🟨', '🟩', '🟦', '🟪', '⬛', '⬜', '🟫', '🔈', '🔇', '🔉', '🔊', '🔔', '🔕', '📣', '📢', '👁️‍🗨️', '💬', '💭', '🗯️', '♠️', '♣️', '♥️', '♦️', '🃏', '🎴', '🀄', '🕐', '🕑', '🕒', '🕓', '🕔', '🕕', '🕖', '🕗', '🕘', '🕙', '🕚', '🕛', '🕜', '🕝', '🕞', '🕟', '🕠', '🕡', '🕢', '🕣', '🕤', '🕥', '🕦', '🕧'];
 
+  const publishToFacebook = async (content: string, mediaUrls: string[]) => {
+    try {
+      const { data: workspaces } = await supabase.from('workspaces').select('id').eq('owner_id', user!.id).limit(1);
+      const { data: account } = await supabase
+        .from('social_accounts')
+        .select('*')
+        .eq('workspace_id', workspaces![0].id)
+        .eq('platform', 'facebook')
+        .eq('is_active', true)
+        .single();
+
+      if (!account) throw new Error('Facebook account not connected');
+
+      // Simple implementation: Post to feed
+      // In a real app, you'd handle images/videos separately via the Graph API
+      const response = await fetch(`https://graph.facebook.com/v21.0/${account.platform_account_id}/feed`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: content,
+          access_token: account.access_token,
+          link: mediaUrls[0] // If there's a media URL, attach it as a link for now
+        })
+      });
+
+      const result = await response.json();
+      if (result.error) throw new Error(result.error.message);
+      return result;
+    } catch (err) {
+      console.error('Facebook publish error:', err);
+      throw err;
+    }
+  };
+
   const handlePostSubmit = async () => {
     if (!postContent.trim() && uploadedImages.length === 0 && uploadedVideos.length === 0) {
       alert('Please add some content to your post!');
@@ -198,6 +318,14 @@ const Content: React.FC = () => {
     if (selectedPlatforms.length === 0) {
       alert('Please select at least one platform!');
       return;
+    }
+
+    // Verify all selected platforms are connected
+    for (const p of selectedPlatforms) {
+      if (!socialAccounts[p]) {
+        alert(`You must connect your ${p} account before you can post to it.`);
+        return;
+      }
     }
 
     setIsSubmitting(true);
@@ -240,6 +368,13 @@ const Content: React.FC = () => {
       const { error } = await supabase.from('posts').insert(postData);
       if (error) throw error;
 
+      // 4. Actual Social Publishing (if 'Post Now')
+      if (scheduleMode === 'now') {
+        if (selectedPlatforms.includes('facebook')) {
+          await publishToFacebook(postContent, [...uploadedImages, ...uploadedVideos]);
+        }
+      }
+
       alert(`Post ${scheduleMode === 'now' ? 'published' : 'scheduled'} successfully! 🎉`);
 
       // Reset form
@@ -250,7 +385,7 @@ const Content: React.FC = () => {
       setScheduleMode('now');
       setIsRecur(false);
       setScheduleDate('');
-      setScheduleTime('10:00 AM');
+      setScheduleTime('10:00');
       setLinkUrl('');
       setLocation('');
       setActiveTab('all');
@@ -291,7 +426,7 @@ const Content: React.FC = () => {
   const renderTabContent = () => {
     switch (activeTab) {
       case 'calendar':
-        return <ContentCalendar />;
+        return <ContentCalendar onNavigateToCreate={() => setActiveTab('create')} />;
 
       case 'templates':
         return <ContentTemplates />;
@@ -311,12 +446,12 @@ const Content: React.FC = () => {
               {/* Left Side: Editor */}
               <div className="lg:col-span-7 p-6 space-y-6 bg-white border-r border-gray-100">
                 {/* Content Area */}
-                <div className="border border-gray-200 rounded-lg overflow-hidden focus-within:ring-2 focus-within:ring-blue-100 transition-all">
+                <div className="border border-gray-200 rounded-lg transition-all relative">
                   <textarea
                     value={postContent}
                     onChange={(e) => setPostContent(e.target.value)}
                     placeholder="Type your post content here... Use #hashtags and @mentions. Add images, videos, or links to engage your audience."
-                    className="w-full h-32 p-4 text-sm font-medium outline-none resize-none placeholder-gray-400 leading-relaxed text-gray-700"
+                    className="w-full h-32 p-4 text-sm font-medium outline-none resize-none placeholder-gray-400 leading-relaxed text-gray-700 rounded-t-lg"
                   />
 
                   {/* Hidden file inputs */}
@@ -532,27 +667,40 @@ const Content: React.FC = () => {
                   </div>
                   <div className="flex flex-wrap gap-3">
                     {platforms.map(p => (
-                      <div key={p.id} className="relative">
+                      <div key={p.id} className="relative group">
                         <button
                           onClick={() => togglePlatform(p.id)}
                           className={`w-20 h-20 rounded-lg border flex flex-col items-center justify-center gap-2 transition-all group overflow-hidden ${selectedPlatforms.includes(p.id)
                             ? 'border-blue-500 bg-[#eff8ff]'
                             : 'border-gray-200 bg-white hover:border-gray-300 shadow-sm'
-                            }`}
+                            } ${!socialAccounts[p.id] ? 'opacity-60 grayscale' : ''}`}
                         >
-                          <div className={`transition-all ${selectedPlatforms.includes(p.id) ? 'scale-110' : 'grayscale group-hover:grayscale-0'}`}>
-                            {/* Fix: cast to React.ReactElement<any> to avoid 'size' prop error */}
+                          <div className={`transition-all ${selectedPlatforms.includes(p.id) ? 'scale-110' : 'group-hover:grayscale-0'}`}>
                             {React.cloneElement(p.icon as React.ReactElement<any>, { size: 32 })}
                           </div>
+                          {!socialAccounts[p.id] && (
+                            <span className="text-[10px] font-bold text-gray-400">Not Linked</span>
+                          )}
                         </button>
+                        {!socialAccounts[p.id] && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleConnect(p.id); }}
+                            className="absolute -top-2 -right-2 bg-blue-600 text-white p-1 rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                            title="Connect Account"
+                          >
+                            <Plus size={12} />
+                          </button>
+                        )}
                         {selectedPlatforms.includes(p.id) && (
                           <div className="absolute bottom-2 left-2 w-4 h-4 bg-blue-600 rounded flex items-center justify-center shadow-sm">
                             <CheckCircle2 size={10} className="text-white" strokeWidth={4} />
                           </div>
                         )}
-                        <div className="absolute bottom-2 right-2">
-                          <CheckCircle2 size={12} className={selectedPlatforms.includes(p.id) ? 'text-blue-500' : 'text-gray-200'} />
-                        </div>
+                        {socialAccounts[p.id] && (
+                          <div className="absolute bottom-2 right-2">
+                            <CheckCircle2 size={12} className={selectedPlatforms.includes(p.id) ? 'text-blue-500' : 'text-green-500'} />
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
