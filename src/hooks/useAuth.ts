@@ -10,13 +10,17 @@ export function useAuth() {
   useEffect(() => {
     let mounted = true;
 
-    // Get initial session
+    // Get initial session (Supabase automatically handles OAuth callbacks from URL hash)
     supabase.auth.getSession()
       .then(({ data: { session } }) => {
         if (mounted) {
           setSession(session);
           setUser(session?.user ?? null);
           setLoading(false);
+          // Clean up OAuth hash from URL after session is loaded
+          if (session && window.location.hash.includes('access_token')) {
+            window.history.replaceState(null, '', window.location.pathname);
+          }
         }
       })
       .catch((error) => {
@@ -37,6 +41,10 @@ export function useAuth() {
         setSession(session);
         setUser(session?.user ?? null);
         setLoading(false);
+        // Clean up hash after auth state change
+        if (session && window.location.hash.includes('access_token')) {
+          window.history.replaceState(null, '', window.location.pathname);
+        }
       }
     });
 
@@ -79,7 +87,7 @@ export function useAuth() {
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider,
       options: {
-        redirectTo: `${window.location.origin}/dashboard`,
+        redirectTo: `${window.location.origin}/`,
       },
     });
     return { data, error };
