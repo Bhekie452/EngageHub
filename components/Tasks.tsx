@@ -134,10 +134,11 @@ const Tasks: React.FC = () => {
       } else {
         await createTask.mutateAsync({
           title: formData.title,
-          description: formData.description,
+          description: formData.description || null,
           due_date: formData.due_date || null,
           priority: formData.priority,
-          status: formData.status
+          status: formData.status,
+          assigned_to: null
         });
       }
       setIsModalOpen(false);
