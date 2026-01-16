@@ -22,10 +22,10 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
-import { useDeals } from './src/hooks/useDeals';
-import { useCurrency } from './src/hooks/useCurrency';
-import { useAuth } from './src/hooks/useAuth';
-import { formatCurrency, formatCompactCurrency, formatCurrencyWithCommas } from './src/lib/currency';
+import { useDeals } from '../src/hooks/useDeals';
+import { useCurrency } from '../src/hooks/useCurrency';
+import { useAuth } from '../src/hooks/useAuth';
+import { formatCurrency, formatCompactCurrency, formatCurrencyWithCommas } from '../src/lib/currency';
 
 type DealsTab = 'pipeline' | 'opportunities' | 'quotes' | 'won' | 'lost' | 'forecast';
 

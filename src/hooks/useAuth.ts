@@ -84,10 +84,13 @@ export function useAuth() {
   };
 
   const signInWithOAuth = async (provider: 'google' | 'facebook') => {
+    // Use current origin (localhost:3000 in dev, vercel URL in prod)
+    const redirectUrl = `${window.location.origin}/`;
+    
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider,
       options: {
-        redirectTo: `${window.location.origin}/`,
+        redirectTo: redirectUrl,
       },
     });
     return { data, error };
