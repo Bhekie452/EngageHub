@@ -64,7 +64,7 @@ function formatTimeAgo(dateString: string): string {
 
 const Deals: React.FC = () => {
   const [activeTab, setActiveTab] = useState<DealsTab>('pipeline');
-  const { deals, wonDeals, lostDeals, isLoading } = useDeals();
+  const { deals, wonDeals, lostDeals, isLoading, error } = useDeals();
   const { symbol } = useCurrency();
   const { user } = useAuth();
 
@@ -182,6 +182,18 @@ const Deals: React.FC = () => {
         <div className="text-center">
           <div className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
           <p className="text-gray-600 font-medium">Loading deals...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
+          <p className="text-gray-600 font-medium mb-2">Error loading deals</p>
+          <p className="text-sm text-gray-400">{error instanceof Error ? error.message : 'Unknown error'}</p>
         </div>
       </div>
     );

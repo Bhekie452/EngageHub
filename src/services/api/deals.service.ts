@@ -42,64 +42,126 @@ export const dealsService = {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('Not authenticated');
 
-    // Get user's workspace_id from profiles
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('id')
-      .eq('id', user.id)
-      .single();
-
-    if (!profile) throw new Error('Profile not found');
-
-    const { data, error } = await supabase
+    // Fetch deals
+    const { data: dealsData, error: dealsError } = await supabase
       .from('deals')
-      .select(`
-        *,
-        pipeline_stages!stage_id(id, name, probability),
-        contacts!contact_id(id, full_name, company_name),
-        companies!company_id(id, name)
-      `)
+      .select('*')
       .eq('owner_id', user.id)
       .order('created_at', { ascending: false });
     
-    if (error) throw error;
-    return data || [];
+    if (dealsError) {
+      console.error('Error fetching deals:', dealsError);
+      throw dealsError;
+    }
+
+    if (!dealsData || dealsData.length === 0) {
+      return [];
+    }
+
+    // Fetch related data
+    const stageIds = [...new Set(dealsData.map(d => d.stage_id).filter(Boolean))];
+    const contactIds = [...new Set(dealsData.map(d => d.contact_id).filter(Boolean))];
+    const companyIds = [...new Set(dealsData.map(d => d.company_id).filter(Boolean))];
+
+    const [stagesResult, contactsResult, companiesResult] = await Promise.all([
+      stageIds.length > 0 
+        ? supabase.from('pipeline_stages').select('id, name, probability').in('id', stageIds)
+        : { data: [], error: null },
+      contactIds.length > 0 
+        ? supabase.from('contacts').select('id, full_name, company_name').in('id', contactIds)
+        : { data: [], error: null },
+      companyIds.length > 0 
+        ? supabase.from('companies').select('id, name').in('id', companyIds)
+        : { data: [], error: null },
+    ]);
+
+    const stagesMap = new Map((stagesResult.data || []).map((s: any) => [s.id, s]));
+    const contactsMap = new Map((contactsResult.data || []).map((c: any) => [c.id, c]));
+    const companiesMap = new Map((companiesResult.data || []).map((c: any) => [c.id, c]));
+
+    // Combine the data
+    return dealsData.map(deal => ({
+      ...deal,
+      pipeline_stages: deal.stage_id ? stagesMap.get(deal.stage_id) : undefined,
+      contacts: deal.contact_id ? contactsMap.get(deal.contact_id) : undefined,
+      companies: deal.company_id ? companiesMap.get(deal.company_id) : undefined,
+    }));
   },
 
   async getById(id: string): Promise<Deal> {
-    const { data, error } = await supabase
+    const { data: deal, error } = await supabase
       .from('deals')
-      .select(`
-        *,
-        pipeline_stages!stage_id(id, name, probability),
-        contacts!contact_id(id, full_name, company_name),
-        companies!company_id(id, name)
-      `)
+      .select('*')
       .eq('id', id)
       .single();
     
-    if (error) throw error;
-    return data;
+    if (error) {
+      console.error('Error fetching deal:', error);
+      throw error;
+    }
+
+    // Fetch related data
+    const [stageResult, contactResult, companyResult] = await Promise.all([
+      deal.stage_id ? supabase.from('pipeline_stages').select('id, name, probability').eq('id', deal.stage_id).single() : { data: null, error: null },
+      deal.contact_id ? supabase.from('contacts').select('id, full_name, company_name').eq('id', deal.contact_id).single() : { data: null, error: null },
+      deal.company_id ? supabase.from('companies').select('id, name').eq('id', deal.company_id).single() : { data: null, error: null },
+    ]);
+
+    return {
+      ...deal,
+      pipeline_stages: stageResult.data || undefined,
+      contacts: contactResult.data || undefined,
+      companies: companyResult.data || undefined,
+    };
   },
 
   async getByStatus(status: 'open' | 'won' | 'lost' | 'abandoned'): Promise<Deal[]> {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('Not authenticated');
 
-    const { data, error } = await supabase
+    const { data: dealsData, error: dealsError } = await supabase
       .from('deals')
-      .select(`
-        *,
-        pipeline_stages!stage_id(id, name, probability),
-        contacts!contact_id(id, full_name, company_name),
-        companies!company_id(id, name)
-      `)
+      .select('*')
       .eq('owner_id', user.id)
       .eq('status', status)
       .order('created_at', { ascending: false });
     
-    if (error) throw error;
-    return data || [];
+    if (dealsError) {
+      console.error('Error fetching deals by status:', dealsError);
+      throw dealsError;
+    }
+
+    if (!dealsData || dealsData.length === 0) {
+      return [];
+    }
+
+    // Fetch related data
+    const stageIds = [...new Set(dealsData.map(d => d.stage_id).filter(Boolean))];
+    const contactIds = [...new Set(dealsData.map(d => d.contact_id).filter(Boolean))];
+    const companyIds = [...new Set(dealsData.map(d => d.company_id).filter(Boolean))];
+
+    const [stagesResult, contactsResult, companiesResult] = await Promise.all([
+      stageIds.length > 0 
+        ? supabase.from('pipeline_stages').select('id, name, probability').in('id', stageIds)
+        : { data: [], error: null },
+      contactIds.length > 0 
+        ? supabase.from('contacts').select('id, full_name, company_name').in('id', contactIds)
+        : { data: [], error: null },
+      companyIds.length > 0 
+        ? supabase.from('companies').select('id, name').in('id', companyIds)
+        : { data: [], error: null },
+    ]);
+
+    const stagesMap = new Map((stagesResult.data || []).map((s: any) => [s.id, s]));
+    const contactsMap = new Map((contactsResult.data || []).map((c: any) => [c.id, c]));
+    const companiesMap = new Map((companiesResult.data || []).map((c: any) => [c.id, c]));
+
+    return dealsData.map(deal => ({
+      ...deal,
+      pipeline_stages: deal.stage_id ? stagesMap.get(deal.stage_id) : undefined,
+      contacts: deal.contact_id ? contactsMap.get(deal.contact_id) : undefined,
+      companies: deal.company_id ? companiesMap.get(deal.company_id) : undefined,
+    }));
   },
 
   async getByStageName(stageName: string): Promise<Deal[]> {
@@ -115,40 +177,27 @@ export const dealsService = {
 
     if (!stages || stages.length === 0) return [];
 
-    const { data, error } = await supabase
-      .from('deals')
-      .select(`
-        *,
-        pipeline_stages!stage_id(id, name, probability),
-        contacts!contact_id(id, full_name, company_name),
-        companies!company_id(id, name)
-      `)
-      .eq('owner_id', user.id)
-      .eq('stage_id', stages[0].id)
-      .eq('status', 'open')
-      .order('created_at', { ascending: false });
-    
-    if (error) throw error;
-    return data || [];
+    return this.getByStatus('open').then(deals => 
+      deals.filter(deal => deal.stage_id === stages[0].id)
+    );
   },
 
-  async create(deal: Omit<Deal, 'id' | 'owner_id' | 'created_at' | 'updated_at' | 'stage' | 'contact' | 'company'>): Promise<Deal> {
+  async create(deal: Omit<Deal, 'id' | 'owner_id' | 'created_at' | 'updated_at' | 'pipeline_stages' | 'contacts' | 'companies'>): Promise<Deal> {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('Not authenticated');
 
     const { data, error } = await supabase
       .from('deals')
       .insert([{ ...deal, owner_id: user.id }])
-      .select(`
-        *,
-        pipeline_stages!stage_id(id, name, probability),
-        contacts!contact_id(id, full_name, company_name),
-        companies!company_id(id, name)
-      `)
+      .select()
       .single();
     
-    if (error) throw error;
-    return data;
+    if (error) {
+      console.error('Error creating deal:', error);
+      throw error;
+    }
+    
+    return this.getById(data.id);
   },
 
   async update(id: string, updates: Partial<Deal>): Promise<Deal> {
@@ -156,16 +205,15 @@ export const dealsService = {
       .from('deals')
       .update(updates)
       .eq('id', id)
-      .select(`
-        *,
-        pipeline_stages!stage_id(id, name, probability),
-        contacts!contact_id(id, full_name, company_name),
-        companies!company_id(id, name)
-      `)
+      .select()
       .single();
     
-    if (error) throw error;
-    return data;
+    if (error) {
+      console.error('Error updating deal:', error);
+      throw error;
+    }
+    
+    return this.getById(data.id);
   },
 
   async delete(id: string): Promise<void> {
@@ -174,6 +222,9 @@ export const dealsService = {
       .delete()
       .eq('id', id);
     
-    if (error) throw error;
+    if (error) {
+      console.error('Error deleting deal:', error);
+      throw error;
+    }
   },
 };
