@@ -9,8 +9,18 @@ export function useDeals() {
     queryFn: dealsService.getAll,
   });
 
+  const { data: wonDeals } = useQuery({
+    queryKey: ['deals', 'won'],
+    queryFn: () => dealsService.getByStatus('won'),
+  });
+
+  const { data: lostDeals } = useQuery({
+    queryKey: ['deals', 'lost'],
+    queryFn: () => dealsService.getByStatus('lost'),
+  });
+
   const createDeal = useMutation({
-    mutationFn: (newDeal: Omit<Deal, 'id' | 'user_id' | 'created_at' | 'updated_at'>) =>
+    mutationFn: (newDeal: Omit<Deal, 'id' | 'owner_id' | 'created_at' | 'updated_at' | 'stage' | 'contact' | 'company'>) =>
       dealsService.create(newDeal),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['deals'] });
@@ -34,6 +44,8 @@ export function useDeals() {
 
   return {
     deals: deals || [],
+    wonDeals: wonDeals || [],
+    lostDeals: lostDeals || [],
     isLoading,
     error,
     createDeal,

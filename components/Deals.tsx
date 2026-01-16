@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { 
   Handshake, 
   Trello, 
@@ -22,20 +22,51 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import { useDeals } from './src/hooks/useDeals';
+import { useCurrency } from './src/hooks/useCurrency';
+import { useAuth } from './src/hooks/useAuth';
+import { formatCurrency, formatCompactCurrency, formatCurrencyWithCommas } from './src/lib/currency';
 
 type DealsTab = 'pipeline' | 'opportunities' | 'quotes' | 'won' | 'lost' | 'forecast';
 
-const forecastData = [
-  { month: 'Jan', projected: 4500, actual: 4200 },
-  { month: 'Feb', projected: 5200, actual: 5100 },
-  { month: 'Mar', projected: 6000, actual: 5800 },
-  { month: 'Apr', projected: 6500, actual: 7100 },
-  { month: 'May', projected: 8000, actual: 0 },
-  { month: 'Jun', projected: 9500, actual: 0 },
-];
+// Map database stage names to UI stage names
+const stageMapping: Record<string, string> = {
+  'discovery': 'Discovery',
+  'qualification': 'Discovery',
+  'lead': 'Discovery',
+  'proposal': 'Proposal',
+  'quotation': 'Proposal',
+  'negotiation': 'Negotiation',
+  'contracting': 'Contracting',
+  'closed-won': 'Won',
+  'closed-lost': 'Lost',
+};
+
+// Default pipeline stages for UI
+const defaultStages = ['Discovery', 'Proposal', 'Negotiation', 'Contracting'];
+
+// Helper function to format time ago
+function formatTimeAgo(dateString: string): string {
+  const date = new Date(dateString);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffMs / 86400000);
+
+  if (diffMins < 1) return 'Just now';
+  if (diffMins < 60) return `${diffMins}m ago`;
+  if (diffHours < 24) return `${diffHours}h ago`;
+  if (diffDays === 1) return '1d ago';
+  if (diffDays < 7) return `${diffDays}d ago`;
+  return date.toLocaleDateString();
+}
 
 const Deals: React.FC = () => {
   const [activeTab, setActiveTab] = useState<DealsTab>('pipeline');
+  const { deals, wonDeals, lostDeals, isLoading } = useDeals();
+  const { symbol } = useCurrency();
+  const { user } = useAuth();
 
   const tabs: { id: DealsTab; label: string; icon: React.ReactNode }[] = [
     { id: 'pipeline', label: 'Deal pipeline', icon: <Trello size={16} /> },
@@ -46,17 +77,122 @@ const Deals: React.FC = () => {
     { id: 'forecast', label: 'Forecast', icon: <LineChart size={16} /> },
   ];
 
+  // Group deals by stage for pipeline view
+  const dealsByStage = useMemo(() => {
+    const grouped: Record<string, typeof deals> = {};
+    defaultStages.forEach(stage => {
+      grouped[stage] = [];
+    });
+
+    deals
+      .filter(deal => deal.status === 'open')
+      .forEach(deal => {
+        const stageName = deal.pipeline_stages?.name || '';
+        const uiStage = stageMapping[stageName.toLowerCase()] || 
+                       (stageName ? stageName : 'Discovery');
+        
+        if (defaultStages.includes(uiStage)) {
+          if (!grouped[uiStage]) grouped[uiStage] = [];
+          grouped[uiStage].push(deal);
+        }
+      });
+
+    return defaultStages.map(stage => ({
+      stage,
+      count: grouped[stage]?.length || 0,
+      total: formatCurrencyWithCommas(
+        (grouped[stage] || []).reduce((sum, deal) => sum + (Number(deal.amount) || 0), 0),
+        symbol
+      ),
+      deals: (grouped[stage] || []).map(deal => ({
+        id: deal.id,
+        name: deal.title,
+        val: formatCompactCurrency(Number(deal.amount) || 0, symbol),
+        day: formatTimeAgo(deal.updated_at || deal.created_at),
+        deal,
+      })),
+    }));
+  }, [deals, symbol]);
+
+  // Get open deals for opportunities tab
+  const openDeals = useMemo(() => {
+    return deals.filter(deal => deal.status === 'open');
+  }, [deals]);
+
+  // Calculate forecast data
+  const forecastData = useMemo(() => {
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const currentMonth = new Date().getMonth();
+    
+    return months.slice(0, 6).map((month, idx) => {
+      const monthIndex = (currentMonth + idx) % 12;
+      const projected = openDeals.reduce((sum, deal) => {
+        if (deal.expected_close_date) {
+          const closeDate = new Date(deal.expected_close_date);
+          if (closeDate.getMonth() === monthIndex) {
+            return sum + (Number(deal.amount) || 0) * (deal.probability / 100);
+          }
+        }
+        return sum;
+      }, 0);
+      
+      const actual = wonDeals.reduce((sum, deal) => {
+        if (deal.actual_close_date) {
+          const closeDate = new Date(deal.actual_close_date);
+          if (closeDate.getMonth() === monthIndex) {
+            return sum + (Number(deal.amount) || 0);
+          }
+        }
+        return sum;
+      }, 0);
+
+      return { month, projected, actual };
+    });
+  }, [openDeals, wonDeals]);
+
+  // Calculate forecast stats
+  const forecastStats = useMemo(() => {
+    const q2Start = new Date(new Date().getFullYear(), 3, 1); // April 1
+    const q2End = new Date(new Date().getFullYear(), 5, 30); // June 30
+    
+    const expectedRevenue = openDeals
+      .filter(deal => {
+        if (!deal.expected_close_date) return false;
+        const closeDate = new Date(deal.expected_close_date);
+        return closeDate >= q2Start && closeDate <= q2End;
+      })
+      .reduce((sum, deal) => sum + (Number(deal.amount) || 0) * (deal.probability / 100), 0);
+
+    const pipelineValue = openDeals.reduce((sum, deal) => sum + (Number(deal.amount) || 0), 0);
+    const highProbabilityDeals = openDeals.filter(deal => deal.probability >= 70).length;
+    const goal = 30000; // You can make this configurable
+    const gap = Math.max(0, goal - expectedRevenue);
+
+    return {
+      expectedRevenue,
+      pipelineValue,
+      highProbabilityDeals,
+      gap,
+    };
+  }, [openDeals]);
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-600 font-medium">Loading deals...</p>
+        </div>
+      </div>
+    );
+  }
+
   const renderTabContent = () => {
     switch (activeTab) {
       case 'pipeline':
         return (
           <div className="flex gap-6 overflow-x-auto pb-6 no-scrollbar h-[calc(100vh-20rem)] min-h-[500px]">
-            {[
-              { stage: 'Discovery', count: 4, total: '$12,500', deals: [{ name: 'Apex Solutions', val: '$3.5k', day: '2d ago' }, { name: 'CloudScale', val: '$9k', day: '5d ago' }] },
-              { stage: 'Proposal', count: 2, total: '$24,000', deals: [{ name: 'Stellar App', val: '$15k', day: '1d ago' }, { name: 'Global Retail', val: '$9k', day: '3d ago' }] },
-              { stage: 'Negotiation', count: 1, total: '$5,000', deals: [{ name: 'BioTech Retainer', val: '$5k', day: 'Just now' }] },
-              { stage: 'Contracting', count: 1, total: '$45,000', deals: [{ name: 'Enterprise Overhaul', val: '$45k', day: '4h ago' }] },
-            ].map((col, idx) => (
+            {dealsByStage.map((col, idx) => (
               <div key={idx} className="min-w-[300px] w-[300px] flex flex-col gap-4">
                 <div className="flex items-center justify-between px-2">
                   <div className="flex items-center gap-2">
@@ -66,8 +202,8 @@ const Deals: React.FC = () => {
                   <p className="text-[10px] font-black text-blue-600 uppercase tracking-widest">{col.total}</p>
                 </div>
                 <div className="bg-gray-100/50 rounded-2xl p-2 flex-1 flex flex-col gap-3 border border-gray-100 overflow-y-auto">
-                  {col.deals.map((deal, i) => (
-                    <div key={i} className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm hover:border-blue-300 transition-all cursor-grab active:cursor-grabbing group">
+                  {col.deals.map((deal) => (
+                    <div key={deal.id} className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm hover:border-blue-300 transition-all cursor-grab active:cursor-grabbing group">
                       <div className="flex justify-between items-start mb-2">
                         <p className="text-sm font-bold text-gray-900 line-clamp-1">{deal.name}</p>
                         <button className="opacity-0 group-hover:opacity-100 transition-all text-gray-300"><MoreVertical size={14} /></button>
@@ -78,7 +214,7 @@ const Deals: React.FC = () => {
                       <div className="flex items-center justify-between pt-3 border-t border-gray-50">
                         <span className="text-sm font-black text-gray-800">{deal.val}</span>
                         <div className="w-6 h-6 rounded-full bg-blue-50 flex items-center justify-center text-[10px] font-black text-blue-600">
-                          {deal.name.charAt(0)}
+                          {deal.name.charAt(0).toUpperCase()}
                         </div>
                       </div>
                     </div>
@@ -94,8 +230,6 @@ const Deals: React.FC = () => {
         );
 
       case 'opportunities':
-      case 'won':
-      case 'lost':
         return (
           <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
              <div className="p-4 border-b border-gray-100 flex flex-col md:flex-row md:items-center justify-between gap-4 bg-gray-50/30">
@@ -123,39 +257,187 @@ const Deals: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
-                  {[
-                    { name: 'Redesign Project', val: '$8,400', prob: '85%', date: 'Jun 15, 2025', color: 'blue' },
-                    { name: 'Mobile App MVP', val: '$12,000', prob: '40%', date: 'Jul 02, 2025', color: 'indigo' },
-                    { name: 'Branding Package', val: '$2,500', prob: '95%', date: 'Jun 05, 2025', color: 'emerald' },
-                  ].map((deal, idx) => (
-                    <tr key={idx} className="hover:bg-gray-50/50 transition-all group">
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-3">
-                          <div className={`w-8 h-8 rounded-full bg-${deal.color}-50 text-${deal.color}-600 flex items-center justify-center font-black text-xs`}>
-                            {deal.name.charAt(0)}
-                          </div>
-                          <span className="text-sm font-bold text-gray-900">{deal.name}</span>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 font-black text-gray-800 text-sm">{deal.val}</td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-2">
-                          <div className="w-24 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                            <div className={`h-full bg-blue-600`} style={{ width: deal.prob }}></div>
-                          </div>
-                          <span className="text-xs font-bold text-gray-500">{deal.prob}</span>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-1.5 text-xs text-gray-500 font-bold uppercase tracking-tighter">
-                          <Calendar size={12} /> {deal.date}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        <button className="p-2 text-gray-300 hover:text-gray-600 opacity-0 group-hover:opacity-100 transition-all"><MoreVertical size={16} /></button>
+                  {openDeals.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="px-6 py-12 text-center text-gray-400">
+                        No opportunities found. Create your first deal to get started.
                       </td>
                     </tr>
-                  ))}
+                  ) : (
+                    openDeals.map((deal) => {
+                      const colors = ['blue', 'indigo', 'emerald', 'purple', 'pink'];
+                      const color = colors[deal.title.length % colors.length];
+                      const closeDate = deal.expected_close_date 
+                        ? new Date(deal.expected_close_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                        : 'Not set';
+                      
+                      return (
+                        <tr key={deal.id} className="hover:bg-gray-50/50 transition-all group">
+                          <td className="px-6 py-4">
+                            <div className="flex items-center gap-3">
+                              <div className={`w-8 h-8 rounded-full bg-${color}-50 text-${color}-600 flex items-center justify-center font-black text-xs`}>
+                                {deal.title.charAt(0).toUpperCase()}
+                              </div>
+                              <span className="text-sm font-bold text-gray-900">{deal.title}</span>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 font-black text-gray-800 text-sm">
+                            {formatCurrencyWithCommas(Number(deal.amount) || 0, symbol)}
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="flex items-center gap-2">
+                              <div className="w-24 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                                <div className="h-full bg-blue-600" style={{ width: `${deal.probability}%` }}></div>
+                              </div>
+                              <span className="text-xs font-bold text-gray-500">{deal.probability}%</span>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="flex items-center gap-1.5 text-xs text-gray-500 font-bold uppercase tracking-tighter">
+                              <Calendar size={12} /> {closeDate}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 text-right">
+                            <button className="p-2 text-gray-300 hover:text-gray-600 opacity-0 group-hover:opacity-100 transition-all"><MoreVertical size={16} /></button>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        );
+
+      case 'won':
+        return (
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+             <div className="p-4 border-b border-gray-100 flex flex-col md:flex-row md:items-center justify-between gap-4 bg-gray-50/30">
+              <div className="relative flex-1 max-w-md">
+                <Search className="absolute left-3 top-2.5 text-gray-400" size={16} />
+                <input 
+                  type="text" 
+                  placeholder="Search won deals..." 
+                  className="w-full pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:ring-4 focus:ring-blue-50 transition-all outline-none"
+                />
+              </div>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left">
+                <thead>
+                  <tr className="text-[10px] font-black text-gray-400 uppercase tracking-widest border-b border-gray-100">
+                    <th className="px-6 py-4">Deal Name</th>
+                    <th className="px-6 py-4">Amount</th>
+                    <th className="px-6 py-4">Closed Date</th>
+                    <th className="px-6 py-4 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {wonDeals.length === 0 ? (
+                    <tr>
+                      <td colSpan={4} className="px-6 py-12 text-center text-gray-400">
+                        No won deals yet. Keep working on your pipeline!
+                      </td>
+                    </tr>
+                  ) : (
+                    wonDeals.map((deal) => {
+                      const closeDate = deal.actual_close_date 
+                        ? new Date(deal.actual_close_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                        : 'Not set';
+                      
+                      return (
+                        <tr key={deal.id} className="hover:bg-gray-50/50 transition-all group">
+                          <td className="px-6 py-4">
+                            <div className="flex items-center gap-3">
+                              <div className="w-8 h-8 rounded-full bg-green-50 text-green-600 flex items-center justify-center font-black text-xs">
+                                {deal.title.charAt(0).toUpperCase()}
+                              </div>
+                              <span className="text-sm font-bold text-gray-900">{deal.title}</span>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 font-black text-gray-800 text-sm">
+                            {formatCurrencyWithCommas(Number(deal.amount) || 0, symbol)}
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="flex items-center gap-1.5 text-xs text-gray-500 font-bold uppercase tracking-tighter">
+                              <Calendar size={12} /> {closeDate}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 text-right">
+                            <button className="p-2 text-gray-300 hover:text-gray-600 opacity-0 group-hover:opacity-100 transition-all"><MoreVertical size={16} /></button>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        );
+
+      case 'lost':
+        return (
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+             <div className="p-4 border-b border-gray-100 flex flex-col md:flex-row md:items-center justify-between gap-4 bg-gray-50/30">
+              <div className="relative flex-1 max-w-md">
+                <Search className="absolute left-3 top-2.5 text-gray-400" size={16} />
+                <input 
+                  type="text" 
+                  placeholder="Search lost deals..." 
+                  className="w-full pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:ring-4 focus:ring-blue-50 transition-all outline-none"
+                />
+              </div>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left">
+                <thead>
+                  <tr className="text-[10px] font-black text-gray-400 uppercase tracking-widest border-b border-gray-100">
+                    <th className="px-6 py-4">Deal Name</th>
+                    <th className="px-6 py-4">Amount</th>
+                    <th className="px-6 py-4">Lost Date</th>
+                    <th className="px-6 py-4 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {lostDeals.length === 0 ? (
+                    <tr>
+                      <td colSpan={4} className="px-6 py-12 text-center text-gray-400">
+                        No lost deals. Great job!
+                      </td>
+                    </tr>
+                  ) : (
+                    lostDeals.map((deal) => {
+                      const closeDate = deal.actual_close_date 
+                        ? new Date(deal.actual_close_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                        : 'Not set';
+                      
+                      return (
+                        <tr key={deal.id} className="hover:bg-gray-50/50 transition-all group">
+                          <td className="px-6 py-4">
+                            <div className="flex items-center gap-3">
+                              <div className="w-8 h-8 rounded-full bg-red-50 text-red-600 flex items-center justify-center font-black text-xs">
+                                {deal.title.charAt(0).toUpperCase()}
+                              </div>
+                              <span className="text-sm font-bold text-gray-900">{deal.title}</span>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 font-black text-gray-800 text-sm">
+                            {formatCurrencyWithCommas(Number(deal.amount) || 0, symbol)}
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="flex items-center gap-1.5 text-xs text-gray-500 font-bold uppercase tracking-tighter">
+                              <Calendar size={12} /> {closeDate}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 text-right">
+                            <button className="p-2 text-gray-300 hover:text-gray-600 opacity-0 group-hover:opacity-100 transition-all"><MoreVertical size={16} /></button>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
                 </tbody>
               </table>
             </div>
@@ -163,35 +445,41 @@ const Deals: React.FC = () => {
         );
 
       case 'quotes':
+        // Quotes are typically proposals in the pipeline - show deals in proposal stage
+        const proposalDeals = dealsByStage.find(s => s.stage === 'Proposal')?.deals || [];
         return (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {[
-              { id: 'Q-2025-001', client: 'Skyline Inc.', val: '$4,200', status: 'Accepted', date: '2 days ago' },
-              { id: 'Q-2025-004', client: 'Oceanic Group', val: '$15,000', status: 'Sent', date: '5h ago' },
-              { id: 'Q-2025-005', client: 'Personal Branding', val: '$1,800', status: 'Draft', date: 'Just now' },
-            ].map((quote, idx) => (
-              <div key={idx} className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm hover:border-blue-200 transition-all group">
-                <div className="flex justify-between items-start mb-6">
-                  <div className="p-2 bg-gray-50 rounded-xl text-gray-400 group-hover:text-blue-500 transition-all">
-                    <FileText size={20} />
-                  </div>
-                  <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full ${
-                    quote.status === 'Accepted' ? 'bg-green-50 text-green-600' :
-                    quote.status === 'Sent' ? 'bg-blue-50 text-blue-600' : 'bg-gray-100 text-gray-500'
-                  }`}>
-                    {quote.status}
-                  </span>
-                </div>
-                <h4 className="text-sm font-black text-gray-400 uppercase tracking-widest mb-1">{quote.id}</h4>
-                <p className="text-lg font-bold text-gray-900 mb-4">{quote.client}</p>
-                <div className="flex items-center justify-between pt-4 border-t border-gray-50">
-                  <span className="text-lg font-black text-gray-800">{quote.val}</span>
-                  <button className="flex items-center gap-1.5 text-[10px] font-black text-blue-600 uppercase tracking-widest">
-                    View <ArrowUpRight size={14} />
-                  </button>
-                </div>
+            {proposalDeals.length === 0 ? (
+              <div className="col-span-full text-center py-12 text-gray-400">
+                No quotes available. Create deals in the Proposal stage to see them here.
               </div>
-            ))}
+            ) : (
+              proposalDeals.map((deal) => {
+                const status = 'Sent'; // You can add a status field to deals if needed
+                return (
+                  <div key={deal.id} className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm hover:border-blue-200 transition-all group">
+                    <div className="flex justify-between items-start mb-6">
+                      <div className="p-2 bg-gray-50 rounded-xl text-gray-400 group-hover:text-blue-500 transition-all">
+                        <FileText size={20} />
+                      </div>
+                      <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-blue-50 text-blue-600">
+                        {status}
+                      </span>
+                    </div>
+                    <h4 className="text-sm font-black text-gray-400 uppercase tracking-widest mb-1">
+                      {deal.deal.contacts?.full_name || deal.deal.companies?.name || 'Quote'}
+                    </h4>
+                    <p className="text-lg font-bold text-gray-900 mb-4">{deal.name}</p>
+                    <div className="flex items-center justify-between pt-4 border-t border-gray-50">
+                      <span className="text-lg font-black text-gray-800">{deal.val}</span>
+                      <button className="flex items-center gap-1.5 text-[10px] font-black text-blue-600 uppercase tracking-widest">
+                        View <ArrowUpRight size={14} />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })
+            )}
             <button className="border-2 border-dashed border-gray-200 rounded-2xl p-6 flex flex-col items-center justify-center gap-3 hover:border-blue-300 hover:bg-blue-50 transition-all group">
               <Plus size={24} className="text-gray-300 group-hover:text-blue-600" />
               <p className="text-xs font-bold text-gray-400 group-hover:text-blue-600 uppercase">New Quote</p>
@@ -205,21 +493,29 @@ const Deals: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm">
                 <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Expected Revenue (Q2)</p>
-                <p className="text-3xl font-black mt-2 text-gray-900">$24,500</p>
+                <p className="text-3xl font-black mt-2 text-gray-900">
+                  {formatCurrencyWithCommas(forecastStats.expectedRevenue, symbol)}
+                </p>
                 <div className="flex items-center gap-2 mt-2 text-green-500 font-bold text-xs">
-                  <TrendingUp size={14} /> +18% from Q1
+                  <TrendingUp size={14} /> Based on probability
                 </div>
               </div>
               <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm">
                 <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Pipeline Value</p>
-                <p className="text-3xl font-black mt-2 text-gray-900">$86,500</p>
-                <p className="text-[10px] text-gray-400 font-bold mt-2 uppercase">8 High Probability Deals</p>
+                <p className="text-3xl font-black mt-2 text-gray-900">
+                  {formatCurrencyWithCommas(forecastStats.pipelineValue, symbol)}
+                </p>
+                <p className="text-[10px] text-gray-400 font-bold mt-2 uppercase">
+                  {forecastStats.highProbabilityDeals} High Probability Deals
+                </p>
               </div>
               <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm border-l-4 border-l-orange-400">
                 <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Gap to Goal</p>
-                <p className="text-3xl font-black mt-2 text-orange-600">$5,500</p>
+                <p className="text-3xl font-black mt-2 text-orange-600">
+                  {formatCurrencyWithCommas(forecastStats.gap, symbol)}
+                </p>
                 <div className="flex items-center gap-2 mt-2 text-gray-400 font-bold text-xs">
-                  <AlertCircle size={14} /> Needs 2 more closed deals
+                  <AlertCircle size={14} /> {forecastStats.gap > 0 ? 'Needs more closed deals' : 'Goal achieved!'}
                 </div>
               </div>
             </div>
@@ -243,10 +539,11 @@ const Deals: React.FC = () => {
                   <BarChart data={forecastData}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
                     <XAxis dataKey="month" stroke="#9ca3af" fontSize={10} tickLine={false} axisLine={false} />
-                    <YAxis stroke="#9ca3af" fontSize={10} tickLine={false} axisLine={false} tickFormatter={(v) => `$${v/1000}k`} />
+                    <YAxis stroke="#9ca3af" fontSize={10} tickLine={false} axisLine={false} tickFormatter={(v) => `${symbol}${(v/1000).toFixed(0)}k`} />
                     <Tooltip 
                       contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)' }}
                       cursor={{fill: '#f9fafb'}}
+                      formatter={(value: number) => formatCurrencyWithCommas(value, symbol)}
                     />
                     <Bar dataKey="projected" fill="#3b82f6" radius={[4, 4, 0, 0]} barSize={24} />
                     <Bar dataKey="actual" fill="#10b981" radius={[4, 4, 0, 0]} barSize={24} />
