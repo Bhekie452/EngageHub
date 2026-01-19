@@ -38,8 +38,106 @@ const SocialMedia: React.FC = () => {
     if (user) {
       initFacebookSDK();
       fetchConnectedAccounts();
+      
+      // Handle Facebook OAuth callback
+      const urlParams = new URLSearchParams(window.location.search);
+      const code = urlParams.get('code');
+      const state = urlParams.get('state');
+      
+      if (code && state === 'facebook_oauth') {
+        handleFacebookCallback(code);
+      }
     }
   }, [user]);
+
+  const handleFacebookCallback = async (code: string) => {
+    setIsLoading(true);
+    try {
+      // Exchange code for access token using backend or direct method
+      const backendUrl = import.meta.env.VITE_API_URL || '';
+      let accessToken: string;
+
+      if (backendUrl) {
+        // Use backend endpoint (recommended for production)
+        const response = await fetch(`${backendUrl}/api/facebook/token`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            code, 
+            redirectUri: `${window.location.origin}${window.location.pathname}${window.location.hash || ''}` 
+          })
+        });
+        
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.message || 'Token exchange failed');
+        }
+        
+        const data = await response.json();
+        accessToken = data.access_token;
+      } else {
+        // No backend configured - show setup instructions
+        const setupMsg = `🔧 Facebook OAuth Setup Required
+
+For production, you need a backend server to securely exchange the OAuth code for an access token.
+
+Options:
+1. Set up a backend API endpoint (recommended)
+   - Create endpoint: POST /api/facebook/token
+   - Set VITE_API_URL in Vercel environment variables
+   
+2. Use Supabase Edge Functions
+   - Create a function to handle token exchange
+   
+3. Configure Facebook App properly
+   - Make sure your domain is in Valid OAuth Redirect URIs
+   - App should be in Live mode or add test users
+
+Current domain: ${window.location.origin}
+Facebook App ID: ${import.meta.env.VITE_FACEBOOK_APP_ID || '1621732999001688'}
+
+See FACEBOOK_SETUP.md for detailed instructions.`;
+
+        alert(setupMsg);
+        setIsLoading(false);
+        // Clean up URL
+        const returnUrl = sessionStorage.getItem('facebook_oauth_return') || window.location.pathname;
+        window.history.replaceState({}, '', returnUrl);
+        sessionStorage.removeItem('facebook_oauth_return');
+        return;
+      }
+
+      const pages: any = await getPageTokens(accessToken);
+
+      if (!pages?.length) {
+        alert('No Facebook Pages found. Please make sure you have at least one Facebook Page.');
+        return;
+      }
+
+      const page = pages[0];
+      const { data: workspaces } = await supabase.from('workspaces').select('id').eq('owner_id', user!.id).limit(1);
+      if (!workspaces?.length) throw new Error('No workspace found');
+
+      const { error } = await supabase.from('social_accounts').upsert({
+        workspace_id: workspaces[0].id,
+        platform: 'facebook',
+        platform_account_id: page.id,
+        account_name: page.name,
+        access_token: page.access_token,
+        is_active: true
+      }, { onConflict: 'workspace_id,platform,platform_account_id' });
+
+      if (error) throw error;
+
+      alert(`✅ Connected to Facebook Page: ${page.name}!`);
+      fetchConnectedAccounts();
+    } catch (err: any) {
+      console.error('Facebook callback error:', err);
+      alert(`Failed to connect to Facebook: ${err.message || 'Unknown error'}`);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const fetchConnectedAccounts = async () => {
     if (!user) return;
@@ -63,12 +161,25 @@ const SocialMedia: React.FC = () => {
   };
 
   const handleConnectFacebook = async () => {
+    if (!user) {
+      alert('Please log in first');
+      return;
+    }
+
+    setIsLoading(true);
     try {
       const authResponse: any = await loginWithFacebook();
+      
+      // If we got redirected, the callback handler will process it
+      if (!authResponse || !authResponse.accessToken) {
+        // OAuth redirect happened, callback will handle it
+        return;
+      }
+
       const pages: any = await getPageTokens(authResponse.accessToken);
 
       if (!pages?.length) {
-        alert('No Facebook Pages found.');
+        alert('No Facebook Pages found. Please make sure you have at least one Facebook Page associated with your account.');
         return;
       }
 
@@ -87,11 +198,45 @@ const SocialMedia: React.FC = () => {
 
       if (error) throw error;
 
-      alert(`Connected to Facebook Page: ${page.name}!`);
+      alert(`✅ Connected to Facebook Page: ${page.name}!`);
       fetchConnectedAccounts();
-    } catch (err) {
+    } catch (err: any) {
       console.error('Connection error:', err);
-      alert('Failed to connect to Facebook.');
+      
+      // Provide helpful error messages with setup instructions
+      let errorMessage = 'Failed to connect to Facebook.\n\n';
+      
+      if (err.message?.includes('LOCALHOST_SETUP_REQUIRED')) {
+        errorMessage = err.message.replace('LOCALHOST_SETUP_REQUIRED: ', '') + '\n\n';
+        errorMessage += '📋 Quick Setup Steps:\n';
+        errorMessage += '1. Go to https://developers.facebook.com/apps/\n';
+        errorMessage += '2. Select your app\n';
+        errorMessage += '3. Settings → Basic → Add "localhost" to App Domains\n';
+        errorMessage += '4. Add "http://localhost:3000" to Valid OAuth Redirect URIs\n';
+        errorMessage += '5. For production, deploy with HTTPS\n\n';
+        errorMessage += 'Would you like to open Facebook Developer docs?';
+        
+        if (confirm(errorMessage)) {
+          window.open('https://developers.facebook.com/docs/facebook-login/web', '_blank');
+        }
+      } else if (err.message?.includes('App Domains')) {
+        errorMessage = 'Facebook App configuration error:\n\nPlease add "localhost" to your Facebook App\'s App Domains in Facebook Developer settings.\n\n';
+        errorMessage += 'Go to: Settings → Basic → App Domains';
+      } else if (err.message?.includes('HTTPS') || err.message?.includes('http pages')) {
+        errorMessage = 'Facebook requires HTTPS for the SDK login method.\n\n';
+        errorMessage += 'For localhost development:\n';
+        errorMessage += '• Configure your Facebook App for localhost (see instructions above)\n';
+        errorMessage += '• Or use ngrok to create an HTTPS tunnel\n';
+        errorMessage += '• Or deploy to production (HTTPS required)';
+        alert(errorMessage);
+      } else if (err.message) {
+        errorMessage = `Facebook connection error:\n\n${err.message}`;
+        alert(errorMessage);
+      } else {
+        alert(errorMessage + 'Please check your Facebook App configuration.');
+      }
+    } finally {
+      setIsLoading(false);
     }
   };
 

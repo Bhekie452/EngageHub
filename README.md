@@ -22,10 +22,21 @@
    ```
 
 2. **Set up environment variables:**
-   Create a `.env.local` file:
+   Create a `.env.local` file in the project root:
    ```env
+   # Required
+   VITE_SUPABASE_URL=https://your-project.supabase.co
+   VITE_SUPABASE_ANON_KEY=your-anon-key-here
+   
+   # Required for Facebook OAuth
+   VITE_API_URL=http://localhost:8000
+   
+   # Optional
    VITE_GEMINI_API_KEY=your_api_key_here
+   VITE_FACEBOOK_APP_ID=your-facebook-app-id
    ```
+   
+   See [ENVIRONMENT_VARIABLES.md](./ENVIRONMENT_VARIABLES.md) for detailed setup instructions.
 
 3. **Run the development server:**
    ```bash
