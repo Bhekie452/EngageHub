@@ -79,13 +79,87 @@ VITE_API_URL=https://your-backend-api.com
 
 ## ⚠️ Common Issues
 
+### ❌ "Feature Unavailable - Facebook Login is currently unavailable for this app"
+
+**This is the most common error!** It means your Facebook App needs additional configuration.
+
+**Step-by-Step Fix:**
+
+1. **Go to Facebook Developers Console:**
+   - Visit: https://developers.facebook.com/apps/
+   - Click on your app (ID: `1621732999001688`)
+
+2. **Complete App Details:**
+   - Go to **Settings** → **Basic**
+   - Fill in ALL required fields:
+     - **App Name** ✅
+     - **App Contact Email** ✅
+     - **Privacy Policy URL** ✅ (Required for production)
+     - **Terms of Service URL** (if applicable)
+     - **Category** ✅
+     - **App Icon** ✅ (at least 1024x1024px)
+
+3. **Add App Domains:**
+   - In **Settings** → **Basic**
+   - Scroll to **App Domains**
+   - Add: `engage-hub-ten.vercel.app` (your production domain)
+   - Add: `localhost` (for development)
+
+4. **Configure OAuth Redirect URIs:**
+   - Scroll down to **Valid OAuth Redirect URIs**
+   - Add these URLs (one per line):
+     ```
+     https://engage-hub-ten.vercel.app
+     https://engage-hub-ten.vercel.app/
+     https://engage-hub-ten.vercel.app/#
+     http://localhost:3000
+     http://localhost:3000/
+     ```
+
+5. **Switch to Live Mode (or Add Test Users):**
+   - Go to **Settings** → **Basic**
+   - Scroll to the bottom
+   - Toggle **App Mode** from **Development** to **Live**
+   - **OR** if you want to keep it in Development mode:
+     - Go to **Roles** → **Test Users**
+     - Add yourself as a test user
+     - Add your Facebook account email
+
+6. **Add Required Permissions:**
+   - Go to **App Review** → **Permissions and Features**
+   - Request these permissions (if not already approved):
+     - `pages_manage_posts`
+     - `pages_read_engagement`
+     - `public_profile`
+
+7. **Save All Changes:**
+   - Click **Save Changes** on each page
+   - Wait 5-10 minutes for changes to propagate
+
+8. **Test Again:**
+   - Try connecting Facebook again
+   - If still not working, check the **App Review** section for any pending reviews
+
+**Quick Checklist:**
+- ✅ App Name filled in
+- ✅ Contact Email added
+- ✅ Privacy Policy URL added (can be a placeholder for testing)
+- ✅ App Domains configured
+- ✅ OAuth Redirect URIs added
+- ✅ App is in Live mode OR you're added as a test user
+- ✅ All changes saved
+
+**Note:** If your app is in Development mode, only test users can use it. For production, you need to switch to Live mode or submit for App Review.
+
+---
+
 ### "The method FB.login can no longer be called from http pages"
 
 **Solution:** This is expected on localhost. The app now uses a redirect-based OAuth flow for HTTP/localhost. Make sure you've configured your Facebook App as described above.
 
 ### "The domain of this URL isn't included in the app's domains"
 
-**Solution:** Add `localhost` to your Facebook App's **App Domains** in Facebook Developer settings.
+**Solution:** Add `localhost` and your production domain to your Facebook App's **App Domains** in Facebook Developer settings.
 
 ### "Connection error: User cancelled login"
 
