@@ -9,10 +9,47 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
  * POST /api/facebook/token
  * Body: { code: string, redirectUri: string }
  */
+
+// Allowed origins for CORS
+const ALLOWED_ORIGINS = [
+  'http://localhost:3000',
+  'http://127.0.0.1:3000',
+  'https://engage-hub-ten.vercel.app',
+];
+
+// Helper function to set CORS headers
+function setCORSHeaders(req: VercelRequest, res: VercelResponse) {
+  const origin = req.headers.origin || '';
+  
+  // Check if origin is allowed
+  if (ALLOWED_ORIGINS.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  } else if (origin.includes('localhost') || origin.includes('127.0.0.1')) {
+    // Allow any localhost for development
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  } else if (origin.includes('vercel.app')) {
+    // Allow any Vercel preview deployments
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  }
+  
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Max-Age', '86400'); // 24 hours
+}
+
 export default async function handler(
   req: VercelRequest,
   res: VercelResponse
 ) {
+  // Handle preflight OPTIONS request
+  if (req.method === 'OPTIONS') {
+    setCORSHeaders(req, res);
+    return res.status(200).end();
+  }
+
+  // Set CORS headers for actual request
+  setCORSHeaders(req, res);
+
   // Only allow POST requests
   if (req.method !== 'POST') {
     return res.status(405).json({ 
