@@ -4,6 +4,21 @@
  * Uses redirect-based OAuth for localhost compatibility (Facebook requires HTTPS for SDK login)
  */
 
+// TypeScript types for Facebook SDK
+declare global {
+    interface Window {
+        FB?: {
+            init: (config: { appId: string; cookie: boolean; xfbml: boolean; version: string }) => void;
+            login: (callback: (response: any) => void, options?: { scope?: string }) => void;
+            getLoginStatus: (callback: (response: any) => void) => void;
+            api: (path: string, callback: (response: any) => void) => void;
+            api: (path: string, method: string, callback: (response: any) => void) => void;
+            api: (path: string, method: string, params: any, callback: (response: any) => void) => void;
+        };
+        fbAsyncInit?: () => void;
+    }
+}
+
 const FB_APP_ID = import.meta.env.VITE_FACEBOOK_APP_ID || '1621732999001688';
 
 /**
@@ -35,11 +50,16 @@ if (typeof window !== 'undefined' && import.meta.env.DEV) {
  */
 export const initFacebookSDK = () => {
     return new Promise((resolve, reject) => {
-        // Only initialize SDK if we're on HTTPS or production
-        if (window.location.protocol === 'https:' || window.location.hostname !== 'localhost') {
+        // For testing: allow SDK initialization on localhost if explicitly enabled
+        const allowLocalhostSDK = import.meta.env.VITE_FACEBOOK_SDK_LOCALHOST === 'true';
+        const isHTTPS = window.location.protocol === 'https:';
+        const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+        
+        // Initialize SDK if HTTPS or if explicitly enabled for localhost testing
+        if (isHTTPS || (allowLocalhostSDK && isLocalhost)) {
             // Check if SDK is already loaded
-            if ((window as any).FB) {
-                console.log('Facebook SDK already initialized');
+            if (window.FB) {
+                console.log('✅ Facebook SDK already initialized');
                 resolve(true);
                 return;
             }
@@ -54,22 +74,26 @@ export const initFacebookSDK = () => {
             // Store original fbAsyncInit if it exists
             const originalFbAsyncInit = (window as any).fbAsyncInit;
 
-            (window as any).fbAsyncInit = function () {
+            window.fbAsyncInit = function () {
                 try {
                     clearTimeout(loadTimeout);
-                    (window as any).FB.init({
+                    if (!window.FB) {
+                        throw new Error('FB object not available');
+                    }
+                    window.FB.init({
                         appId: FB_APP_ID,
                         cookie: true,
                         xfbml: true,
                         version: 'v21.0'
                     });
-                    console.log('Facebook SDK Initialized');
+                    console.log('✅ Facebook SDK Initialized successfully');
+                    console.log('📱 App ID:', FB_APP_ID);
                     resolve(true);
                 } catch (err: any) {
                     clearTimeout(loadTimeout);
-                    console.error('Facebook SDK init error:', err);
+                    console.error('❌ Facebook SDK init error:', err);
                     // Don't reject - allow fallback to redirect OAuth
-                    console.warn('Falling back to redirect OAuth method');
+                    console.warn('⚠️ Falling back to redirect OAuth method');
                     resolve(false);
                 }
             };
@@ -85,10 +109,11 @@ export const initFacebookSDK = () => {
                         // Wait a bit for the existing script to initialize
                         setTimeout(() => {
                             clearTimeout(loadTimeout);
-                            if ((window as any).FB) {
+                            if (window.FB) {
+                                console.log('✅ Facebook SDK loaded from existing script');
                                 resolve(true);
                             } else {
-                                console.warn('Facebook SDK script exists but not initialized - using redirect OAuth');
+                                console.warn('⚠️ Facebook SDK script exists but not initialized - using redirect OAuth');
                                 resolve(false);
                             }
                         }, 2000);
