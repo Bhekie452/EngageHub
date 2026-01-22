@@ -17,8 +17,8 @@ Go to **Vercel Dashboard → Your Project → Settings → Environment Variables
 
 **Required Variables:**
 ```
-✅ VITE_LINKEDIN_CLIENT_ID = 7760ifhjg06le0 (Frontend)
-✅ LINKEDIN_CLIENT_ID = 7760ifhjg06le0 (Backend - CRITICAL!)
+✅ VITE_LINKEDIN_CLIENT_ID = 776oifhjg06le0 (Frontend - note: letter 'o', not zero '0')
+✅ LINKEDIN_CLIENT_ID = 776oifhjg06le0 (Backend - CRITICAL! - note: letter 'o', not zero '0')
 ✅ LINKEDIN_CLIENT_SECRET = your_secret_here (Backend - CRITICAL!)
 ✅ VITE_API_URL = https://engage-hub-ten.vercel.app (Frontend)
 ```
