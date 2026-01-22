@@ -5,19 +5,29 @@
  */
 
 const FB_APP_ID = import.meta.env.VITE_FACEBOOK_APP_ID || '1621732999001688';
-const REDIRECT_URI = typeof window !== 'undefined' 
-    ? `${window.location.origin}${window.location.pathname}${window.location.hash || ''}`
-    : 'http://localhost:3000';
 
-// Debug: Log the redirect URI being used
-if (typeof window !== 'undefined') {
-    console.log('🔍 Facebook OAuth Debug Info:');
-    console.log('App ID:', FB_APP_ID);
-    console.log('Redirect URI:', REDIRECT_URI);
-    console.log('Full URL:', window.location.href);
-    console.log('Origin:', window.location.origin);
-    console.log('Pathname:', window.location.pathname);
-    console.log('Hash:', window.location.hash);
+/**
+ * Get redirect URI (calculated at call time to avoid hydration issues)
+ */
+const getRedirectURI = (): string => {
+    if (typeof window === 'undefined') {
+        return 'http://localhost:3000';
+    }
+    return `${window.location.origin}${window.location.pathname}${window.location.hash || ''}`;
+};
+
+// Debug: Log the redirect URI being used (only in development)
+if (typeof window !== 'undefined' && import.meta.env.DEV) {
+    // Use setTimeout to avoid hydration issues
+    setTimeout(() => {
+        console.log('🔍 Facebook OAuth Debug Info:');
+        console.log('App ID:', FB_APP_ID);
+        console.log('Redirect URI:', getRedirectURI());
+        console.log('Full URL:', window.location.href);
+        console.log('Origin:', window.location.origin);
+        console.log('Pathname:', window.location.pathname);
+        console.log('Hash:', window.location.hash);
+    }, 0);
 }
 
 /**
@@ -175,7 +185,8 @@ export const loginWithFacebook = () => {
                                 console.warn('Facebook SDK login failed or cancelled, using redirect OAuth');
                                 const scope = 'pages_manage_posts,pages_read_engagement,pages_show_list,public_profile';
                                 const state = 'facebook_oauth';
-                                const authUrl = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${FB_APP_ID}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&scope=${encodeURIComponent(scope)}&state=${state}&response_type=code`;
+                                const redirectUri = getRedirectURI();
+                                const authUrl = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${FB_APP_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}&state=${state}&response_type=code`;
                                 
                                 sessionStorage.setItem('facebook_oauth_return', window.location.href);
                                 window.location.href = authUrl;
@@ -189,7 +200,8 @@ export const loginWithFacebook = () => {
                         console.warn('Facebook SDK login error, using redirect OAuth:', err);
                         const scope = 'pages_manage_posts,pages_read_engagement,public_profile';
                         const state = 'facebook_oauth';
-                        const authUrl = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${FB_APP_ID}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&scope=${encodeURIComponent(scope)}&state=${state}&response_type=code`;
+                        const redirectUri = getRedirectURI();
+                        const authUrl = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${FB_APP_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}&state=${state}&response_type=code`;
                         
                         sessionStorage.setItem('facebook_oauth_return', window.location.href);
                         window.location.href = authUrl;
@@ -200,7 +212,8 @@ export const loginWithFacebook = () => {
                     console.warn('Facebook SDK not ready, using redirect OAuth:', err);
                     const scope = 'pages_manage_posts,pages_read_engagement,public_profile';
                     const state = 'facebook_oauth';
-                    const authUrl = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${FB_APP_ID}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&scope=${encodeURIComponent(scope)}&state=${state}&response_type=code`;
+                    const redirectUri = getRedirectURI();
+                    const authUrl = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${FB_APP_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}&state=${state}&response_type=code`;
                     
                     sessionStorage.setItem('facebook_oauth_return', window.location.href);
                     window.location.href = authUrl;
@@ -223,7 +236,8 @@ export const loginWithFacebook = () => {
             // Use redirect OAuth for HTTP (non-localhost)
             const scope = 'pages_manage_posts,pages_read_engagement,public_profile';
             const state = 'facebook_oauth';
-            const authUrl = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${FB_APP_ID}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&scope=${encodeURIComponent(scope)}&state=${state}&response_type=code`;
+            const redirectUri = getRedirectURI();
+            const authUrl = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${FB_APP_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}&state=${state}&response_type=code`;
             
             // Store the current URL to return to after OAuth
             sessionStorage.setItem('facebook_oauth_return', window.location.href);
@@ -249,7 +263,7 @@ const exchangeCodeForToken = async (code: string): Promise<any> => {
             const response = await fetch(`${backendUrl}/api/facebook/token`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ code, redirectUri: REDIRECT_URI })
+                body: JSON.stringify({ code, redirectUri: getRedirectURI() })
             });
             
             if (!response.ok) {

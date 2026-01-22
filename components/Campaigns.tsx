@@ -1202,6 +1202,12 @@ const ManageCampaignModal: React.FC<{ isOpen: boolean; onClose: () => void; camp
             const campaignIdHash = campaign.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
             
             // Time series data for last 30 days
+            // Use seeded random to avoid hydration mismatches
+            const seededRandom = (seed: number) => {
+              const x = Math.sin(seed) * 10000;
+              return x - Math.floor(x);
+            };
+            
             const generateTimeSeries = () => {
               const days = 30;
               const startDate = new Date(campaign.start_date);
@@ -1210,12 +1216,13 @@ const ManageCampaignModal: React.FC<{ isOpen: boolean; onClose: () => void; camp
                 const date = new Date(startDate);
                 date.setDate(date.getDate() + i);
                 const base = campaignIdHash % 100;
+                const seed = campaignIdHash + i;
                 series.push({
                   date: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-                  impressions: base * 50 + Math.floor(Math.random() * 200) + (i * 10),
-                  clicks: base * 20 + Math.floor(Math.random() * 80) + (i * 5),
-                  conversions: base * 5 + Math.floor(Math.random() * 20) + (i * 2),
-                  cost: base * 2 + Math.floor(Math.random() * 10) + (i * 0.5),
+                  impressions: base * 50 + Math.floor(seededRandom(seed) * 200) + (i * 10),
+                  clicks: base * 20 + Math.floor(seededRandom(seed + 1) * 80) + (i * 5),
+                  conversions: base * 5 + Math.floor(seededRandom(seed + 2) * 20) + (i * 2),
+                  cost: base * 2 + Math.floor(seededRandom(seed + 3) * 10) + (i * 0.5),
                 });
               }
               return series;
