@@ -44,10 +44,57 @@ const SocialMedia: React.FC = () => {
       });
       fetchConnectedAccounts();
       
-      // Handle Facebook OAuth callback
+      // Handle Facebook OAuth callback and errors
       const urlParams = new URLSearchParams(window.location.search);
       const code = urlParams.get('code');
       const state = urlParams.get('state');
+      const errorCode = urlParams.get('error_code');
+      const errorMessage = urlParams.get('error_message');
+      
+      // Handle Facebook OAuth errors
+      if (errorCode || errorMessage) {
+        const decodedMessage = errorMessage ? decodeURIComponent(errorMessage) : '';
+        
+        // Facebook Error 1349220: Feature Unavailable
+        if (errorCode === '1349220' || decodedMessage.includes('Feature Unavailable')) {
+          const setupMessage = `🔴 Facebook App Configuration Required\n\n` +
+            `Error Code: ${errorCode}\n` +
+            `Facebook Login is currently unavailable because your Facebook App needs additional configuration.\n\n` +
+            `✅ Quick Fix Steps:\n\n` +
+            `1. Go to: https://developers.facebook.com/apps/1621732999001688\n` +
+            `2. Complete Basic Settings:\n` +
+            `   • Fill in all required fields (App Name, Contact Email, Privacy Policy URL)\n` +
+            `   • Add App Domain: engage-hub-ten.vercel.app\n` +
+            `   • Add Website: https://engage-hub-ten.vercel.app\n\n` +
+            `3. Configure Facebook Login:\n` +
+            `   • Go to Products → Facebook Login → Settings\n` +
+            `   • Add Valid OAuth Redirect URIs:\n` +
+            `     - https://engage-hub-ten.vercel.app\n` +
+            `     - http://localhost:3000\n\n` +
+            `4. Add Pages Product:\n` +
+            `   • Go to Products → Add Product → Pages\n` +
+            `   • Click "Set Up"\n\n` +
+            `5. Wait 5-10 minutes after making changes\n\n` +
+            `📖 See FACEBOOK_FEATURE_UNAVAILABLE_FIX.md for detailed instructions.`;
+          
+          alert(setupMessage);
+          
+          // Clean up URL
+          const cleanUrl = window.location.pathname + (window.location.hash || '');
+          window.history.replaceState({}, '', cleanUrl);
+          return;
+        }
+        
+        // Other Facebook errors
+        if (errorCode || errorMessage) {
+          alert(`Facebook OAuth Error:\n\nCode: ${errorCode || 'Unknown'}\nMessage: ${decodedMessage || 'Unknown error'}\n\nPlease check your Facebook App configuration.`);
+          
+          // Clean up URL
+          const cleanUrl = window.location.pathname + (window.location.hash || '');
+          window.history.replaceState({}, '', cleanUrl);
+          return;
+        }
+      }
       
       if (code && state === 'facebook_oauth') {
         handleFacebookCallback(code);
@@ -790,7 +837,32 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
       sessionStorage.removeItem('youtube_oauth_return');
     } catch (err: any) {
       console.error('YouTube callback error:', err);
-      alert(`Failed to connect YouTube: ${err.message || 'Unknown error'}`);
+      
+      let errorMessage = 'Failed to connect to YouTube.\n\n';
+      
+      if (err.message?.includes('Client ID not configured') || err.message?.includes('requires a backend')) {
+        errorMessage = `🔴 YouTube Setup Required\n\n`;
+        errorMessage += err.message + '\n\n';
+        
+        const isProduction = window.location.hostname.includes('vercel.app');
+        if (isProduction) {
+          errorMessage += `⚠️ Production Environment Detected\n\n`;
+          errorMessage += `Setup Steps:\n\n`;
+          errorMessage += `1. Add Environment Variables in Vercel:\n`;
+          errorMessage += `   • VITE_YOUTUBE_CLIENT_ID = your_google_client_id\n`;
+          errorMessage += `   • VITE_API_URL = https://your-backend-url.com\n\n`;
+          errorMessage += `2. Set up Backend Endpoint:\n`;
+          errorMessage += `   • Create POST /api/youtube/token endpoint\n`;
+          errorMessage += `   • Add YOUTUBE_CLIENT_SECRET to backend env vars\n\n`;
+          errorMessage += `3. Redeploy and clear cache\n\n`;
+        }
+        
+        errorMessage += `📖 See YOUTUBE_CONNECTION_GUIDE.md for detailed instructions.`;
+      } else {
+        errorMessage += err.message || 'Unknown error';
+      }
+      
+      alert(errorMessage);
     } finally {
       setIsLoading(false);
     }
