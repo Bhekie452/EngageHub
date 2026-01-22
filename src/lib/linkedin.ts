@@ -41,7 +41,22 @@ const getRedirectURI = (): string => {
 export const loginWithLinkedIn = () => {
     return new Promise((resolve, reject) => {
         if (!LINKEDIN_CLIENT_ID) {
-            reject(new Error('LinkedIn Client ID not configured. Please set VITE_LINKEDIN_CLIENT_ID in environment variables.'));
+            const isProduction = window.location.hostname !== 'localhost' && !window.location.hostname.includes('127.0.0.1');
+            const errorMessage = isProduction
+                ? 'LinkedIn Client ID is not configured.\n\n' +
+                  '🔧 Setup Steps:\n\n' +
+                  '1. Go to Vercel Dashboard: https://vercel.com/dashboard\n' +
+                  '2. Select your project\n' +
+                  '3. Go to Settings → Environment Variables\n' +
+                  '4. Add: VITE_LINKEDIN_CLIENT_ID = your_client_id\n' +
+                  '5. Redeploy your application\n\n' +
+                  'Or for local development:\n' +
+                  'Add VITE_LINKEDIN_CLIENT_ID to your .env.local file'
+                : 'LinkedIn Client ID not configured.\n\n' +
+                  'Please set VITE_LINKEDIN_CLIENT_ID in your .env.local file:\n\n' +
+                  'VITE_LINKEDIN_CLIENT_ID=your_client_id_here\n\n' +
+                  'See LINKEDIN_CONNECTION_GUIDE.md for detailed setup instructions.';
+            reject(new Error(errorMessage));
             return;
         }
 
@@ -75,11 +90,24 @@ export const loginWithLinkedIn = () => {
         const redirectUri = getRedirectURI();
         const authUrl = `https://www.linkedin.com/oauth/v2/authorization?response_type=code&client_id=${LINKEDIN_CLIENT_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${oauthState}&scope=${encodeURIComponent(scope)}`;
         
+        // Debug logging
+        console.log('🔍 LinkedIn OAuth Debug:');
+        console.log('Client ID:', LINKEDIN_CLIENT_ID ? `${LINKEDIN_CLIENT_ID.substring(0, 4)}...` : 'NOT FOUND');
+        console.log('Redirect URI:', redirectUri);
+        console.log('Auth URL:', authUrl);
+        
         // Store the current URL to return to after OAuth
         sessionStorage.setItem('linkedin_oauth_return', window.location.href);
         
+        // Redirect to LinkedIn immediately
+        console.log('🔄 Redirecting to LinkedIn OAuth...');
+        console.log('Full redirect URL:', authUrl);
+        
+        // Immediately redirect - this will navigate away from the page
         window.location.href = authUrl;
-        // Note: This will redirect, so the promise won't resolve until callback
+        
+        // Note: Code after this line won't execute due to redirect
+        // The promise will resolve when LinkedIn redirects back with code
     });
 };
 

@@ -438,11 +438,31 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
 
     setIsLoading(true);
     try {
+      console.log('🔍 Starting LinkedIn connection...');
+      
+      // Check if Client ID is configured before attempting connection
+      const clientId = import.meta.env.VITE_LINKEDIN_CLIENT_ID;
+      if (!clientId) {
+        console.error('❌ LinkedIn Client ID not found');
+        setIsLoading(false);
+        // Error will be shown by loginWithLinkedIn
+        await loginWithLinkedIn();
+        return;
+      }
+      
+      console.log('✅ LinkedIn Client ID found:', clientId.substring(0, 4) + '...');
+      
+      // loginWithLinkedIn will redirect to LinkedIn OAuth
+      // When redirect happens, window.location.href changes and page navigates away
+      // If we get a response, it means we're handling a callback
       const authResponse: any = await loginWithLinkedIn();
       
-      // If we got redirected, the callback handler will process it
+      // If we got here, we're handling a callback (code in URL)
+      // The callback handler will process it, but we can also handle it here
       if (!authResponse || !authResponse.accessToken) {
-        // OAuth redirect happened, callback will handle it
+        // OAuth redirect happened or callback is being processed
+        console.log('🔄 LinkedIn OAuth redirect initiated or callback processing');
+        setIsLoading(false);
         return;
       }
 
