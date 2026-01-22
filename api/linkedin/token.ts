@@ -82,7 +82,9 @@ export default async function handler(
     }
 
     // Get credentials from environment variables
-    const CLIENT_ID = process.env.VITE_LINKEDIN_CLIENT_ID;
+    // Note: VITE_ prefix variables are only available in frontend build, not in serverless functions
+    // So we check both VITE_LINKEDIN_CLIENT_ID (for frontend) and LINKEDIN_CLIENT_ID (for backend)
+    const CLIENT_ID = process.env.LINKEDIN_CLIENT_ID || process.env.VITE_LINKEDIN_CLIENT_ID;
     const CLIENT_SECRET = process.env.LINKEDIN_CLIENT_SECRET;
 
     // Validate credentials are configured
@@ -90,7 +92,7 @@ export default async function handler(
       console.error('LinkedIn Client ID not configured');
       return res.status(500).json({ 
         error: 'Server configuration error',
-        message: 'LinkedIn Client ID is not configured. Please set VITE_LINKEDIN_CLIENT_ID in environment variables.'
+        message: 'LinkedIn Client ID is not configured. Please set LINKEDIN_CLIENT_ID (backend) or VITE_LINKEDIN_CLIENT_ID (frontend) in Vercel environment variables.'
       });
     }
 
@@ -98,9 +100,17 @@ export default async function handler(
       console.error('LinkedIn Client Secret not configured');
       return res.status(500).json({ 
         error: 'Server configuration error',
-        message: 'LinkedIn Client Secret is not configured. Please set LINKEDIN_CLIENT_SECRET in Vercel environment variables.'
+        message: 'LinkedIn Client Secret is not configured. Please set LINKEDIN_CLIENT_SECRET in Vercel environment variables (backend only).'
       });
     }
+
+    // Debug logging (remove sensitive data in production)
+    console.log('LinkedIn token exchange request:', {
+      hasCode: !!code,
+      redirectUri: redirectUri,
+      clientIdPrefix: CLIENT_ID ? `${CLIENT_ID.substring(0, 4)}...` : 'NOT FOUND',
+      hasClientSecret: !!CLIENT_SECRET
+    });
 
     // Exchange code for access token
     const tokenResponse = await fetch('https://www.linkedin.com/oauth/v2/accessToken', {
@@ -121,7 +131,14 @@ export default async function handler(
 
     // Handle LinkedIn API errors
     if (!tokenResponse.ok || tokenData.error) {
-      console.error('LinkedIn token exchange error:', tokenData);
+      console.error('LinkedIn token exchange error:', {
+        status: tokenResponse.status,
+        statusText: tokenResponse.statusText,
+        error: tokenData.error,
+        errorDescription: tokenData.error_description,
+        redirectUri: redirectUri,
+        clientIdPrefix: CLIENT_ID ? `${CLIENT_ID.substring(0, 4)}...` : 'NOT FOUND'
+      });
       return res.status(400).json({ 
         error: tokenData.error || 'Token exchange failed',
         message: tokenData.error_description || tokenData.error || 'Failed to exchange authorization code for access token',
