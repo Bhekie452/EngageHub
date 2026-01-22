@@ -26,6 +26,7 @@ import { useAuth } from '../src/hooks/useAuth';
 import { supabase } from '../src/lib/supabase';
 import { initFacebookSDK, loginWithFacebook, getPageTokens, getInstagramAccount } from '../src/lib/facebook';
 import { loginWithLinkedIn, getLinkedInProfile, getLinkedInOrganizations, getLinkedInOrganizationDetails } from '../src/lib/linkedin';
+import { connectYouTube, getYouTubeChannel } from '../src/lib/youtube';
 
 type SocialTab = 'accounts' | 'schedule' | 'engagement' | 'mentions' | 'comments' | 'dms';
 
@@ -54,6 +55,8 @@ const SocialMedia: React.FC = () => {
         handleInstagramCallback(code);
       } else if (code && state === 'linkedin_oauth') {
         handleLinkedInCallback(code);
+      } else if (code && state === 'youtube_oauth') {
+        handleYouTubeCallback(code);
       }
     }
   }, [user]);
@@ -447,44 +450,46 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
     } catch (err: any) {
       console.error('LinkedIn connection error:', err);
       
+      // Debug: Check if environment variable is actually available
+      const clientId = import.meta.env.VITE_LINKEDIN_CLIENT_ID;
+      console.log('🔍 Debug - VITE_LINKEDIN_CLIENT_ID:', clientId ? `${clientId.substring(0, 4)}...` : 'NOT FOUND');
+      console.log('🔍 Debug - All env vars:', Object.keys(import.meta.env).filter(k => k.includes('LINKEDIN')));
+      
       let errorMessage = 'Failed to connect to LinkedIn.\n\n';
       
       if (err.message?.includes('Client ID not configured')) {
         errorMessage = `🔴 LinkedIn App Configuration Required\n\n`;
         errorMessage += `LinkedIn Client ID is not configured.\n\n`;
-        errorMessage += `✅ Setup Steps:\n\n`;
-        errorMessage += `1. Create a LinkedIn App:\n`;
-        errorMessage += `   • Go to: https://www.linkedin.com/developers/apps\n`;
-        errorMessage += `   • Click "Create app"\n`;
-        errorMessage += `   • Fill in app details\n\n`;
-        errorMessage += `2. Configure OAuth:\n`;
-        errorMessage += `   • Go to "Auth" tab\n`;
-        const redirectUri = typeof window !== 'undefined' 
-          ? `${window.location.origin}${window.location.pathname}${window.location.hash || ''}`
-          : 'http://localhost:3000';
-        errorMessage += `   • Add redirect URI: ${redirectUri}\n`;
-        errorMessage += `   • Basic scopes (work immediately):\n`;
-        errorMessage += `     - openid (authentication)\n`;
-        errorMessage += `     - profile (read profile - replaces r_liteprofile)\n`;
-        errorMessage += `     - email (read email - replaces r_emailaddress)\n\n`;
-        errorMessage += `   • Advanced scopes (require approval):\n`;
-        errorMessage += `     - w_member_social (post to profile - needs Share on LinkedIn product)\n`;
-        errorMessage += `     - r_organization_social (post to company - partner-only)\n\n`;
-        errorMessage += `   ⚠️ Note: Full automation requires LinkedIn Partner Program approval.\n`;
-        errorMessage += `   For now, basic connection works for user identity and manual sharing.\n\n`;
-        errorMessage += `3. Get Credentials:\n`;
-        errorMessage += `   • Copy "Client ID" from Auth tab\n`;
-        errorMessage += `   • Add to environment variables: VITE_LINKEDIN_CLIENT_ID\n\n`;
-        errorMessage += `4. Backend Setup (Required):\n`;
-        errorMessage += `   • Create endpoint: POST /api/linkedin/token\n`;
-        errorMessage += `   • Set VITE_API_URL in environment variables\n`;
-        errorMessage += `   • Backend needs Client Secret for token exchange\n\n`;
-        errorMessage += `📖 See LINKEDIN_CONNECTION_GUIDE.md for detailed instructions.`;
         
-        const shouldOpen = confirm(errorMessage + '\n\nOpen LinkedIn Developer Portal now?');
-        if (shouldOpen) {
-          window.open('https://www.linkedin.com/developers/apps', '_blank');
+        // Check if we're in production and suggest cache clear
+        const isProduction = window.location.hostname.includes('vercel.app');
+        if (isProduction) {
+          errorMessage += `⚠️ Production Environment Detected\n\n`;
+          errorMessage += `If you just added the environment variable to Vercel:\n`;
+          errorMessage += `1. ✅ Make sure you redeployed after adding the variable\n`;
+          errorMessage += `2. 🔄 Clear your browser cache:\n`;
+          errorMessage += `   • Press Ctrl+Shift+R (Windows) or Cmd+Shift+R (Mac)\n`;
+          errorMessage += `   • Or try incognito/private window\n`;
+          errorMessage += `3. ⏱️ Wait 1-2 minutes for deployment to complete\n\n`;
         }
+        
+        errorMessage += `✅ Setup Steps:\n\n`;
+        errorMessage += `1. Add to Vercel Environment Variables:\n`;
+        errorMessage += `   • Go to: Vercel Dashboard → Your Project → Settings → Environment Variables\n`;
+        errorMessage += `   • Add: VITE_LINKEDIN_CLIENT_ID = 776oifhjg06le0\n`;
+        errorMessage += `   • Select all environments (Production, Preview, Development)\n`;
+        errorMessage += `   • Click "Save"\n\n`;
+        errorMessage += `2. Redeploy:\n`;
+        errorMessage += `   • Go to Deployments tab\n`;
+        errorMessage += `   • Click "⋯" on latest deployment\n`;
+        errorMessage += `   • Click "Redeploy"\n`;
+        errorMessage += `   • Wait for "Ready" status\n\n`;
+        errorMessage += `3. Clear Browser Cache:\n`;
+        errorMessage += `   • Hard refresh: Ctrl+Shift+R (Windows) or Cmd+Shift+R (Mac)\n`;
+        errorMessage += `   • Or use incognito/private window\n\n`;
+        errorMessage += `📖 See VERCEL_ENV_VARS_SETUP.md for detailed instructions.`;
+        
+        alert(errorMessage);
       } else if (err.message?.includes('LOCAL_DEV_API_ERROR')) {
         errorMessage = `🔴 Local Development API Issue\n\n`;
         errorMessage += err.message.replace('LOCAL_DEV_API_ERROR: ', '') + '\n\n';
@@ -632,6 +637,155 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
     } catch (err: any) {
       console.error('LinkedIn callback error:', err);
       alert(`Failed to connect LinkedIn: ${err.message || 'Unknown error'}`);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleConnectYouTube = async () => {
+    if (!user) {
+      alert('Please log in first');
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const authResponse: any = await connectYouTube();
+      
+      // If we got redirected, the callback handler will process it
+      if (!authResponse || !authResponse.accessToken) {
+        // OAuth redirect happened, callback will handle it
+        return;
+      }
+
+      // Get YouTube channel info
+      const channelData = await getYouTubeChannel(authResponse.accessToken);
+      
+      if (!channelData.channels || channelData.channels.length === 0) {
+        alert('No YouTube channels found. Please make sure you have a YouTube channel associated with your Google account.');
+        setIsLoading(false);
+        return;
+      }
+
+      const { data: workspaces } = await supabase.from('workspaces').select('id').eq('owner_id', user!.id).limit(1);
+      if (!workspaces?.length) throw new Error('No workspace found');
+
+      // Store each YouTube channel
+      for (const channel of channelData.channels) {
+        await supabase.from('social_accounts').upsert({
+          workspace_id: workspaces[0].id,
+          platform: 'youtube',
+          platform_account_id: channel.id,
+          account_name: channel.snippet?.title || 'YouTube Channel',
+          access_token: authResponse.accessToken,
+          refresh_token: authResponse.refreshToken,
+          expires_at: authResponse.expiresIn ? new Date(Date.now() + authResponse.expiresIn * 1000).toISOString() : null,
+          is_active: true,
+        }, { onConflict: 'workspace_id,platform,platform_account_id' });
+      }
+
+      const channelNames = channelData.channels.map((ch: any) => ch.snippet?.title || 'YouTube Channel').join(', ');
+      alert(`✅ Connected to YouTube: ${channelNames}!`);
+      fetchConnectedAccounts();
+    } catch (err: any) {
+      console.error('YouTube connection error:', err);
+      alert(`Failed to connect YouTube: ${err.message || 'Unknown error'}`);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleYouTubeCallback = async (code: string) => {
+    setIsLoading(true);
+    try {
+      // YouTube uses Google OAuth, requires backend for token exchange
+      const backendUrl = import.meta.env.VITE_API_URL || '';
+      let accessToken: string;
+      let refreshToken: string;
+      let expiresIn: number;
+
+      if (backendUrl) {
+        const response = await fetch(`${backendUrl}/api/youtube/token`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            code, 
+            redirectUri: `${window.location.origin}${window.location.pathname}${window.location.hash || ''}` 
+          })
+        });
+        
+        if (!response.ok) {
+          if (response.status === 404) {
+            throw new Error(
+              'YouTube OAuth requires a backend endpoint.\n\n' +
+              'Please set up: POST /api/youtube/token\n' +
+              'Set VITE_API_URL in environment variables.\n\n' +
+              'See YOUTUBE_CONNECTION_GUIDE.md for setup instructions.'
+            );
+          }
+          
+          let errorMessage = 'Token exchange failed';
+          try {
+            const error = await response.json();
+            errorMessage = error.message || error.error || 'Token exchange failed';
+          } catch {
+            errorMessage = response.statusText || 'Token exchange failed';
+          }
+          throw new Error(errorMessage);
+        }
+        
+        const data = await response.json();
+        accessToken = data.access_token;
+        refreshToken = data.refresh_token;
+        expiresIn = data.expires_in;
+      } else {
+        throw new Error(
+          'YouTube OAuth requires a backend server for security (client secret needed).\n\n' +
+          'Please:\n' +
+          '1. Set up a backend endpoint at /api/youtube/token\n' +
+          '2. Set VITE_API_URL in environment variables\n' +
+          '3. Or use Supabase Edge Functions\n\n' +
+          'See YOUTUBE_CONNECTION_GUIDE.md for setup instructions.'
+        );
+      }
+
+      // Get YouTube channel info
+      const channelData = await getYouTubeChannel(accessToken);
+      
+      if (!channelData.channels || channelData.channels.length === 0) {
+        alert('No YouTube channels found. Please make sure you have a YouTube channel associated with your Google account.');
+        setIsLoading(false);
+        return;
+      }
+
+      const { data: workspaces } = await supabase.from('workspaces').select('id').eq('owner_id', user!.id).limit(1);
+      if (!workspaces?.length) throw new Error('No workspace found');
+
+      // Store each YouTube channel
+      for (const channel of channelData.channels) {
+        await supabase.from('social_accounts').upsert({
+          workspace_id: workspaces[0].id,
+          platform: 'youtube',
+          platform_account_id: channel.id,
+          account_name: channel.snippet?.title || 'YouTube Channel',
+          access_token: accessToken,
+          refresh_token: refreshToken,
+          expires_at: expiresIn ? new Date(Date.now() + expiresIn * 1000).toISOString() : null,
+          is_active: true,
+        }, { onConflict: 'workspace_id,platform,platform_account_id' });
+      }
+
+      const channelNames = channelData.channels.map((ch: any) => ch.snippet?.title || 'YouTube Channel').join(', ');
+      alert(`✅ Connected to YouTube: ${channelNames}!`);
+      fetchConnectedAccounts();
+      
+      // Clean up URL
+      const returnUrl = sessionStorage.getItem('youtube_oauth_return') || window.location.pathname;
+      window.history.replaceState({}, '', returnUrl);
+      sessionStorage.removeItem('youtube_oauth_return');
+    } catch (err: any) {
+      console.error('YouTube callback error:', err);
+      alert(`Failed to connect YouTube: ${err.message || 'Unknown error'}`);
     } finally {
       setIsLoading(false);
     }
@@ -827,6 +981,8 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
                             handleConnectInstagram();
                           } else if (account.platform === 'linkedin') {
                             handleConnectLinkedIn();
+                          } else if (account.platform === 'youtube') {
+                            handleConnectYouTube();
                           } else {
                             alert(`${account.name} integration coming soon!`);
                           }
