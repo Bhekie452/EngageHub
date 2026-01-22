@@ -26,13 +26,17 @@ const getRedirectURI = (): string => {
     }
     
     // For development, use just the origin (root path)
-    // For production, use the full path
+    // For production, use just the origin (root path) - LinkedIn requires exact match
+    // DO NOT include pathname or hash - LinkedIn redirects to root with query params
     const isDevelopment = origin.includes('localhost') || origin.includes('127.0.0.1');
     if (isDevelopment) {
         return origin;
     }
     
-    return `${origin}${window.location.pathname}${window.location.hash || ''}`;
+    // For production, use just the origin (root path)
+    // LinkedIn will redirect to the root with ?code=...&state=...
+    // The redirect URI must match exactly what's registered in LinkedIn app settings
+    return origin;
 };
 
 /**
@@ -98,10 +102,14 @@ export const loginWithLinkedIn = () => {
         
         // Store the current URL to return to after OAuth
         sessionStorage.setItem('linkedin_oauth_return', window.location.href);
+        // CRITICAL: Store the exact redirect URI used in authorization request
+        // This must match exactly when exchanging the token
+        sessionStorage.setItem('linkedin_oauth_redirect_uri', redirectUri);
         
         // Redirect to LinkedIn immediately
         console.log('🔄 Redirecting to LinkedIn OAuth...');
         console.log('Full redirect URL:', authUrl);
+        console.log('Stored redirect URI:', redirectUri);
         
         // Immediately redirect - this will navigate away from the page
         window.location.href = authUrl;
@@ -117,6 +125,15 @@ export const loginWithLinkedIn = () => {
  */
 const exchangeCodeForToken = async (code: string): Promise<any> => {
     try {
+        // CRITICAL: Use the EXACT redirect URI that was used in the authorization request
+        // This must match exactly, or LinkedIn will reject the token exchange
+        const storedRedirectUri = sessionStorage.getItem('linkedin_oauth_redirect_uri');
+        const redirectUri = storedRedirectUri || getRedirectURI();
+        
+        console.log('🔄 Exchanging code for token...');
+        console.log('Using redirect URI:', redirectUri);
+        console.log('Stored redirect URI:', storedRedirectUri);
+        
         // Check if we have a backend endpoint for token exchange
         const backendUrl = import.meta.env.VITE_API_URL || '';
         
@@ -125,7 +142,7 @@ const exchangeCodeForToken = async (code: string): Promise<any> => {
             const response = await fetch(`${backendUrl}/api/linkedin/token`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ code, redirectUri: getRedirectURI() })
+                body: JSON.stringify({ code, redirectUri })
             });
             
             if (!response.ok) {
@@ -135,10 +152,11 @@ const exchangeCodeForToken = async (code: string): Promise<any> => {
             
             const data = await response.json();
             
-            // Clean up URL
+            // Clean up URL and stored data
             const returnUrl = sessionStorage.getItem('linkedin_oauth_return') || window.location.pathname;
             window.history.replaceState({}, '', returnUrl);
             sessionStorage.removeItem('linkedin_oauth_return');
+            sessionStorage.removeItem('linkedin_oauth_redirect_uri');
             
             return {
                 accessToken: data.access_token,
