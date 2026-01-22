@@ -530,7 +530,12 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
       let expiresIn: number;
 
       if (backendUrl) {
-        const response = await fetch(`${backendUrl}/api/linkedin/token`, {
+        // Ensure backendUrl doesn't have trailing slash
+        const apiUrl = `${backendUrl.replace(/\/$/, '')}/api/linkedin/token`;
+        
+        console.log('🔍 Calling LinkedIn token endpoint:', apiUrl);
+        
+        const response = await fetch(apiUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ 
