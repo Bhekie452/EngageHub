@@ -21,7 +21,7 @@ const ALLOWED_ORIGINS = [
 function setCORSHeaders(req: VercelRequest, res: VercelResponse) {
   const origin = req.headers.origin || '';
   
-  // Check if origin is allowed
+  // Always set CORS headers - be permissive for development
   if (ALLOWED_ORIGINS.includes(origin)) {
     res.setHeader('Access-Control-Allow-Origin', origin);
   } else if (origin.includes('localhost') || origin.includes('127.0.0.1')) {
@@ -30,10 +30,15 @@ function setCORSHeaders(req: VercelRequest, res: VercelResponse) {
   } else if (origin.includes('vercel.app')) {
     // Allow any Vercel preview deployments
     res.setHeader('Access-Control-Allow-Origin', origin);
+  } else if (origin) {
+    // For development, allow any origin (be careful in production)
+    // In production, you might want to restrict this
+    res.setHeader('Access-Control-Allow-Origin', origin);
   }
   
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS, GET');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
   res.setHeader('Access-Control-Max-Age', '86400'); // 24 hours
 }
 
