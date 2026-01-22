@@ -14,6 +14,10 @@ declare global {
             api: (path: string, callback: (response: any) => void) => void;
             api: (path: string, method: string, callback: (response: any) => void) => void;
             api: (path: string, method: string, params: any, callback: (response: any) => void) => void;
+            AppEvents?: {
+                logPageView: () => void;
+                logEvent: (eventName: string, valueToSum?: number, parameters?: any) => void;
+            };
         };
         fbAsyncInit?: () => void;
     }
@@ -80,12 +84,19 @@ export const initFacebookSDK = () => {
                     if (!window.FB) {
                         throw new Error('FB object not available');
                     }
+                    // Initialize Facebook SDK (standard pattern)
                     window.FB.init({
                         appId: FB_APP_ID,
                         cookie: true,
                         xfbml: true,
                         version: 'v21.0'
                     });
+                    
+                    // Log page view for analytics (standard Facebook pattern)
+                    if (window.FB.AppEvents) {
+                        window.FB.AppEvents.logPageView();
+                    }
+                    
                     console.log('✅ Facebook SDK Initialized successfully');
                     console.log('📱 App ID:', FB_APP_ID);
                     resolve(true);
@@ -98,11 +109,12 @@ export const initFacebookSDK = () => {
                 }
             };
 
-            (function (d, s, id) {
+            // Load Facebook SDK script (standard Facebook pattern)
+            (function(d, s, id) {
                 var js, fjs = d.getElementsByTagName(s)[0];
                 if (d.getElementById(id)) {
                     // Script already exists, wait for it to load
-                    if ((window as any).FB) {
+                    if (window.FB) {
                         clearTimeout(loadTimeout);
                         resolve(true);
                     } else {
@@ -120,7 +132,8 @@ export const initFacebookSDK = () => {
                     }
                     return;
                 }
-                js = d.createElement(s) as any; js.id = id;
+                js = d.createElement(s) as any;
+                js.id = id;
                 js.src = "https://connect.facebook.net/en_US/sdk.js";
                 js.async = true;
                 
@@ -131,7 +144,12 @@ export const initFacebookSDK = () => {
                     resolve(false);
                 };
                 
-                fjs.parentNode?.insertBefore(js, fjs);
+                if (fjs && fjs.parentNode) {
+                    fjs.parentNode.insertBefore(js, fjs);
+                } else {
+                    // Fallback if fjs not found
+                    d.body.appendChild(js);
+                }
             }(document, 'script', 'facebook-jssdk'));
         } else {
             console.log('Facebook SDK skipped (HTTP localhost - using redirect OAuth)');
