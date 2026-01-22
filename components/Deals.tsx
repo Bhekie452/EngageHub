@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   Handshake, 
   Trello, 
@@ -19,15 +19,21 @@ import {
   CheckCircle2,
   Clock,
   TrendingUp,
-  AlertCircle
+  AlertCircle,
+  X,
+  Edit3,
+  Trash2,
+  Save
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { useDeals } from '../src/hooks/useDeals';
 import { useCurrency } from '../src/hooks/useCurrency';
 import { useAuth } from '../src/hooks/useAuth';
 import { formatCurrency, formatCompactCurrency, formatCurrencyWithCommas } from '../src/lib/currency';
+import { supabase } from '../src/lib/supabase';
+import { Deal } from '../src/services/api/deals.service';
 
-type DealsTab = 'pipeline' | 'opportunities' | 'quotes' | 'won' | 'lost' | 'forecast';
+type DealsTab = 'pipeline' | 'list' | 'opportunities' | 'quotes' | 'won' | 'lost' | 'forecast';
 
 // Map database stage names to UI stage names
 const stageMapping: Record<string, string> = {
@@ -62,14 +68,181 @@ function formatTimeAgo(dateString: string): string {
   return date.toLocaleDateString();
 }
 
+function getDealHealth(deal: Deal) {
+  const lastActivity = new Date(deal.updated_at || deal.created_at);
+  const now = new Date();
+  const diffDays = (now.getTime() - lastActivity.getTime()) / 86400000;
+
+  if (diffDays <= 2) return { label: 'Healthy', color: 'text-green-600 bg-green-50 border-green-100' };
+  if (diffDays <= 5) return { label: 'Risk', color: 'text-amber-600 bg-amber-50 border-amber-100' };
+  return { label: 'Critical', color: 'text-red-600 bg-red-50 border-red-100' };
+}
+
 const Deals: React.FC = () => {
   const [activeTab, setActiveTab] = useState<DealsTab>('pipeline');
-  const { deals, wonDeals, lostDeals, isLoading, error } = useDeals();
-  const { symbol } = useCurrency();
+  const { deals, wonDeals, lostDeals, isLoading, error, createDeal, updateDeal, deleteDeal } = useDeals();
+  const { symbol, currency: userCurrency, availableCurrencies } = useCurrency();
   const { user } = useAuth();
+  
+  // Modal and form state
+  const [showModal, setShowModal] = useState(false);
+  const [editingDeal, setEditingDeal] = useState<Deal | null>(null);
+  const [selectedStage, setSelectedStage] = useState<string>('Discovery');
+  const [formData, setFormData] = useState({
+    title: '',
+    description: '',
+    amount: '',
+    currency: userCurrency || 'USD', // Use user's currency preference
+    probability: 50,
+    priority: 'medium' as 'low' | 'medium' | 'high' | 'urgent',
+    expected_close_date: '',
+    contact_id: '',
+    company_id: '',
+  });
+  const [selectedDeal, setSelectedDeal] = useState<Deal | null>(null);
+  const [isDetailOpen, setIsDetailOpen] = useState(false);
+  const [stageFilter, setStageFilter] = useState<string>('all');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [searchQueryList, setSearchQueryList] = useState<string>('');
+  
+  // Update currency when user currency changes
+  useEffect(() => {
+    if (userCurrency && !editingDeal) {
+      setFormData(prev => ({ ...prev, currency: userCurrency }));
+    }
+  }, [userCurrency, editingDeal]);
+  
+  // Pipeline and stage data
+  const [pipelines, setPipelines] = useState<any[]>([]);
+  const [stages, setStages] = useState<any[]>([]);
+  const [contacts, setContacts] = useState<any[]>([]);
+  const [companies, setCompanies] = useState<any[]>([]);
+  const [workspaceId, setWorkspaceId] = useState<string | null>(null);
+  const [loadingData, setLoadingData] = useState(false);
+  
+  // Fetch workspace, pipelines, stages, contacts, and companies
+  useEffect(() => {
+    const fetchInitialData = async () => {
+      if (!user) return;
+      
+      try {
+        setLoadingData(true);
+        
+        // Get workspace
+        const { data: { user: authUser } } = await supabase.auth.getUser();
+        if (!authUser) return;
+        
+        const { data: workspaceData } = await supabase
+          .from('workspaces')
+          .select('id')
+          .eq('owner_id', authUser.id)
+          .single();
+        
+        if (workspaceData) {
+          setWorkspaceId(workspaceData.id);
+          
+          // Fetch pipelines
+          const { data: pipelinesData } = await supabase
+            .from('pipelines')
+            .select('*')
+            .eq('workspace_id', workspaceData.id)
+            .order('position');
+          
+          if (pipelinesData && pipelinesData.length > 0) {
+            setPipelines(pipelinesData);
+            const defaultPipeline = pipelinesData.find((p: any) => p.is_default) || pipelinesData[0];
+            
+            // Fetch stages for default pipeline
+            const { data: stagesData } = await supabase
+              .from('pipeline_stages')
+              .select('*')
+              .eq('pipeline_id', defaultPipeline.id)
+              .order('position');
+            
+            if (stagesData) {
+              setStages(stagesData);
+            }
+          } else {
+            // Create default pipeline and stages if they don't exist
+            const { data: newPipeline } = await supabase
+              .from('pipelines')
+              .insert({
+                workspace_id: workspaceData.id,
+                name: 'Sales Pipeline',
+                is_default: true,
+                type: 'sales',
+              })
+              .select()
+              .single();
+            
+            if (newPipeline) {
+              setPipelines([newPipeline]);
+              
+              // Create default stages
+              const defaultStageNames = ['Discovery', 'Proposal', 'Negotiation', 'Contracting'];
+              const { data: newStages } = await supabase
+                .from('pipeline_stages')
+                .insert(
+                  defaultStageNames.map((name, idx) => ({
+                    pipeline_id: newPipeline.id,
+                    name,
+                    position: idx,
+                    probability: (idx + 1) * 25,
+                  }))
+                )
+                .select();
+              
+              if (newStages) {
+                setStages(newStages);
+              }
+            }
+          }
+          
+          // Fetch contacts
+          const { data: contactsData } = await supabase
+            .from('contacts')
+            .select('id, first_name, last_name, full_name, email')
+            .eq('workspace_id', workspaceData.id)
+            .limit(100);
+          
+          if (contactsData) {
+            // Map contacts to ensure we have a display name
+            const mappedContacts = contactsData.map((contact: any) => ({
+              id: contact.id,
+              full_name: contact.full_name || 
+                        `${contact.first_name || ''} ${contact.last_name || ''}`.trim() || 
+                        contact.email || 
+                        'Unnamed Contact',
+              email: contact.email || '',
+            }));
+            setContacts(mappedContacts);
+            console.log('Fetched contacts:', mappedContacts); // Debug log
+          } else {
+            console.log('No contacts found in database'); // Debug log
+          }
+          
+          // Fetch companies
+          const { data: companiesData } = await supabase
+            .from('companies')
+            .select('id, name')
+            .eq('workspace_id', workspaceData.id)
+            .limit(100);
+          
+          if (companiesData) setCompanies(companiesData);
+        }
+      } catch (err) {
+        console.error('Error fetching initial data:', err);
+      } finally {
+        setLoadingData(false);
+      }
+    };
+    
+    fetchInitialData();
+  }, [user]);
 
   const tabs: { id: DealsTab; label: string; icon: React.ReactNode }[] = [
     { id: 'pipeline', label: 'Deal pipeline', icon: <Trello size={16} /> },
+    { id: 'list', label: 'Deals list', icon: <FileText size={16} /> },
     { id: 'opportunities', label: 'Opportunities', icon: <Target size={16} /> },
     { id: 'quotes', label: 'Quotes', icon: <FileText size={16} /> },
     { id: 'won', label: 'Won deals', icon: <ThumbsUp size={16} /> },
@@ -113,6 +286,21 @@ const Deals: React.FC = () => {
       })),
     }));
   }, [deals, symbol]);
+
+  const filteredListDeals = useMemo(() => {
+    return deals.filter((deal) => {
+      const stageName = deal.pipeline_stages?.name?.toLowerCase() || '';
+      const status = (deal.status || '').toLowerCase();
+      const matchStage = stageFilter === 'all' ? true : stageName === stageFilter.toLowerCase();
+      const matchStatus = statusFilter === 'all' ? true : status === statusFilter.toLowerCase();
+      const matchSearch =
+        !searchQueryList ||
+        deal.title.toLowerCase().includes(searchQueryList.toLowerCase()) ||
+        deal.companies?.name?.toLowerCase().includes(searchQueryList.toLowerCase()) ||
+        deal.contacts?.full_name?.toLowerCase().includes(searchQueryList.toLowerCase());
+      return matchStage && matchStatus && matchSearch;
+    });
+  }, [deals, stageFilter, statusFilter, searchQueryList]);
 
   // Get open deals for opportunities tab
   const openDeals = useMemo(() => {
@@ -198,6 +386,151 @@ const Deals: React.FC = () => {
       </div>
     );
   }
+  
+  // Get stage ID from stage name
+  const getStageId = (stageName: string): string | null => {
+    const stage = stages.find(s => {
+      const name = s.name.toLowerCase();
+      return name === stageName.toLowerCase() || 
+             stageMapping[name] === stageName ||
+             (stageName === 'Discovery' && (name.includes('discovery') || name.includes('qualification') || name.includes('lead'))) ||
+             (stageName === 'Proposal' && (name.includes('proposal') || name.includes('quotation'))) ||
+             (stageName === 'Negotiation' && name.includes('negotiation')) ||
+             (stageName === 'Contracting' && name.includes('contracting'));
+    });
+    return stage?.id || stages[0]?.id || null;
+  };
+  
+  // Handlers
+  const handleOpenModal = (deal?: Deal, stage?: string) => {
+    if (deal) {
+      setEditingDeal(deal);
+      const stageName = deal.pipeline_stages?.name || 'Discovery';
+      const uiStage = stageMapping[stageName.toLowerCase()] || stageName;
+      setSelectedStage(uiStage);
+      setFormData({
+        title: deal.title || '',
+        description: deal.description || '',
+        amount: String(deal.amount || 0),
+        currency: deal.currency || 'USD',
+        probability: deal.probability || 50,
+        priority: deal.priority || 'medium',
+        expected_close_date: deal.expected_close_date ? deal.expected_close_date.split('T')[0] : '',
+        contact_id: deal.contact_id || '',
+        company_id: deal.company_id || '',
+      });
+    } else {
+      setEditingDeal(null);
+      setSelectedStage(stage || 'Discovery');
+      setFormData({
+        title: '',
+        description: '',
+        amount: '',
+        currency: userCurrency || 'USD', // Use user's currency preference
+        probability: 50,
+        priority: 'medium',
+        expected_close_date: '',
+        contact_id: '',
+        company_id: '',
+      });
+    }
+    setShowModal(true);
+  };
+  
+  const handleCloseModal = () => {
+    setShowModal(false);
+    setEditingDeal(null);
+  };
+  
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!workspaceId || !user) return;
+    
+    const defaultPipeline = pipelines.find((p: any) => p.is_default) || pipelines[0];
+    if (!defaultPipeline) {
+      alert('No pipeline found. Please create a pipeline first.');
+      return;
+    }
+    
+    const stageId = getStageId(selectedStage);
+    if (!stageId) {
+      alert('Invalid stage selected.');
+      return;
+    }
+    
+    const dealData = {
+      workspace_id: workspaceId,
+      pipeline_id: defaultPipeline.id,
+      stage_id: stageId,
+      title: formData.title,
+      description: formData.description || undefined,
+      amount: parseFloat(formData.amount) || 0,
+      currency: formData.currency,
+      probability: formData.probability,
+      priority: formData.priority,
+      expected_close_date: formData.expected_close_date || undefined,
+      contact_id: formData.contact_id || undefined,
+      company_id: formData.company_id || undefined,
+      status: 'open' as const,
+    };
+    
+    try {
+      if (editingDeal) {
+        await updateDeal.mutateAsync({ id: editingDeal.id, updates: dealData });
+      } else {
+        await createDeal.mutateAsync(dealData);
+      }
+      handleCloseModal();
+    } catch (err) {
+      console.error('Error saving deal:', err);
+      alert('Failed to save deal. Please try again.');
+    }
+  };
+  
+  const handleDelete = async (dealId: string) => {
+    if (!confirm('Are you sure you want to delete this deal?')) return;
+    
+    try {
+      await deleteDeal.mutateAsync(dealId);
+    } catch (err) {
+      console.error('Error deleting deal:', err);
+      alert('Failed to delete deal. Please try again.');
+    }
+  };
+  
+  const handleMarkWon = async (deal: Deal) => {
+    if (!confirm('Mark this deal as won?')) return;
+    
+    try {
+      await updateDeal.mutateAsync({
+        id: deal.id,
+        updates: {
+          status: 'won',
+          actual_close_date: new Date().toISOString().split('T')[0],
+        },
+      });
+    } catch (err) {
+      console.error('Error marking deal as won:', err);
+      alert('Failed to update deal. Please try again.');
+    }
+  };
+  
+  const handleMarkLost = async (deal: Deal) => {
+    if (!confirm('Mark this deal as lost?')) return;
+    
+    try {
+      await updateDeal.mutateAsync({
+        id: deal.id,
+        updates: {
+          status: 'lost',
+          actual_close_date: new Date().toISOString().split('T')[0],
+        },
+      });
+    } catch (err) {
+      console.error('Error marking deal as lost:', err);
+      alert('Failed to update deal. Please try again.');
+    }
+  };
 
   const renderTabContent = () => {
     switch (activeTab) {
@@ -215,29 +548,152 @@ const Deals: React.FC = () => {
                 </div>
                 <div className="bg-gray-100/50 rounded-2xl p-2 flex-1 flex flex-col gap-3 border border-gray-100 overflow-y-auto">
                   {col.deals.map((deal) => (
-                    <div key={deal.id} className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm hover:border-blue-300 transition-all cursor-grab active:cursor-grabbing group">
-                      <div className="flex justify-between items-start mb-2">
-                        <p className="text-sm font-bold text-gray-900 line-clamp-1">{deal.name}</p>
-                        <button className="opacity-0 group-hover:opacity-100 transition-all text-gray-300"><MoreVertical size={14} /></button>
-                      </div>
-                      <div className="flex items-center gap-1.5 text-[10px] text-gray-400 font-bold uppercase mb-4">
-                        <Clock size={10} /> {deal.day}
-                      </div>
-                      <div className="flex items-center justify-between pt-3 border-t border-gray-50">
-                        <span className="text-sm font-black text-gray-800">{deal.val}</span>
-                        <div className="w-6 h-6 rounded-full bg-blue-50 flex items-center justify-center text-[10px] font-black text-blue-600">
-                          {deal.name.charAt(0).toUpperCase()}
+                    <div key={deal.id} className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm hover:border-blue-300 transition-all cursor-pointer group relative">
+                      <div 
+                        onClick={() => {
+                          setSelectedDeal(deal.deal);
+                          setIsDetailOpen(true);
+                        }}
+                        className="cursor-pointer"
+                      >
+                        <div className="flex justify-between items-start mb-2">
+                          <p className="text-sm font-bold text-gray-900 line-clamp-1">{deal.name}</p>
+                          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleOpenModal(deal.deal, col.stage);
+                              }}
+                              className="p-1 text-blue-500 hover:bg-blue-50 rounded"
+                              title="Edit"
+                            >
+                              <Edit3 size={12} />
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDelete(deal.id);
+                              }}
+                              className="p-1 text-red-500 hover:bg-red-50 rounded"
+                              title="Delete"
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1.5 text-[10px] text-gray-400 font-bold uppercase mb-4">
+                          <Clock size={10} /> {deal.day}
+                        </div>
+                        <div className="flex items-center justify-between pt-3 border-t border-gray-50">
+                          <span className="text-sm font-black text-gray-800">{deal.val}</span>
+                          <div className="w-6 h-6 rounded-full bg-blue-50 flex items-center justify-center text-[10px] font-black text-blue-600">
+                            {deal.name.charAt(0).toUpperCase()}
+                          </div>
                         </div>
                       </div>
                     </div>
                   ))}
-                  <button className="w-full py-3 border-2 border-dashed border-gray-200 rounded-xl text-gray-300 hover:border-blue-300 hover:bg-white hover:text-blue-500 transition-all flex items-center justify-center gap-2 mt-auto">
+                  <button 
+                    onClick={() => handleOpenModal(undefined, col.stage)}
+                    className="w-full py-3 border-2 border-dashed border-gray-200 rounded-xl text-gray-300 hover:border-blue-300 hover:bg-white hover:text-blue-500 transition-all flex items-center justify-center gap-2 mt-auto"
+                  >
                     <Plus size={16} />
                     <span className="text-[10px] font-black uppercase tracking-widest">New Deal</span>
                   </button>
                 </div>
               </div>
             ))}
+          </div>
+        );
+
+      case 'list':
+        return (
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+            <div className="p-4 border-b border-gray-100 flex flex-col md:flex-row md:items-center justify-between gap-4 bg-gray-50/30">
+              <div className="flex flex-wrap gap-3 items-center">
+                <div className="relative">
+                  <Search className="absolute left-3 top-2.5 text-gray-400" size={16} />
+                  <input 
+                    type="text" 
+                    placeholder="Search deals or customers..." 
+                    value={searchQueryList}
+                    onChange={(e) => setSearchQueryList(e.target.value)}
+                    className="pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:ring-4 focus:ring-blue-50 transition-all outline-none w-72"
+                  />
+                </div>
+                <select
+                  value={stageFilter}
+                  onChange={(e) => setStageFilter(e.target.value)}
+                  className="px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white"
+                >
+                  <option value="all">All stages</option>
+                  {stages.map((s) => (
+                    <option key={s.id} value={s.name.toLowerCase()}>{s.name}</option>
+                  ))}
+                </select>
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  className="px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white"
+                >
+                  <option value="all">All status</option>
+                  <option value="open">Open</option>
+                  <option value="won">Won</option>
+                  <option value="lost">Lost</option>
+                </select>
+              </div>
+              <button 
+                onClick={() => handleOpenModal()}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-white bg-blue-600 rounded-xl hover:bg-blue-700 shadow-lg shadow-blue-100 transition-all"
+              >
+                <Plus size={16} /> New Deal
+              </button>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left">
+                <thead>
+                  <tr className="text-[10px] font-black text-gray-400 uppercase tracking-widest border-b border-gray-100">
+                    <th className="px-6 py-4">Deal Name</th>
+                    <th className="px-6 py-4">Customer</th>
+                    <th className="px-6 py-4">Stage</th>
+                    <th className="px-6 py-4">Value</th>
+                    <th className="px-6 py-4">Owner</th>
+                    <th className="px-6 py-4">Age</th>
+                    <th className="px-6 py-4 text-right">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {filteredListDeals.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="px-6 py-12 text-center text-gray-400">
+                        No deals found.
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredListDeals.map((deal) => {
+                      const stageName = deal.pipeline_stages?.name || '—';
+                      const ageDays = Math.max(0, Math.floor((Date.now() - new Date(deal.created_at).getTime()) / 86400000));
+                      const health = getDealHealth(deal);
+                      return (
+                        <tr key={deal.id} className="hover:bg-gray-50/50 transition-all cursor-pointer" onClick={() => { setSelectedDeal(deal); setIsDetailOpen(true); }}>
+                          <td className="px-6 py-4 font-bold text-gray-900">{deal.title}</td>
+                          <td className="px-6 py-4 text-sm text-gray-700">{deal.contacts?.full_name || deal.companies?.name || '—'}</td>
+                          <td className="px-6 py-4 text-sm text-gray-600">{stageName}</td>
+                          <td className="px-6 py-4 font-black text-gray-800">{formatCurrencyWithCommas(Number(deal.amount) || 0, symbol)}</td>
+                          <td className="px-6 py-4 text-sm text-gray-600">{deal.owner_id ? deal.owner_id.slice(0, 6) + '…' : '—'}</td>
+                          <td className="px-6 py-4 text-sm text-gray-600">{ageDays}d</td>
+                          <td className="px-6 py-4 text-right">
+                            <span className={`text-[10px] font-black uppercase px-2 py-1 rounded-lg border ${health.color}`}>
+                              {health.label}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         );
 
@@ -253,7 +709,10 @@ const Deals: React.FC = () => {
                   className="w-full pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:ring-4 focus:ring-blue-50 transition-all outline-none"
                 />
               </div>
-              <button className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-white bg-blue-600 rounded-xl hover:bg-blue-700 shadow-lg shadow-blue-100 transition-all">
+              <button 
+                onClick={() => handleOpenModal()}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-white bg-blue-600 rounded-xl hover:bg-blue-700 shadow-lg shadow-blue-100 transition-all"
+              >
                 <Plus size={16} /> Add Opportunity
               </button>
             </div>
@@ -310,7 +769,22 @@ const Deals: React.FC = () => {
                             </div>
                           </td>
                           <td className="px-6 py-4 text-right">
-                            <button className="p-2 text-gray-300 hover:text-gray-600 opacity-0 group-hover:opacity-100 transition-all"><MoreVertical size={16} /></button>
+                            <div className="flex items-center gap-2 justify-end opacity-0 group-hover:opacity-100 transition-all">
+                              <button
+                                onClick={() => handleOpenModal(deal)}
+                                className="p-2 text-blue-500 hover:bg-blue-50 rounded"
+                                title="Edit"
+                              >
+                                <Edit3 size={16} />
+                              </button>
+                              <button
+                                onClick={() => handleDelete(deal.id)}
+                                className="p-2 text-red-500 hover:bg-red-50 rounded"
+                                title="Delete"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       );
@@ -377,7 +851,22 @@ const Deals: React.FC = () => {
                             </div>
                           </td>
                           <td className="px-6 py-4 text-right">
-                            <button className="p-2 text-gray-300 hover:text-gray-600 opacity-0 group-hover:opacity-100 transition-all"><MoreVertical size={16} /></button>
+                            <div className="flex items-center gap-2 justify-end opacity-0 group-hover:opacity-100 transition-all">
+                              <button
+                                onClick={() => handleOpenModal(deal)}
+                                className="p-2 text-blue-500 hover:bg-blue-50 rounded"
+                                title="Edit"
+                              >
+                                <Edit3 size={16} />
+                              </button>
+                              <button
+                                onClick={() => handleDelete(deal.id)}
+                                className="p-2 text-red-500 hover:bg-red-50 rounded"
+                                title="Delete"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       );
@@ -444,7 +933,22 @@ const Deals: React.FC = () => {
                             </div>
                           </td>
                           <td className="px-6 py-4 text-right">
-                            <button className="p-2 text-gray-300 hover:text-gray-600 opacity-0 group-hover:opacity-100 transition-all"><MoreVertical size={16} /></button>
+                            <div className="flex items-center gap-2 justify-end opacity-0 group-hover:opacity-100 transition-all">
+                              <button
+                                onClick={() => handleOpenModal(deal)}
+                                className="p-2 text-blue-500 hover:bg-blue-50 rounded"
+                                title="Edit"
+                              >
+                                <Edit3 size={16} />
+                              </button>
+                              <button
+                                onClick={() => handleDelete(deal.id)}
+                                className="p-2 text-red-500 hover:bg-red-50 rounded"
+                                title="Delete"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       );
@@ -492,7 +996,10 @@ const Deals: React.FC = () => {
                 );
               })
             )}
-            <button className="border-2 border-dashed border-gray-200 rounded-2xl p-6 flex flex-col items-center justify-center gap-3 hover:border-blue-300 hover:bg-blue-50 transition-all group">
+            <button 
+              onClick={() => handleOpenModal(undefined, 'Proposal')}
+              className="border-2 border-dashed border-gray-200 rounded-2xl p-6 flex flex-col items-center justify-center gap-3 hover:border-blue-300 hover:bg-blue-50 transition-all group"
+            >
               <Plus size={24} className="text-gray-300 group-hover:text-blue-600" />
               <p className="text-xs font-bold text-gray-400 group-hover:text-blue-600 uppercase">New Quote</p>
             </button>
@@ -595,8 +1102,297 @@ const Deals: React.FC = () => {
       <div className="animate-in fade-in slide-in-from-bottom-2 duration-500 fill-mode-both pb-20">
         {renderTabContent()}
       </div>
+      
+      {/* Create/Edit Deal Modal */}
+      {showModal && (
+        <div 
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in duration-200"
+          onClick={handleCloseModal}
+        >
+          <div 
+            className="bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden shadow-2xl border border-gray-100 flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="p-6 border-b border-gray-100 flex items-center justify-between">
+              <h2 className="text-xl font-black text-gray-900">
+                {editingDeal ? 'Edit Deal' : 'Create New Deal'}
+              </h2>
+              <button 
+                onClick={handleCloseModal}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <X size={20} className="text-gray-500" />
+              </button>
+            </div>
+            
+            {/* Form */}
+            <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-6">
+              {/* Title */}
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">
+                  Deal Title *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={formData.title}
+                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-4 focus:ring-blue-50 focus:border-blue-500 outline-none transition-all"
+                  placeholder="e.g., Q4 Enterprise Deal"
+                />
+              </div>
+              
+              {/* Description */}
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">
+                  Description
+                </label>
+                <textarea
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  rows={3}
+                  className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-4 focus:ring-blue-50 focus:border-blue-500 outline-none transition-all resize-none"
+                  placeholder="Add details about this deal..."
+                />
+              </div>
+              
+              {/* Amount and Currency */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">
+                    Amount *
+                  </label>
+                  <input
+                    type="number"
+                    required
+                    min="0"
+                    step="0.01"
+                    value={formData.amount}
+                    onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-4 focus:ring-blue-50 focus:border-blue-500 outline-none transition-all"
+                    placeholder="0.00"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">
+                    Currency
+                  </label>
+                  <select
+                    value={formData.currency}
+                    onChange={(e) => setFormData({ ...formData, currency: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-4 focus:ring-blue-50 focus:border-blue-500 outline-none transition-all"
+                  >
+                    {availableCurrencies.map((curr) => (
+                      <option key={curr.code} value={curr.code}>
+                        {curr.code} - {curr.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              
+              {/* Stage and Probability */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">
+                    Stage *
+                  </label>
+                  <select
+                    required
+                    value={selectedStage}
+                    onChange={(e) => setSelectedStage(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-4 focus:ring-blue-50 focus:border-blue-500 outline-none transition-all"
+                  >
+                    {defaultStages.map(stage => (
+                      <option key={stage} value={stage}>{stage}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">
+                    Probability: {formData.probability}%
+                  </label>
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    value={formData.probability}
+                    onChange={(e) => setFormData({ ...formData, probability: parseInt(e.target.value) })}
+                    className="w-full"
+                  />
+                </div>
+              </div>
+              
+              {/* Priority and Expected Close Date */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">
+                    Priority
+                  </label>
+                  <select
+                    value={formData.priority}
+                    onChange={(e) => setFormData({ ...formData, priority: e.target.value as any })}
+                    className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-4 focus:ring-blue-50 focus:border-blue-500 outline-none transition-all"
+                  >
+                    <option value="low">Low</option>
+                    <option value="medium">Medium</option>
+                    <option value="high">High</option>
+                    <option value="urgent">Urgent</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">
+                    Expected Close Date
+                  </label>
+                  <input
+                    type="date"
+                    value={formData.expected_close_date}
+                    onChange={(e) => setFormData({ ...formData, expected_close_date: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-4 focus:ring-blue-50 focus:border-blue-500 outline-none transition-all"
+                  />
+                </div>
+              </div>
+              
+              {/* Contact and Company */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">
+                    Contact
+                  </label>
+                  <select
+                    value={formData.contact_id}
+                    onChange={(e) => setFormData({ ...formData, contact_id: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-4 focus:ring-blue-50 focus:border-blue-500 outline-none transition-all"
+                  >
+                    <option value="">None</option>
+                    {contacts.length === 0 ? (
+                      <option value="" disabled>No contacts found. Create contacts in CRM first.</option>
+                    ) : (
+                      contacts.map(contact => (
+                        <option key={contact.id} value={contact.id}>
+                          {contact.full_name || contact.email || 'Unnamed Contact'}
+                        </option>
+                      ))
+                    )}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">
+                    Company
+                  </label>
+                  <select
+                    value={formData.company_id}
+                    onChange={(e) => setFormData({ ...formData, company_id: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-4 focus:ring-blue-50 focus:border-blue-500 outline-none transition-all"
+                  >
+                    <option value="">None</option>
+                    {companies.map(company => (
+                      <option key={company.id} value={company.id}>
+                        {company.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              
+              {/* Action Buttons */}
+              <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-100">
+                <button
+                  type="button"
+                  onClick={handleCloseModal}
+                  className="px-6 py-2 text-sm font-bold text-gray-600 hover:bg-gray-50 rounded-xl transition-all"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={createDeal.isPending || updateDeal.isPending}
+                  className="px-6 py-2 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-lg shadow-blue-100 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                >
+                  <Save size={16} />
+                  {createDeal.isPending || updateDeal.isPending ? 'Saving...' : editingDeal ? 'Update Deal' : 'Create Deal'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Deal Detail Drawer */}
+      {isDetailOpen && selectedDeal && (
+        <div 
+          className="fixed inset-0 z-[90] bg-black/40 backdrop-blur-sm flex justify-end"
+          onClick={() => setIsDetailOpen(false)}
+        >
+          <div 
+            className="w-full max-w-3xl bg-white h-full shadow-2xl border-l border-gray-100 overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-6 border-b border-gray-100 flex items-start justify-between">
+              <div>
+                <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">Deal</p>
+                <h2 className="text-2xl font-black text-gray-900">{selectedDeal.title}</h2>
+                <div className="flex gap-2 mt-2">
+                  <span className="px-2 py-1 text-xs font-bold rounded-lg bg-gray-100 text-gray-700 border border-gray-200">
+                    {selectedDeal.pipeline_stages?.name || 'Stage'}
+                  </span>
+                  <span className="px-2 py-1 text-xs font-bold rounded-lg bg-blue-50 text-blue-700 border border-blue-100">
+                    {formatCurrencyWithCommas(Number(selectedDeal.amount) || 0, symbol)}
+                  </span>
+                  <span className="px-2 py-1 text-xs font-bold rounded-lg bg-gray-50 text-gray-500 border border-gray-200">
+                    {selectedDeal.contacts?.full_name || selectedDeal.companies?.name || 'Customer'}
+                  </span>
+                  <span className="px-2 py-1 text-xs font-bold rounded-lg bg-gray-50 text-gray-500 border border-gray-200">
+                    Owner: {selectedDeal.owner_id ? selectedDeal.owner_id.slice(0,6) + '…' : '—'}
+                  </span>
+                </div>
+              </div>
+              <button 
+                onClick={() => setIsDetailOpen(false)}
+                className="p-2 hover:bg-gray-100 rounded-lg transition"
+              >
+                <X size={20} className="text-gray-500" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-6 border-b border-gray-100">
+              <InfoRow label="Value" value={formatCurrencyWithCommas(Number(selectedDeal.amount) || 0, symbol)} />
+              <InfoRow label="Stage" value={selectedDeal.pipeline_stages?.name || '—'} />
+              <InfoRow label="Status" value={selectedDeal.status || 'open'} />
+              <InfoRow label="Expected Close" value={selectedDeal.expected_close_date ? new Date(selectedDeal.expected_close_date).toLocaleDateString() : '—'} />
+              <InfoRow label="Customer" value={selectedDeal.contacts?.full_name || selectedDeal.companies?.name || '—'} />
+              <InfoRow label="Health" value={getDealHealth(selectedDeal).label} />
+            </div>
+
+            <div className="p-6 space-y-4">
+              <h3 className="text-sm font-black text-gray-800 uppercase tracking-widest">Timeline</h3>
+              <div className="bg-gray-50 border border-gray-100 rounded-xl p-4 text-sm text-gray-600">
+                Stage changed to {selectedDeal.pipeline_stages?.name || 'current stage'} • {formatTimeAgo(selectedDeal.updated_at || selectedDeal.created_at)}
+                <br />
+                Deal created • {new Date(selectedDeal.created_at).toLocaleString()}
+                <br />
+                (Add activities/tasks/notes integration here.)
+              </div>
+
+              <h3 className="text-sm font-black text-gray-800 uppercase tracking-widest">Notes</h3>
+              <div className="bg-white border border-gray-100 rounded-xl p-4 shadow-sm">
+                <p className="text-sm text-gray-500">Notes and files can be attached here in a future iteration.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
+
+// Simple info row helper
+const InfoRow = ({ label, value }: { label: string; value: React.ReactNode }) => (
+  <div className="flex flex-col gap-1">
+    <span className="text-[11px] font-bold text-gray-400 uppercase tracking-widest">{label}</span>
+    <span className="text-sm font-semibold text-gray-900">{value || '—'}</span>
+  </div>
+);
 
 export default Deals;

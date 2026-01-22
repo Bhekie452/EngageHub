@@ -9,6 +9,17 @@ const REDIRECT_URI = typeof window !== 'undefined'
     ? `${window.location.origin}${window.location.pathname}${window.location.hash || ''}`
     : 'http://localhost:3000';
 
+// Debug: Log the redirect URI being used
+if (typeof window !== 'undefined') {
+    console.log('🔍 Facebook OAuth Debug Info:');
+    console.log('App ID:', FB_APP_ID);
+    console.log('Redirect URI:', REDIRECT_URI);
+    console.log('Full URL:', window.location.href);
+    console.log('Origin:', window.location.origin);
+    console.log('Pathname:', window.location.pathname);
+    console.log('Hash:', window.location.hash);
+}
+
 /**
  * Initialize Facebook SDK (for production/HTTPS environments)
  */
@@ -137,7 +148,7 @@ export const loginWithFacebook = () => {
                             } else {
                                 // SDK login failed or was cancelled - fall back to redirect OAuth
                                 console.warn('Facebook SDK login failed or cancelled, using redirect OAuth');
-                                const scope = 'pages_manage_posts,pages_read_engagement,public_profile';
+                                const scope = 'pages_manage_posts,pages_read_engagement,pages_show_list,public_profile';
                                 const state = 'facebook_oauth';
                                 const authUrl = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${FB_APP_ID}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&scope=${encodeURIComponent(scope)}&state=${state}&response_type=code`;
                                 
@@ -145,7 +156,7 @@ export const loginWithFacebook = () => {
                                 window.location.href = authUrl;
                             }
                         }, {
-                            scope: 'pages_manage_posts,pages_read_engagement,public_profile',
+                            scope: 'pages_manage_posts,pages_read_engagement,pages_show_list,public_profile',
                             return_scopes: true
                         });
                     } catch (err: any) {

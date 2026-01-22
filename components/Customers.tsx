@@ -25,6 +25,7 @@ import {
   RefreshCw
 } from 'lucide-react';
 import { useCustomers } from '../src/hooks/useCustomers';
+import CustomerProfile from './CustomerProfile';
 
 type CustomerTab = 'all' | 'active' | 'lead' | 'inactive';
 
@@ -32,6 +33,17 @@ const Customers: React.FC = () => {
   const { customers, isLoading, createCustomer, updateCustomer, deleteCustomer } = useCustomers();
   const [activeTab, setActiveTab] = useState<CustomerTab>('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
+
+  // Reset selectedCustomerId if it's invalid or customers are loaded and it doesn't exist
+  React.useEffect(() => {
+    if (!isLoading && customers && selectedCustomerId) {
+      const customerExists = customers.some(c => c.id === selectedCustomerId);
+      if (!customerExists) {
+        setSelectedCustomerId(null);
+      }
+    }
+  }, [customers, isLoading, selectedCustomerId]);
   
   // Modal states
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -43,10 +55,21 @@ const Customers: React.FC = () => {
     email: '',
     phone: '',
     company: '',
-    status: 'active' as 'lead' | 'active' | 'inactive',
+    customer_type: 'individual' as 'individual' | 'company',
+    lifecycle_stage: 'lead' as 'lead' | 'prospect' | 'client',
+    status: 'active' as 'active' | 'inactive',
+    social_profiles: {
+      twitter: '',
+      linkedin: '',
+      instagram: '',
+      facebook: '',
+      youtube: ''
+    },
     notes: '',
     tags: ''
   });
+
+  const suggestedTags = ['VIP', 'Influencer', 'Enterprise'];
 
   const tabs: { id: CustomerTab; label: string; icon: React.ReactNode }[] = [
     { id: 'all', label: 'All customers', icon: <Users size={16} /> },
@@ -59,24 +82,42 @@ const Customers: React.FC = () => {
     if (!customers) return [];
     
     return customers.filter(c => {
-      const matchesSearch = c.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                          c.email.toLowerCase().includes(searchQuery.toLowerCase());
+      const customerName = c.name || '';
+      const matchesSearch = customerName.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                          (c.email && c.email.toLowerCase().includes(searchQuery.toLowerCase())) ||
+                          (c.phone && c.phone.toLowerCase().includes(searchQuery.toLowerCase()));
       if (activeTab === 'all') return matchesSearch;
       if (activeTab === 'active') return matchesSearch && c.status === 'active';
-      if (activeTab === 'lead') return matchesSearch && c.status === 'lead';
+      if (activeTab === 'lead') return matchesSearch && (c.lifecycle_stage === 'lead' || !c.lifecycle_stage);
       if (activeTab === 'inactive') return matchesSearch && c.status === 'inactive';
       return false;
     });
   }, [activeTab, searchQuery, customers]);
 
   const openEditModal = (customer: any) => {
+    const resolvedType: 'individual' | 'company' =
+      customer.customer_type || (customer.company || customer.company_name ? 'company' : 'individual');
+
     setEditingCustomer(customer);
+    const socialProfiles = typeof customer.social_profiles === 'object' && customer.social_profiles 
+      ? customer.social_profiles 
+      : { twitter: '', linkedin: '', instagram: '', facebook: '', youtube: '' };
+    
     setFormData({ 
       name: customer.name, 
       email: customer.email,
       phone: customer.phone || '',
-      company: customer.company || '',
-      status: customer.status,
+      company: resolvedType === 'company' ? (customer.company || '') : '',
+      customer_type: resolvedType,
+      lifecycle_stage: customer.lifecycle_stage || 'lead',
+      status: customer.status === 'active' || customer.status === 'inactive' ? customer.status : 'active',
+      social_profiles: {
+        twitter: socialProfiles.twitter || '',
+        linkedin: socialProfiles.linkedin || '',
+        instagram: socialProfiles.instagram || '',
+        facebook: socialProfiles.facebook || '',
+        youtube: socialProfiles.youtube || ''
+      },
       notes: customer.notes || '',
       tags: customer.tags ? customer.tags.join(', ') : ''
     });
@@ -90,7 +131,16 @@ const Customers: React.FC = () => {
       email: '',
       phone: '',
       company: '',
+      customer_type: 'individual',
+      lifecycle_stage: 'lead',
       status: 'active',
+      social_profiles: {
+        twitter: '',
+        linkedin: '',
+        instagram: '',
+        facebook: '',
+        youtube: ''
+      },
       notes: '',
       tags: ''
     });
@@ -110,6 +160,18 @@ const Customers: React.FC = () => {
     const tagsArray = formData.tags 
       ? formData.tags.split(',').map(s => s.trim()).filter(s => s)
       : [];
+
+    // For company customers, persist the name as the company value.
+    // For individuals, we clear any company value.
+    const companyValue = formData.customer_type === 'company' ? formData.name : '';
+    
+    // Clean social profiles - only include non-empty values
+    const cleanedSocialProfiles: any = {};
+    if (formData.social_profiles.twitter) cleanedSocialProfiles.twitter = formData.social_profiles.twitter;
+    if (formData.social_profiles.linkedin) cleanedSocialProfiles.linkedin = formData.social_profiles.linkedin;
+    if (formData.social_profiles.instagram) cleanedSocialProfiles.instagram = formData.social_profiles.instagram;
+    if (formData.social_profiles.facebook) cleanedSocialProfiles.facebook = formData.social_profiles.facebook;
+    if (formData.social_profiles.youtube) cleanedSocialProfiles.youtube = formData.social_profiles.youtube;
     
     if (editingCustomer) {
       await updateCustomer.mutateAsync({ 
@@ -118,8 +180,11 @@ const Customers: React.FC = () => {
           name: formData.name,
           email: formData.email,
           phone: formData.phone,
-          company: formData.company,
+          company: companyValue,
+          customer_type: formData.customer_type,
+          lifecycle_stage: formData.lifecycle_stage,
           status: formData.status,
+          social_profiles: cleanedSocialProfiles,
           notes: formData.notes,
           tags: tagsArray
         }
@@ -129,16 +194,45 @@ const Customers: React.FC = () => {
         name: formData.name,
         email: formData.email,
         phone: formData.phone,
-        company: formData.company,
+        company: companyValue,
+        customer_type: formData.customer_type,
+        lifecycle_stage: formData.lifecycle_stage,
         status: formData.status,
+        social_profiles: cleanedSocialProfiles,
         notes: formData.notes,
         tags: tagsArray
       });
     }
     setIsModalOpen(false);
     setEditingCustomer(null);
-    setFormData({ name: '', email: '', phone: '', company: '', status: 'active', notes: '', tags: '' });
+    setFormData({ 
+      name: '', 
+      email: '', 
+      phone: '', 
+      company: '', 
+      customer_type: 'individual', 
+      lifecycle_stage: 'lead',
+      status: 'active',
+      social_profiles: { twitter: '', linkedin: '', instagram: '', facebook: '', youtube: '' },
+      notes: '', 
+      tags: '' 
+    });
   };
+
+  // Show customer profile if one is selected AND customer exists
+  if (selectedCustomerId) {
+    // Check if customer exists before showing profile
+    const customerExists = customers?.some(c => c.id === selectedCustomerId);
+    if (customerExists) {
+      return (
+        <CustomerProfile
+          customerId={selectedCustomerId}
+          onBack={() => setSelectedCustomerId(null)}
+        />
+      );
+    }
+    // If customer doesn't exist, useEffect will reset selectedCustomerId, so we continue to show list
+  }
 
   if (isLoading) {
     return (
@@ -183,6 +277,8 @@ const Customers: React.FC = () => {
               <thead>
                 <tr className="text-[10px] font-black text-gray-400 uppercase tracking-widest border-b border-gray-100 dark:border-slate-800">
                   <th className="px-6 py-4">Customer</th>
+                  <th className="px-6 py-4">Type</th>
+                  <th className="px-6 py-4">Stage</th>
                   <th className="px-6 py-4">Status</th>
                   <th className="px-6 py-4">Company</th>
                   <th className="px-6 py-4">Phone</th>
@@ -192,62 +288,104 @@ const Customers: React.FC = () => {
               </thead>
               <tbody className="divide-y divide-gray-50 dark:divide-slate-800">
                 {filteredCustomers.length > 0 ? (
-                  filteredCustomers.map((customer) => (
-                    <tr key={customer.id} className="hover:bg-gray-50/50 dark:hover:bg-slate-800/50 transition-all group">
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-3">
-                          <div className={`w-9 h-9 rounded-full flex items-center justify-center font-black text-xs shadow-sm ${customer.avatarColor}`}>
-                            {customer.name.charAt(0)}
+                  filteredCustomers.map((customer) => {
+                    const customerName = customer.full_name || customer.name || 'Unknown';
+                    const initials = customerName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+                    return (
+                      <tr
+                        key={customer.id}
+                        onClick={() => setSelectedCustomerId(customer.id)}
+                        className="hover:bg-gray-50/50 dark:hover:bg-slate-800/50 transition-all group cursor-pointer"
+                      >
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-black text-xs shadow-sm">
+                              {customer.avatar_url ? (
+                                <img src={customer.avatar_url} alt={customerName} className="w-full h-full rounded-full object-cover" />
+                              ) : (
+                                initials
+                              )}
+                            </div>
+                            <div>
+                              <p className="text-sm font-bold text-gray-900 dark:text-slate-100">{customerName}</p>
+                              <p className="text-[10px] text-gray-400 font-medium">{customer.email || '-'}</p>
+                            </div>
                           </div>
-                          <div>
-                            <p className="text-sm font-bold text-gray-900 dark:text-slate-100">{customer.name}</p>
-                            <p className="text-[10px] text-gray-400 font-medium">{customer.email}</p>
+                        </td>
+                        <td className="px-6 py-4">
+                          <span
+                            className={`inline-flex items-center gap-1 text-[10px] font-black uppercase px-2 py-1 rounded-full ${
+                              customer.customer_type === 'company'
+                                ? 'bg-purple-50 text-purple-600 dark:bg-purple-900/20 dark:text-purple-300'
+                                : 'bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-300'
+                            }`}
+                          >
+                            {customer.customer_type === 'company' ? 'Company' : 'Individual'}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className={`text-[10px] font-black uppercase px-2 py-1 rounded ${
+                            customer.lifecycle_stage === 'client' ? 'text-green-600 bg-green-50 dark:bg-green-900/20' : 
+                            customer.lifecycle_stage === 'prospect' ? 'text-orange-600 bg-orange-50 dark:bg-orange-900/20' : 
+                            'text-blue-600 bg-blue-50 dark:bg-blue-900/20'
+                          }`}>
+                            {customer.lifecycle_stage?.toUpperCase() || '-'}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className={`text-[10px] font-black uppercase px-2 py-1 rounded ${
+                            customer.status === 'active' ? 'text-green-600 bg-green-50 dark:bg-green-900/20' : 
+                            'text-gray-400 bg-gray-100 dark:bg-slate-800'
+                          }`}>
+                            {customer.status?.toUpperCase() || '-'}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4">
+                          <p className="text-sm text-gray-600 dark:text-slate-400">{customer.company || '-'}</p>
+                        </td>
+                        <td className="px-6 py-4">
+                          <p className="text-sm text-gray-600 dark:text-slate-400">{customer.phone || '-'}</p>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex flex-wrap gap-1">
+                            {customer.tags && Array.isArray(customer.tags) && customer.tags.length > 0 ? (
+                              customer.tags.slice(0, 2).map((s, idx) => (
+                                <span key={idx} className="text-[9px] font-bold text-gray-500 dark:text-slate-400 bg-gray-100 dark:bg-slate-800 px-1.5 py-0.5 rounded uppercase">
+                                  {s}
+                                </span>
+                              ))
+                            ) : (
+                              <span className="text-[9px] text-gray-400">-</span>
+                            )}
                           </div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full ${
-                          customer.status === 'active' ? 'text-green-600 bg-green-50 dark:bg-green-900/20' : 
-                          customer.status === 'lead' ? 'text-blue-600 bg-blue-50 dark:bg-blue-900/20' : 'text-gray-400 bg-gray-100 dark:bg-slate-800'
-                        }`}>
-                          {customer.status}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4">
-                        <p className="text-sm text-gray-600 dark:text-slate-400">{customer.company || '-'}</p>
-                      </td>
-                      <td className="px-6 py-4">
-                        <p className="text-sm text-gray-600 dark:text-slate-400">{customer.phone || '-'}</p>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex flex-wrap gap-1">
-                          {customer.tags && Array.isArray(customer.tags) && customer.tags.map(s => (
-                            <span key={s} className="text-[9px] font-bold text-gray-500 dark:text-slate-400 bg-gray-100 dark:bg-slate-800 px-1.5 py-0.5 rounded uppercase">
-                              {s}
-                            </span>
-                          ))}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-all">
-                          <button 
-                            onClick={() => openEditModal(customer)}
-                            className="p-2 text-gray-400 hover:text-brand-600 hover:bg-brand-50 dark:hover:bg-slate-800 rounded-lg transition-all"
-                            title="Edit"
-                          >
-                            <Edit2 size={14} />
-                          </button>
-                          <button 
-                            onClick={() => handleDelete(customer.id)}
-                            className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all"
-                            title="Delete"
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                            <button 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openEditModal(customer);
+                              }}
+                              className="p-2 text-gray-400 hover:text-brand-600 hover:bg-brand-50 dark:hover:bg-slate-800 rounded-lg transition-all"
+                              title="Edit"
+                            >
+                              <Edit2 size={14} />
+                            </button>
+                            <button 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDelete(customer.id);
+                              }}
+                              className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all"
+                              title="Delete"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
                 ) : (
                   <tr>
                     <td colSpan={6} className="px-6 py-20 text-center text-gray-400 italic">No customers found matching your criteria.</td>
@@ -257,7 +395,7 @@ const Customers: React.FC = () => {
             </table>
           </div>
         </div>
-      );
+    );
     }
 
     if (activeTab === 'segments') {
@@ -372,8 +510,8 @@ const Customers: React.FC = () => {
       {/* Add/Edit Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white dark:bg-slate-900 w-full max-w-md rounded-[2rem] shadow-2xl border border-gray-100 dark:border-slate-800 overflow-hidden animate-in zoom-in-95 duration-300">
-            <div className="p-6 border-b border-gray-50 dark:border-slate-800 flex items-center justify-between">
+          <div className="bg-white dark:bg-slate-900 w-full max-w-md max-h-[90vh] rounded-[2rem] shadow-2xl border border-gray-100 dark:border-slate-800 overflow-hidden animate-in zoom-in-95 duration-300 flex flex-col">
+            <div className="p-6 border-b border-gray-50 dark:border-slate-800 flex items-center justify-between flex-shrink-0">
               <h3 className="text-xl font-black text-gray-900 dark:text-slate-100 tracking-tight">
                 {editingCustomer ? 'Edit Customer' : 'Add New Customer'}
               </h3>
@@ -381,16 +519,47 @@ const Customers: React.FC = () => {
                 <X size={20} />
               </button>
             </div>
-            <form onSubmit={handleSubmit} className="p-8 space-y-6">
+            <div className="flex flex-col flex-1 min-h-0">
+              <form id="customer-form" onSubmit={handleSubmit} className="p-6 space-y-5 overflow-y-auto flex-1 min-h-0">
+                {/* Customer type toggle: Individual vs Company */}
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Customer Type</label>
+                  <div className="inline-flex rounded-2xl bg-gray-50 dark:bg-slate-800 p-1 border border-transparent">
+                    <button
+                      type="button"
+                      onClick={() => setFormData({ ...formData, customer_type: 'individual', company: '' })}
+                      className={`px-3 py-1.5 text-[11px] font-bold rounded-2xl transition-all ${
+                        formData.customer_type === 'individual'
+                          ? 'bg-white dark:bg-slate-700 text-blue-600 shadow-sm'
+                          : 'text-gray-500 dark:text-slate-400'
+                      }`}
+                    >
+                      Individual
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFormData({ ...formData, customer_type: 'company' })}
+                      className={`ml-1 px-3 py-1.5 text-[11px] font-bold rounded-2xl transition-all ${
+                        formData.customer_type === 'company'
+                          ? 'bg-white dark:bg-slate-700 text-purple-600 shadow-sm'
+                          : 'text-gray-500 dark:text-slate-400'
+                      }`}
+                    >
+                      Company
+                    </button>
+                  </div>
+                </div>
               <div className="space-y-2">
-                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Full Name</label>
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
+                  {formData.customer_type === 'company' ? 'Company Name' : 'Full Name'}
+                </label>
                 <input 
                   required
                   type="text" 
                   value={formData.name}
                   onChange={e => setFormData({...formData, name: e.target.value})}
                   className="w-full px-4 py-3 bg-gray-50 dark:bg-slate-800 border border-transparent rounded-2xl focus:bg-white dark:focus:bg-slate-700 focus:ring-4 focus:ring-brand-500/20 transition-all outline-none text-sm font-medium dark:text-slate-100"
-                  placeholder="e.g. Alexander Pierce"
+                  placeholder={formData.customer_type === 'company' ? 'e.g. Acme Corp' : 'e.g. Alexander Pierce'}
                 />
               </div>
               <div className="space-y-2">
@@ -404,48 +573,121 @@ const Customers: React.FC = () => {
                   placeholder="alex@example.com"
                 />
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Phone</label>
-                  <input 
-                    type="tel" 
-                    value={formData.phone}
-                    onChange={e => setFormData({...formData, phone: e.target.value})}
-                    className="w-full px-4 py-3 bg-gray-50 dark:bg-slate-800 border border-transparent rounded-2xl focus:bg-white dark:focus:bg-slate-700 focus:ring-4 focus:ring-brand-500/20 transition-all outline-none text-sm font-medium dark:text-slate-100"
-                    placeholder="+1 (555) 123-4567"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Company</label>
-                  <input 
-                    type="text" 
-                    value={formData.company}
-                    onChange={e => setFormData({...formData, company: e.target.value})}
-                    className="w-full px-4 py-3 bg-gray-50 dark:bg-slate-800 border border-transparent rounded-2xl focus:bg-white dark:focus:bg-slate-700 focus:ring-4 focus:ring-brand-500/20 transition-all outline-none text-sm font-medium dark:text-slate-100"
-                    placeholder="Acme Corp"
-                  />
-                </div>
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Phone</label>
+                <input 
+                  type="tel" 
+                  value={formData.phone}
+                  onChange={e => setFormData({...formData, phone: e.target.value})}
+                  className="w-full px-4 py-3 bg-gray-50 dark:bg-slate-800 border border-transparent rounded-2xl focus:bg-white dark:focus:bg-slate-700 focus:ring-4 focus:ring-brand-500/20 transition-all outline-none text-sm font-medium dark:text-slate-100"
+                  placeholder="+1 (555) 123-4567"
+                />
               </div>
+              {/* Lifecycle Stage (Lead, Prospect, Client) */}
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Customer Type</label>
+                <select 
+                  value={formData.lifecycle_stage}
+                  onChange={e => setFormData({...formData, lifecycle_stage: e.target.value as 'lead' | 'prospect' | 'client'})}
+                  className="w-full px-4 py-3 bg-gray-50 dark:bg-slate-800 border border-transparent rounded-2xl focus:bg-white dark:focus:bg-slate-700 focus:ring-4 focus:ring-brand-500/20 transition-all outline-none text-sm font-medium dark:text-slate-100 appearance-none"
+                >
+                  <option value="lead">Lead</option>
+                  <option value="prospect">Prospect</option>
+                  <option value="client">Client</option>
+                </select>
+              </div>
+
+              {/* Status (Active/Inactive) */}
               <div className="space-y-2">
                 <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Status</label>
                 <select 
                   value={formData.status}
-                  onChange={e => setFormData({...formData, status: e.target.value as any})}
+                  onChange={e => setFormData({...formData, status: e.target.value as 'active' | 'inactive'})}
                   className="w-full px-4 py-3 bg-gray-50 dark:bg-slate-800 border border-transparent rounded-2xl focus:bg-white dark:focus:bg-slate-700 focus:ring-4 focus:ring-brand-500/20 transition-all outline-none text-sm font-medium dark:text-slate-100 appearance-none"
                 >
-                  <option value="lead">Lead</option>
                   <option value="active">Active</option>
                   <option value="inactive">Inactive</option>
                 </select>
               </div>
+
+              {/* Social Profiles */}
+              <div className="space-y-3">
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Social Profiles</label>
+                <div className="grid grid-cols-2 gap-3">
+                  <input 
+                    type="text" 
+                    value={formData.social_profiles.twitter}
+                    onChange={e => setFormData({...formData, social_profiles: {...formData.social_profiles, twitter: e.target.value}})}
+                    className="px-4 py-2 bg-gray-50 dark:bg-slate-800 border border-transparent rounded-xl focus:bg-white dark:focus:bg-slate-700 focus:ring-2 focus:ring-brand-500/20 transition-all outline-none text-sm font-medium dark:text-slate-100"
+                    placeholder="Twitter"
+                  />
+                  <input 
+                    type="text" 
+                    value={formData.social_profiles.linkedin}
+                    onChange={e => setFormData({...formData, social_profiles: {...formData.social_profiles, linkedin: e.target.value}})}
+                    className="px-4 py-2 bg-gray-50 dark:bg-slate-800 border border-transparent rounded-xl focus:bg-white dark:focus:bg-slate-700 focus:ring-2 focus:ring-brand-500/20 transition-all outline-none text-sm font-medium dark:text-slate-100"
+                    placeholder="LinkedIn"
+                  />
+                  <input 
+                    type="text" 
+                    value={formData.social_profiles.instagram}
+                    onChange={e => setFormData({...formData, social_profiles: {...formData.social_profiles, instagram: e.target.value}})}
+                    className="px-4 py-2 bg-gray-50 dark:bg-slate-800 border border-transparent rounded-xl focus:bg-white dark:focus:bg-slate-700 focus:ring-2 focus:ring-brand-500/20 transition-all outline-none text-sm font-medium dark:text-slate-100"
+                    placeholder="Instagram"
+                  />
+                  <input 
+                    type="text" 
+                    value={formData.social_profiles.facebook}
+                    onChange={e => setFormData({...formData, social_profiles: {...formData.social_profiles, facebook: e.target.value}})}
+                    className="px-4 py-2 bg-gray-50 dark:bg-slate-800 border border-transparent rounded-xl focus:bg-white dark:focus:bg-slate-700 focus:ring-2 focus:ring-brand-500/20 transition-all outline-none text-sm font-medium dark:text-slate-100"
+                    placeholder="Facebook"
+                  />
+                  <input 
+                    type="text" 
+                    value={formData.social_profiles.youtube}
+                    onChange={e => setFormData({...formData, social_profiles: {...formData.social_profiles, youtube: e.target.value}})}
+                    className="px-4 py-2 bg-gray-50 dark:bg-slate-800 border border-transparent rounded-xl focus:bg-white dark:focus:bg-slate-700 focus:ring-2 focus:ring-brand-500/20 transition-all outline-none text-sm font-medium dark:text-slate-100"
+                    placeholder="YouTube"
+                  />
+                </div>
+              </div>
+
+              {/* Tags with suggestions */}
               <div className="space-y-2">
-                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Tags (Comma separated)</label>
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Tags</label>
+                <div className="flex flex-wrap gap-2 mb-2">
+                  {suggestedTags.map((tag) => {
+                    const tagsArray = formData.tags ? formData.tags.split(',').map(s => s.trim()) : [];
+                    const isSelected = tagsArray.includes(tag);
+                    return (
+                      <button
+                        key={tag}
+                        type="button"
+                        onClick={() => {
+                          const tagsArray = formData.tags ? formData.tags.split(',').map(s => s.trim()).filter(s => s) : [];
+                          if (isSelected) {
+                            setFormData({...formData, tags: tagsArray.filter(t => t !== tag).join(', ')});
+                          } else {
+                            setFormData({...formData, tags: [...tagsArray, tag].join(', ')});
+                          }
+                        }}
+                        className={`px-3 py-1 text-xs font-bold rounded-lg transition-all ${
+                          isSelected
+                            ? 'bg-brand-600 text-white'
+                            : 'bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-slate-400 hover:bg-gray-200 dark:hover:bg-slate-700'
+                        }`}
+                      >
+                        {tag}
+                      </button>
+                    );
+                  })}
+                </div>
                 <input 
                   type="text" 
                   value={formData.tags}
                   onChange={e => setFormData({...formData, tags: e.target.value})}
                   className="w-full px-4 py-3 bg-gray-50 dark:bg-slate-800 border border-transparent rounded-2xl focus:bg-white dark:focus:bg-slate-700 focus:ring-4 focus:ring-brand-500/20 transition-all outline-none text-sm font-medium dark:text-slate-100"
-                  placeholder="Premium, Beta Tester, VIP"
+                  placeholder="Or type custom tags (comma separated)"
                 />
               </div>
               <div className="space-y-2">
@@ -458,7 +700,8 @@ const Customers: React.FC = () => {
                   placeholder="Additional notes about this customer..."
                 />
               </div>
-              <div className="pt-4 flex gap-3">
+              </form>
+              <div className="p-6 pt-4 border-t border-gray-50 dark:border-slate-800 flex gap-3 flex-shrink-0">
                 <button 
                   type="button"
                   onClick={() => setIsModalOpen(false)}
@@ -468,12 +711,13 @@ const Customers: React.FC = () => {
                 </button>
                 <button 
                   type="submit"
+                  form="customer-form"
                   className="flex-[2] py-3 bg-brand-600 text-white font-black rounded-2xl hover:bg-brand-700 shadow-xl shadow-brand-500/20 transition-all text-xs uppercase tracking-widest flex items-center justify-center gap-2"
                 >
                   <Check size={18} /> {editingCustomer ? 'Update Customer' : 'Add Customer'}
                 </button>
               </div>
-            </form>
+            </div>
           </div>
         </div>
       )}

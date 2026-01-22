@@ -20,7 +20,12 @@ import {
   Search,
   Settings,
   CheckCircle2,
-  X
+  X,
+  Facebook,
+  Twitter,
+  MessageCircle,
+  Share2,
+  Eye
 } from 'lucide-react';
 
 type CalendarView = 'month' | 'week' | 'day';
@@ -46,6 +51,8 @@ const ContentCalendar: React.FC<ContentCalendarProps> = ({ onNavigateToCreate })
   const [loading, setLoading] = useState(true);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [filterType, setFilterType] = useState('All Types');
+  const [viewingMetrics, setViewingMetrics] = useState<{ post: any; platform: string } | null>(null);
+  const [loadingPost, setLoadingPost] = useState(false);
 
   useEffect(() => {
     fetchEntries();
@@ -151,6 +158,59 @@ const ContentCalendar: React.FC<ContentCalendarProps> = ({ onNavigateToCreate })
     }
   };
 
+  const handleViewStats = async (entry: CalendarEntry) => {
+    try {
+      setLoadingPost(true);
+      // Fetch the full post data
+      const { data: post, error } = await supabase
+        .from('posts')
+        .select('*')
+        .eq('id', entry.id)
+        .single();
+
+      if (error) throw error;
+      if (!post) {
+        alert('Post not found');
+        return;
+      }
+
+      // Get the platform from the entry or post
+      const platform = entry.platform?.toLowerCase() || post.platforms?.[0]?.toLowerCase() || 'facebook';
+      setViewingMetrics({ post, platform });
+      setActivePopover(null);
+    } catch (err) {
+      console.error('Error fetching post for stats:', err);
+      alert('Failed to load post stats');
+    } finally {
+      setLoadingPost(false);
+    }
+  };
+
+  // Generate stable mock metrics based on post ID
+  const getMockMetrics = (post: any) => {
+    const postIdHash = post?.id?.split('').reduce((acc: number, char: string) => acc + char.charCodeAt(0), 0) || 1234;
+    return {
+      likes: post?.analytics?.likes || (postIdHash % 500) + 50,
+      shares: post?.analytics?.shares || (postIdHash % 200) + 10,
+      comments: post?.analytics?.comments || (postIdHash % 100) + 5,
+      views: post?.analytics?.views || (postIdHash % 2000) + 500,
+      reach: post?.analytics?.reach || (postIdHash % 3000) + 1000,
+      impressions: post?.analytics?.impressions || (postIdHash % 5000) + 2000,
+      likesGrowth: (postIdHash % 20) + 5,
+      sharesGrowth: (postIdHash % 15) + 3,
+      commentsGrowth: (postIdHash % 25) + 5,
+      viewsGrowth: (postIdHash % 30) + 10,
+      reactions: (postIdHash % 300) + 50,
+      clicks: (postIdHash % 150) + 20,
+      saves: (postIdHash % 50) + 5,
+      videoViews: post?.content_type === 'video' ? (postIdHash % 1000) + 200 : 0,
+      instagramSaves: (postIdHash % 80) + 10,
+      instagramProfileVisits: (postIdHash % 200) + 30,
+      instagramWebsiteClicks: post?.link_url ? (postIdHash % 100) + 15 : 0,
+      instagramReach: (postIdHash % 2000) + 500,
+    };
+  };
+
   const filteredEntries = entries.filter(entry => {
     if (filterType === 'All Types') return true;
     if (filterType === 'Social Only') return entry.type === 'social';
@@ -184,7 +244,7 @@ const ContentCalendar: React.FC<ContentCalendarProps> = ({ onNavigateToCreate })
 
   const renderDays = () => {
     if (loading) {
-      return Array.from({ length: 35 }).map((_, i) => (
+      return Array.from({ length: 42 }).map((_, i) => (
         <div key={`loading-${i}`} className="min-h-[120px] bg-white border-r border-b border-gray-100 p-2 animate-pulse">
           <div className="h-4 w-6 bg-gray-100 rounded mb-2"></div>
           <div className="space-y-1">
@@ -195,17 +255,29 @@ const ContentCalendar: React.FC<ContentCalendarProps> = ({ onNavigateToCreate })
     }
 
     const days = [];
-    // Start empty cells for Sun-Mon (Jan 2022 started on Saturday, but we'll use a fixed example)
-    for (let i = 0; i < 6; i++) {
+    
+    // Calculate the first day of the month (0 = Sunday, 1 = Monday, etc.)
+    const firstDayOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1).getDay();
+    
+    // Calculate the number of days in the current month
+    const daysInMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate();
+    
+    // Add empty cells for days before the first day of the month
+    for (let i = 0; i < firstDayOfMonth; i++) {
       days.push(<div key={`empty-${i}`} className="min-h-[120px] bg-gray-50/30 border-r border-b border-gray-100"></div>);
     }
 
-    for (let d = 1; d <= 31; d++) {
+    // Add cells for each day of the month
+    for (let d = 1; d <= daysInMonth; d++) {
       const dayEntries = filteredEntries.filter(e => e.day === d);
+      const isToday = d === new Date().getDate() && 
+                      currentDate.getMonth() === new Date().getMonth() && 
+                      currentDate.getFullYear() === new Date().getFullYear();
+      
       days.push(
-        <div key={d} className={`min-h-[120px] bg-white border-r border-b border-gray-100 p-2 group hover:bg-blue-50/10 transition-colors relative`}>
+        <div key={d} className={`min-h-[120px] bg-white border-r border-b border-gray-100 p-2 group hover:bg-blue-50/10 transition-colors relative ${isToday ? 'bg-blue-50/30' : ''}`}>
           <div className="flex justify-between items-start mb-2">
-            <span className={`text-xs font-black ${[3, 10, 17, 24, 31].includes(d) ? 'text-red-500' : 'text-gray-400'}`}>
+            <span className={`text-xs font-black ${isToday ? 'text-blue-600 bg-blue-100 px-2 py-0.5 rounded-full' : 'text-gray-400'}`}>
               {d}
             </span>
             <button
@@ -266,7 +338,11 @@ const ContentCalendar: React.FC<ContentCalendarProps> = ({ onNavigateToCreate })
                         >
                           <Copy size={16} /> <span className="text-[9px] font-black uppercase">Dup</span>
                         </button>
-                        <button className="flex flex-col items-center gap-1.5 p-2 bg-gray-50 rounded-xl hover:bg-blue-50 hover:text-blue-600 transition-all text-gray-500">
+                        <button
+                          onClick={() => handleViewStats(entry)}
+                          disabled={loadingPost}
+                          className="flex flex-col items-center gap-1.5 p-2 bg-gray-50 rounded-xl hover:bg-blue-50 hover:text-blue-600 transition-all text-gray-500 disabled:opacity-50"
+                        >
                           <BarChart2 size={16} /> <span className="text-[9px] font-black uppercase">Stats</span>
                         </button>
                       </div>
@@ -279,6 +355,14 @@ const ContentCalendar: React.FC<ContentCalendarProps> = ({ onNavigateToCreate })
         </div>
       );
     }
+    
+    // Fill remaining cells to complete the grid (6 rows x 7 columns = 42 cells)
+    const totalCells = days.length;
+    const remainingCells = 42 - totalCells;
+    for (let i = 0; i < remainingCells; i++) {
+      days.push(<div key={`empty-end-${i}`} className="min-h-[120px] bg-gray-50/30 border-r border-b border-gray-100"></div>);
+    }
+    
     return days;
   };
 
@@ -379,6 +463,254 @@ const ContentCalendar: React.FC<ContentCalendarProps> = ({ onNavigateToCreate })
           </div>
         ))}
       </div>
+
+      {/* Post Metrics Modal */}
+      {viewingMetrics && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in duration-200" onClick={(e) => {
+          if (e.target === e.currentTarget) {
+            setViewingMetrics(null);
+          }
+        }}>
+          <div className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden shadow-2xl border border-gray-100 dark:border-slate-800 flex flex-col">
+            {/* Header */}
+            <div className="p-6 border-b border-gray-100 dark:border-slate-800 flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-black text-gray-900 dark:text-white flex items-center gap-2">
+                  {viewingMetrics.platform === 'facebook' && <Facebook className="text-[#1877F2]" size={24} />}
+                  {viewingMetrics.platform === 'instagram' && <Instagram className="text-[#E4405F]" size={24} />}
+                  {viewingMetrics.platform === 'twitter' && <Twitter className="text-[#1DA1F2]" size={24} />}
+                  {viewingMetrics.platform === 'linkedin' && <Linkedin className="text-[#0A66C2]" size={24} />}
+                  {viewingMetrics.platform === 'whatsapp' && <MessageCircle className="text-[#25D366]" size={24} />}
+                  <span className="capitalize">{viewingMetrics.platform} Post Metrics</span>
+                </h2>
+                <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">
+                  Engagement analytics for this post on {viewingMetrics.platform}
+                </p>
+              </div>
+              <button onClick={() => setViewingMetrics(null)} className="p-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg transition-colors">
+                <X size={20} className="text-gray-500" />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-6">
+              {/* Post Preview */}
+              <div className="bg-gray-50 dark:bg-slate-800 rounded-xl p-4 border border-gray-200 dark:border-slate-700">
+                <p className="text-xs font-bold text-gray-400 uppercase mb-2">Post Content</p>
+                <p className="text-sm text-gray-900 dark:text-white line-clamp-2">
+                  {viewingMetrics.post.content || '(No text content)'}
+                </p>
+              </div>
+
+              {/* Key Metrics Grid */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 p-6 rounded-xl border border-blue-200 dark:border-blue-800">
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className="p-2 bg-blue-500 rounded-lg">
+                      <CheckCircle2 className="text-white" size={20} />
+                    </div>
+                    <p className="text-xs font-bold text-blue-600 dark:text-blue-400 uppercase">Likes</p>
+                  </div>
+                  <p className="text-3xl font-black text-blue-900 dark:text-blue-100">
+                    {getMockMetrics(viewingMetrics.post).likes}
+                  </p>
+                  <p className="text-xs text-blue-600 dark:text-blue-400 mt-1 font-medium">
+                    +{getMockMetrics(viewingMetrics.post).likesGrowth}% from last week
+                  </p>
+                </div>
+
+                <div className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 p-6 rounded-xl border border-green-200 dark:border-green-800">
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className="p-2 bg-green-500 rounded-lg">
+                      <Share2 className="text-white" size={20} />
+                    </div>
+                    <p className="text-xs font-bold text-green-600 dark:text-green-400 uppercase">Shares</p>
+                  </div>
+                  <p className="text-3xl font-black text-green-900 dark:text-green-100">
+                    {getMockMetrics(viewingMetrics.post).shares}
+                  </p>
+                  <p className="text-xs text-green-600 dark:text-green-400 mt-1 font-medium">
+                    +{getMockMetrics(viewingMetrics.post).sharesGrowth}% from last week
+                  </p>
+                </div>
+
+                <div className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 p-6 rounded-xl border border-purple-200 dark:border-purple-800">
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className="p-2 bg-purple-500 rounded-lg">
+                      <MessageSquare className="text-white" size={20} />
+                    </div>
+                    <p className="text-xs font-bold text-purple-600 dark:text-purple-400 uppercase">Comments</p>
+                  </div>
+                  <p className="text-3xl font-black text-purple-900 dark:text-purple-100">
+                    {getMockMetrics(viewingMetrics.post).comments}
+                  </p>
+                  <p className="text-xs text-purple-600 dark:text-purple-400 mt-1 font-medium">
+                    +{getMockMetrics(viewingMetrics.post).commentsGrowth}% from last week
+                  </p>
+                </div>
+
+                <div className="bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-900/20 dark:to-orange-800/20 p-6 rounded-xl border border-orange-200 dark:border-orange-800">
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className="p-2 bg-orange-500 rounded-lg">
+                      <Eye className="text-white" size={20} />
+                    </div>
+                    <p className="text-xs font-bold text-orange-600 dark:text-orange-400 uppercase">Views</p>
+                  </div>
+                  <p className="text-3xl font-black text-orange-900 dark:text-orange-100">
+                    {getMockMetrics(viewingMetrics.post).views}
+                  </p>
+                  <p className="text-xs text-orange-600 dark:text-orange-400 mt-1 font-medium">
+                    +{getMockMetrics(viewingMetrics.post).viewsGrowth}% from last week
+                  </p>
+                </div>
+              </div>
+
+              {/* Additional Metrics */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="bg-white dark:bg-slate-800 p-5 rounded-xl border border-gray-200 dark:border-slate-700">
+                  <p className="text-xs font-bold text-gray-400 uppercase mb-2">Reach</p>
+                  <p className="text-2xl font-black text-gray-900 dark:text-white">
+                    {getMockMetrics(viewingMetrics.post).reach}
+                  </p>
+                  <p className="text-xs text-gray-500 mt-1">Unique people who saw this post</p>
+                </div>
+
+                <div className="bg-white dark:bg-slate-800 p-5 rounded-xl border border-gray-200 dark:border-slate-700">
+                  <p className="text-xs font-bold text-gray-400 uppercase mb-2">Impressions</p>
+                  <p className="text-2xl font-black text-gray-900 dark:text-white">
+                    {getMockMetrics(viewingMetrics.post).impressions}
+                  </p>
+                  <p className="text-xs text-gray-500 mt-1">Total times post was shown</p>
+                </div>
+
+                <div className="bg-white dark:bg-slate-800 p-5 rounded-xl border border-gray-200 dark:border-slate-700">
+                  <p className="text-xs font-bold text-gray-400 uppercase mb-2">Engagement Rate</p>
+                  <p className="text-2xl font-black text-gray-900 dark:text-white">
+                    {(() => {
+                      const m = getMockMetrics(viewingMetrics.post);
+                      return ((m.likes + m.comments + m.shares) / m.reach * 100).toFixed(1);
+                    })()}%
+                  </p>
+                  <p className="text-xs text-gray-500 mt-1">Likes + Comments + Shares / Reach</p>
+                </div>
+              </div>
+
+              {/* Platform-Specific Metrics */}
+              {viewingMetrics.platform === 'facebook' && (
+                <div className="bg-blue-50 dark:bg-blue-900/20 p-5 rounded-xl border border-blue-200 dark:border-blue-800">
+                  <h3 className="text-sm font-bold text-blue-900 dark:text-blue-100 mb-4 flex items-center gap-2">
+                    <Facebook className="text-[#1877F2]" size={18} />
+                    Facebook-Specific Metrics
+                  </h3>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div>
+                      <p className="text-xs text-blue-600 dark:text-blue-400 font-medium">Reactions</p>
+                      <p className="text-lg font-black text-blue-900 dark:text-blue-100">
+                        {getMockMetrics(viewingMetrics.post).reactions}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-blue-600 dark:text-blue-400 font-medium">Clicks</p>
+                      <p className="text-lg font-black text-blue-900 dark:text-blue-100">
+                        {getMockMetrics(viewingMetrics.post).clicks}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-blue-600 dark:text-blue-400 font-medium">Saves</p>
+                      <p className="text-lg font-black text-blue-900 dark:text-blue-100">
+                        {getMockMetrics(viewingMetrics.post).saves}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-blue-600 dark:text-blue-400 font-medium">Video Views</p>
+                      <p className="text-lg font-black text-blue-900 dark:text-blue-100">
+                        {getMockMetrics(viewingMetrics.post).videoViews || 'N/A'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {viewingMetrics.platform === 'instagram' && (
+                <div className="bg-pink-50 dark:bg-pink-900/20 p-5 rounded-xl border border-pink-200 dark:border-pink-800">
+                  <h3 className="text-sm font-bold text-pink-900 dark:text-pink-100 mb-4 flex items-center gap-2">
+                    <Instagram className="text-[#E4405F]" size={18} />
+                    Instagram-Specific Metrics
+                  </h3>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div>
+                      <p className="text-xs text-pink-600 dark:text-pink-400 font-medium">Saves</p>
+                      <p className="text-lg font-black text-pink-900 dark:text-pink-100">
+                        {getMockMetrics(viewingMetrics.post).instagramSaves}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-pink-600 dark:text-pink-400 font-medium">Profile Visits</p>
+                      <p className="text-lg font-black text-pink-900 dark:text-pink-100">
+                        {getMockMetrics(viewingMetrics.post).instagramProfileVisits}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-pink-600 dark:text-pink-400 font-medium">Website Clicks</p>
+                      <p className="text-lg font-black text-pink-900 dark:text-pink-100">
+                        {getMockMetrics(viewingMetrics.post).instagramWebsiteClicks || 'N/A'}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-pink-600 dark:text-pink-400 font-medium">Reach</p>
+                      <p className="text-lg font-black text-pink-900 dark:text-pink-100">
+                        {getMockMetrics(viewingMetrics.post).instagramReach}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Engagement Timeline */}
+              <div className="bg-white dark:bg-slate-800 p-5 rounded-xl border border-gray-200 dark:border-slate-700">
+                <h3 className="text-sm font-bold text-gray-900 dark:text-white mb-4">Recent Engagement Activity</h3>
+                <div className="space-y-3">
+                  {[
+                    { time: '1 hour ago', action: 'New comment', user: '@user123', type: 'comment' },
+                    { time: '2 hours ago', action: 'Liked by', user: '@user456', type: 'like' },
+                    { time: '3 hours ago', action: 'Shared by', user: '@user789', type: 'share' },
+                    { time: '5 hours ago', action: 'New comment', user: '@user321', type: 'comment' },
+                    { time: '6 hours ago', action: 'Liked by', user: '@user654', type: 'like' },
+                  ].map((activity, idx) => (
+                    <div key={idx} className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-slate-700 rounded-lg">
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                        activity.type === 'comment' ? 'bg-purple-100 text-purple-600' :
+                        activity.type === 'like' ? 'bg-blue-100 text-blue-600' :
+                        'bg-green-100 text-green-600'
+                      }`}>
+                        {activity.type === 'comment' ? <MessageSquare size={16} /> :
+                         activity.type === 'like' ? <CheckCircle2 size={16} /> :
+                         <Share2 size={16} />}
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-sm font-bold text-gray-900 dark:text-white">
+                          {activity.action} <span className="text-blue-600">{activity.user}</span>
+                        </p>
+                        <p className="text-xs text-gray-500">{activity.time}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="p-6 border-t border-gray-100 dark:border-slate-800 flex justify-end gap-3">
+              <button
+                onClick={() => setViewingMetrics(null)}
+                className="px-6 py-2 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition-all"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

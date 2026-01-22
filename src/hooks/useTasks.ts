@@ -13,6 +13,7 @@ export function useTasks() {
     mutationFn: tasksService.create,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['timeline'] }); // Refresh timeline
     },
   });
 
@@ -21,6 +22,7 @@ export function useTasks() {
       tasksService.update(id, updates),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['timeline'] }); // Refresh timeline
     },
   });
 
@@ -28,6 +30,7 @@ export function useTasks() {
     mutationFn: tasksService.delete,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['timeline'] }); // Refresh timeline
     },
   });
 

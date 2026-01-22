@@ -166,6 +166,39 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
       return;
     }
 
+    // Show helpful message about Pages permissions requirement
+    const pagesPermissionInfo = `
+⚠️ Facebook Pages Permissions Required
+
+To connect Facebook, you need to add Pages permissions to your Facebook App:
+
+1. Go to: https://developers.facebook.com/apps/
+2. Select your app (ID: 1621732999001688)
+3. Add "Pages" product to your app
+4. Request these permissions:
+   - pages_manage_posts
+   - pages_read_engagement
+   - pages_show_list
+
+📖 See FACEBOOK_PAGES_PERMISSIONS_SETUP.md for detailed instructions.
+
+Note: For now, you can still create posts - all platforms are temporarily enabled for testing.
+
+Would you like to:
+- Continue anyway (will show error)
+- See setup instructions
+- Cancel
+    `;
+
+    const userChoice = confirm(pagesPermissionInfo + '\n\nClick OK to see setup guide, or Cancel to continue anyway.');
+    
+    if (userChoice) {
+      // Open setup guide
+      window.open('https://developers.facebook.com/docs/pages', '_blank');
+      setIsLoading(false);
+      return;
+    }
+
     setIsLoading(true);
     try {
       const authResponse: any = await loginWithFacebook();
@@ -206,7 +239,24 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
       // Provide helpful error messages with setup instructions
       let errorMessage = 'Failed to connect to Facebook.\n\n';
       
-      if (err.message?.includes('LOCALHOST_SETUP_REQUIRED')) {
+      // Check for "Feature Unavailable" error (Pages permissions missing)
+      if (err.message?.includes('Feature Unavailable') || 
+          err.message?.includes('unavailable') || 
+          err.message?.includes('updating additional details')) {
+        errorMessage = `🔴 Facebook Pages Permissions Required\n\n`;
+        errorMessage += `The "Feature Unavailable" error means your Facebook App needs Pages permissions.\n\n`;
+        errorMessage += `✅ Quick Fix:\n`;
+        errorMessage += `1. Go to: https://developers.facebook.com/apps/1621732999001688\n`;
+        errorMessage += `2. Add "Pages" product to your app\n`;
+        errorMessage += `3. Request permissions: pages_manage_posts, pages_read_engagement\n`;
+        errorMessage += `4. Add yourself as a test user (for immediate testing)\n\n`;
+        errorMessage += `📖 See FACEBOOK_PAGES_PERMISSIONS_SETUP.md for complete instructions.\n\n`;
+        errorMessage += `💡 Note: You can still create posts - all platforms are enabled for testing.`;
+        
+        if (confirm(errorMessage + '\n\nOpen Facebook Developer Console?')) {
+          window.open('https://developers.facebook.com/apps/1621732999001688', '_blank');
+        }
+      } else if (err.message?.includes('LOCALHOST_SETUP_REQUIRED')) {
         errorMessage = err.message.replace('LOCALHOST_SETUP_REQUIRED: ', '') + '\n\n';
         errorMessage += '📋 Quick Setup Steps:\n';
         errorMessage += '1. Go to https://developers.facebook.com/apps/\n';

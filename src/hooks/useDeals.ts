@@ -24,6 +24,7 @@ export function useDeals() {
       dealsService.create(newDeal),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['deals'] });
+      queryClient.invalidateQueries({ queryKey: ['timeline'] }); // Refresh timeline
     },
   });
 
@@ -32,6 +33,7 @@ export function useDeals() {
       dealsService.update(id, updates),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['deals'] });
+      queryClient.invalidateQueries({ queryKey: ['timeline'] }); // Refresh timeline
     },
   });
 
@@ -39,6 +41,7 @@ export function useDeals() {
     mutationFn: (id: string) => dealsService.delete(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['deals'] });
+      queryClient.invalidateQueries({ queryKey: ['timeline'] }); // Refresh timeline
     },
   });
 
