@@ -24,7 +24,8 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../src/hooks/useAuth';
 import { supabase } from '../src/lib/supabase';
-import { initFacebookSDK, loginWithFacebook, getPageTokens } from '../src/lib/facebook';
+import { initFacebookSDK, loginWithFacebook, getPageTokens, getInstagramAccount } from '../src/lib/facebook';
+import { loginWithLinkedIn, getLinkedInProfile, getLinkedInOrganizations, getLinkedInOrganizationDetails } from '../src/lib/linkedin';
 
 type SocialTab = 'accounts' | 'schedule' | 'engagement' | 'mentions' | 'comments' | 'dms';
 
@@ -49,6 +50,10 @@ const SocialMedia: React.FC = () => {
       
       if (code && state === 'facebook_oauth') {
         handleFacebookCallback(code);
+      } else if (code && state === 'instagram_oauth') {
+        handleInstagramCallback(code);
+      } else if (code && state === 'linkedin_oauth') {
+        handleLinkedInCallback(code);
       }
     }
   }, [user]);
@@ -161,6 +166,482 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleConnectInstagram = async () => {
+    if (!user) {
+      alert('Please log in first');
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      // Instagram Business accounts are connected through Facebook Pages
+      // First, check if user has connected Facebook Pages
+      const { data: workspaces } = await supabase.from('workspaces').select('id').eq('owner_id', user.id).limit(1);
+      if (!workspaces?.length) throw new Error('No workspace found');
+
+      const { data: facebookAccounts } = await supabase
+        .from('social_accounts')
+        .select('*')
+        .eq('workspace_id', workspaces[0].id)
+        .eq('platform', 'facebook')
+        .eq('is_active', true);
+
+      if (!facebookAccounts || facebookAccounts.length === 0) {
+        const shouldConnectFacebook = confirm(
+          'Instagram Business accounts must be linked to a Facebook Page.\n\n' +
+          'You need to connect Facebook first to access Instagram.\n\n' +
+          'Would you like to connect Facebook now?'
+        );
+        
+        if (shouldConnectFacebook) {
+          setIsLoading(false);
+          handleConnectFacebook();
+          return;
+        } else {
+          setIsLoading(false);
+          return;
+        }
+      }
+
+      // User has Facebook connected, now get Instagram accounts
+      // Store that we're connecting Instagram
+      sessionStorage.setItem('instagram_oauth_return', window.location.href);
+      
+      const authResponse: any = await loginWithFacebook();
+      
+      if (!authResponse || !authResponse.accessToken) {
+        // OAuth redirect happened, callback will handle it
+        return;
+      }
+
+      const pages: any = await getPageTokens(authResponse.accessToken);
+
+      // Find pages with Instagram Business accounts
+      const pagesWithInstagram = pages.filter((page: any) => page.instagram_business_account);
+
+      if (pagesWithInstagram.length === 0) {
+        alert(
+          'No Instagram Business accounts found.\n\n' +
+          'To connect Instagram:\n' +
+          '1. Your Instagram account must be a Business or Creator account\n' +
+          '2. It must be linked to a Facebook Page\n' +
+          '3. You must be an admin of both the Page and Instagram account\n\n' +
+          'See: https://www.facebook.com/business/help/898752960195806'
+        );
+        setIsLoading(false);
+        return;
+      }
+
+      // Get Instagram account details for each page
+      const instagramAccounts = [];
+      for (const page of pagesWithInstagram) {
+        try {
+          const instagramAccount = await getInstagramAccount(page.access_token, page.instagram_business_account.id);
+          instagramAccounts.push({
+            ...instagramAccount,
+            page_id: page.id,
+            page_name: page.name,
+            page_access_token: page.access_token,
+          });
+        } catch (err) {
+          console.warn(`Failed to get Instagram account for page ${page.name}:`, err);
+        }
+      }
+
+      if (instagramAccounts.length === 0) {
+        alert('Failed to retrieve Instagram account details. Please try again.');
+        setIsLoading(false);
+        return;
+      }
+
+      // Store Instagram accounts
+      const { data: workspacesData } = await supabase.from('workspaces').select('id').eq('owner_id', user!.id).limit(1);
+      if (!workspacesData?.length) throw new Error('No workspace found');
+
+      for (const instagramAccount of instagramAccounts) {
+        await supabase.from('social_accounts').upsert({
+          workspace_id: workspacesData[0].id,
+          platform: 'instagram',
+          platform_account_id: instagramAccount.id,
+          account_name: instagramAccount.username || `Instagram (${instagramAccount.page_name})`,
+          access_token: instagramAccount.page_access_token, // Use page token for Instagram API calls
+          is_active: true,
+        }, { onConflict: 'workspace_id,platform,platform_account_id' });
+      }
+
+      alert(`✅ Connected to Instagram: ${instagramAccounts.map((acc: any) => acc.username || acc.page_name).join(', ')}!`);
+      fetchConnectedAccounts();
+    } catch (err: any) {
+      console.error('Instagram connection error:', err);
+      alert(`Failed to connect Instagram: ${err.message || 'Unknown error'}`);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleInstagramCallback = async (code: string) => {
+    setIsLoading(true);
+    try {
+      // Instagram uses the same OAuth flow as Facebook
+      // Exchange code for token and then get Instagram accounts
+      const backendUrl = import.meta.env.VITE_API_URL || '';
+      let accessToken: string;
+
+      if (backendUrl) {
+        const response = await fetch(`${backendUrl}/api/facebook/token`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            code, 
+            redirectUri: `${window.location.origin}${window.location.pathname}${window.location.hash || ''}` 
+          })
+        });
+        
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.message || 'Token exchange failed');
+        }
+        
+        const data = await response.json();
+        accessToken = data.access_token;
+      } else {
+        alert('Backend API URL not configured. Instagram connection requires a backend endpoint.');
+        setIsLoading(false);
+        const returnUrl = sessionStorage.getItem('instagram_oauth_return') || window.location.pathname;
+        window.history.replaceState({}, '', returnUrl);
+        sessionStorage.removeItem('instagram_oauth_return');
+        return;
+      }
+
+      // Get pages with Instagram accounts
+      const pages: any = await getPageTokens(accessToken);
+      const pagesWithInstagram = pages.filter((page: any) => page.instagram_business_account);
+
+      if (pagesWithInstagram.length === 0) {
+        alert('No Instagram Business accounts found linked to your Facebook Pages.');
+        setIsLoading(false);
+        const returnUrl = sessionStorage.getItem('instagram_oauth_return') || window.location.pathname;
+        window.history.replaceState({}, '', returnUrl);
+        sessionStorage.removeItem('instagram_oauth_return');
+        return;
+      }
+
+      // Get Instagram account details
+      const instagramAccounts = [];
+      for (const page of pagesWithInstagram) {
+        try {
+          const instagramAccount = await getInstagramAccount(page.access_token, page.instagram_business_account.id);
+          instagramAccounts.push({
+            ...instagramAccount,
+            page_id: page.id,
+            page_name: page.name,
+            page_access_token: page.access_token,
+          });
+        } catch (err) {
+          console.warn(`Failed to get Instagram account for page ${page.name}:`, err);
+        }
+      }
+
+      if (instagramAccounts.length === 0) {
+        alert('Failed to retrieve Instagram account details.');
+        setIsLoading(false);
+        return;
+      }
+
+      // Store Instagram accounts
+      const { data: workspaces } = await supabase.from('workspaces').select('id').eq('owner_id', user!.id).limit(1);
+      if (!workspaces?.length) throw new Error('No workspace found');
+
+      for (const instagramAccount of instagramAccounts) {
+        await supabase.from('social_accounts').upsert({
+          workspace_id: workspaces[0].id,
+          platform: 'instagram',
+          platform_account_id: instagramAccount.id,
+          account_name: instagramAccount.username || `Instagram (${instagramAccount.page_name})`,
+          access_token: instagramAccount.page_access_token,
+          is_active: true,
+        }, { onConflict: 'workspace_id,platform,platform_account_id' });
+      }
+
+      alert(`✅ Connected to Instagram: ${instagramAccounts.map((acc: any) => acc.username || acc.page_name).join(', ')}!`);
+      fetchConnectedAccounts();
+      
+      // Clean up URL
+      const returnUrl = sessionStorage.getItem('instagram_oauth_return') || window.location.pathname;
+      window.history.replaceState({}, '', returnUrl);
+      sessionStorage.removeItem('instagram_oauth_return');
+    } catch (err: any) {
+      console.error('Instagram callback error:', err);
+      alert(`Failed to connect Instagram: ${err.message || 'Unknown error'}`);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleConnectLinkedIn = async () => {
+    if (!user) {
+      alert('Please log in first');
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const authResponse: any = await loginWithLinkedIn();
+      
+      // If we got redirected, the callback handler will process it
+      if (!authResponse || !authResponse.accessToken) {
+        // OAuth redirect happened, callback will handle it
+        return;
+      }
+
+      // Get LinkedIn profile
+      // Note: Organizations require Marketing Developer Platform (partner-only)
+      const profile = await getLinkedInProfile(authResponse.accessToken);
+      const organizations = await getLinkedInOrganizations(authResponse.accessToken); // Will return empty for now
+
+      const { data: workspaces } = await supabase.from('workspaces').select('id').eq('owner_id', user!.id).limit(1);
+      if (!workspaces?.length) throw new Error('No workspace found');
+
+      // Store personal profile connection
+      await supabase.from('social_accounts').upsert({
+        workspace_id: workspaces[0].id,
+        platform: 'linkedin',
+        platform_account_id: profile.sub || profile.id,
+        account_name: profile.name || `${profile.given_name} ${profile.family_name}` || 'LinkedIn Profile',
+        access_token: authResponse.accessToken,
+        refresh_token: authResponse.refreshToken,
+        expires_at: authResponse.expiresIn ? new Date(Date.now() + authResponse.expiresIn * 1000).toISOString() : null,
+        is_active: true,
+      }, { onConflict: 'workspace_id,platform,platform_account_id' });
+
+      // Store organization connections if available
+      if (organizations && organizations.length > 0) {
+        for (const org of organizations) {
+          try {
+            const orgDetails = await getLinkedInOrganizationDetails(authResponse.accessToken, org.organizationalTarget);
+            await supabase.from('social_accounts').upsert({
+              workspace_id: workspaces[0].id,
+              platform: 'linkedin',
+              platform_account_id: orgDetails.id || org.organizationalTarget,
+              account_name: orgDetails.name || 'LinkedIn Company Page',
+              access_token: authResponse.accessToken,
+              refresh_token: authResponse.refreshToken,
+              expires_at: authResponse.expiresIn ? new Date(Date.now() + authResponse.expiresIn * 1000).toISOString() : null,
+              is_active: true,
+            }, { onConflict: 'workspace_id,platform,platform_account_id' });
+          } catch (err) {
+            console.warn(`Failed to get details for organization ${org.organizationalTarget}:`, err);
+          }
+        }
+      }
+
+      const accountNames = [
+        profile.name || `${profile.given_name} ${profile.family_name}` || 'LinkedIn Profile',
+        ...(organizations?.map((org: any) => org.name || 'Company Page') || [])
+      ].filter(Boolean);
+
+      alert(`✅ Connected to LinkedIn: ${accountNames.join(', ')}!`);
+      fetchConnectedAccounts();
+    } catch (err: any) {
+      console.error('LinkedIn connection error:', err);
+      
+      let errorMessage = 'Failed to connect to LinkedIn.\n\n';
+      
+      if (err.message?.includes('Client ID not configured')) {
+        errorMessage = `🔴 LinkedIn App Configuration Required\n\n`;
+        errorMessage += `LinkedIn Client ID is not configured.\n\n`;
+        errorMessage += `✅ Setup Steps:\n\n`;
+        errorMessage += `1. Create a LinkedIn App:\n`;
+        errorMessage += `   • Go to: https://www.linkedin.com/developers/apps\n`;
+        errorMessage += `   • Click "Create app"\n`;
+        errorMessage += `   • Fill in app details\n\n`;
+        errorMessage += `2. Configure OAuth:\n`;
+        errorMessage += `   • Go to "Auth" tab\n`;
+        const redirectUri = typeof window !== 'undefined' 
+          ? `${window.location.origin}${window.location.pathname}${window.location.hash || ''}`
+          : 'http://localhost:3000';
+        errorMessage += `   • Add redirect URI: ${redirectUri}\n`;
+        errorMessage += `   • Basic scopes (work immediately):\n`;
+        errorMessage += `     - openid (authentication)\n`;
+        errorMessage += `     - profile (read profile - replaces r_liteprofile)\n`;
+        errorMessage += `     - email (read email - replaces r_emailaddress)\n\n`;
+        errorMessage += `   • Advanced scopes (require approval):\n`;
+        errorMessage += `     - w_member_social (post to profile - needs Share on LinkedIn product)\n`;
+        errorMessage += `     - r_organization_social (post to company - partner-only)\n\n`;
+        errorMessage += `   ⚠️ Note: Full automation requires LinkedIn Partner Program approval.\n`;
+        errorMessage += `   For now, basic connection works for user identity and manual sharing.\n\n`;
+        errorMessage += `3. Get Credentials:\n`;
+        errorMessage += `   • Copy "Client ID" from Auth tab\n`;
+        errorMessage += `   • Add to environment variables: VITE_LINKEDIN_CLIENT_ID\n\n`;
+        errorMessage += `4. Backend Setup (Required):\n`;
+        errorMessage += `   • Create endpoint: POST /api/linkedin/token\n`;
+        errorMessage += `   • Set VITE_API_URL in environment variables\n`;
+        errorMessage += `   • Backend needs Client Secret for token exchange\n\n`;
+        errorMessage += `📖 See LINKEDIN_CONNECTION_GUIDE.md for detailed instructions.`;
+        
+        const shouldOpen = confirm(errorMessage + '\n\nOpen LinkedIn Developer Portal now?');
+        if (shouldOpen) {
+          window.open('https://www.linkedin.com/developers/apps', '_blank');
+        }
+      } else if (err.message?.includes('LOCAL_DEV_API_ERROR')) {
+        errorMessage = `🔴 Local Development API Issue\n\n`;
+        errorMessage += err.message.replace('LOCAL_DEV_API_ERROR: ', '') + '\n\n';
+        errorMessage += `✅ Quick Fix:\n\n`;
+        errorMessage += `Update .env.local:\n`;
+        errorMessage += `Change: VITE_API_URL=http://localhost:3000\n`;
+        errorMessage += `To: VITE_API_URL=https://engage-hub-ten.vercel.app\n\n`;
+        errorMessage += `Then restart your dev server.`;
+        
+        alert(errorMessage + '\n\nPlease update .env.local manually and restart your dev server.');
+      } else if (err.message?.includes('backend')) {
+        errorMessage = `🔴 Backend Setup Required\n\n`;
+        errorMessage += `LinkedIn OAuth requires a backend server to securely exchange the authorization code for an access token.\n\n`;
+        errorMessage += `Options:\n`;
+        errorMessage += `1. Set up a backend API endpoint: POST /api/linkedin/token\n`;
+        errorMessage += `2. Use Supabase Edge Functions\n`;
+        errorMessage += `3. Set VITE_API_URL in environment variables\n\n`;
+        errorMessage += `See LINKEDIN_CONNECTION_GUIDE.md for setup instructions.`;
+        alert(errorMessage);
+      } else if (err.message) {
+        errorMessage = `LinkedIn connection error:\n\n${err.message}`;
+        alert(errorMessage);
+      } else {
+        alert(errorMessage + 'Please check your LinkedIn App configuration.');
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleLinkedInCallback = async (code: string) => {
+    setIsLoading(true);
+    try {
+      // LinkedIn uses backend for token exchange
+      const backendUrl = import.meta.env.VITE_API_URL || '';
+      let accessToken: string;
+      let refreshToken: string;
+      let expiresIn: number;
+
+      if (backendUrl) {
+        const response = await fetch(`${backendUrl}/api/linkedin/token`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            code, 
+            redirectUri: `${window.location.origin}${window.location.pathname}${window.location.hash || ''}` 
+          })
+        });
+        
+        if (!response.ok) {
+          // Handle 404 (endpoint not found) with helpful message
+          if (response.status === 404) {
+            const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+            if (isLocalhost && backendUrl.includes('localhost')) {
+              throw new Error(
+                'LOCAL_DEV_API_ERROR: The API endpoint is not available locally.\n\n' +
+                'Vercel serverless functions only work on Vercel, not in local development.\n\n' +
+                'Solutions:\n' +
+                '1. Use production URL: Set VITE_API_URL=https://engage-hub-ten.vercel.app in .env.local\n' +
+                '2. Or deploy to Vercel first, then test\n' +
+                '3. Or set up a local backend server\n\n' +
+                'For now, update .env.local to use your Vercel URL.'
+              );
+            }
+          }
+          
+          // Try to parse error response
+          let errorMessage = 'Token exchange failed';
+          try {
+            const error = await response.json();
+            errorMessage = error.message || error.error || 'Token exchange failed';
+          } catch {
+            // If response is not JSON, use status text
+            errorMessage = response.statusText || 'Token exchange failed';
+          }
+          throw new Error(errorMessage);
+        }
+        
+        const data = await response.json();
+        accessToken = data.access_token;
+        refreshToken = data.refresh_token;
+        expiresIn = data.expires_in;
+      } else {
+        alert('Backend API URL not configured. LinkedIn connection requires a backend endpoint.');
+        setIsLoading(false);
+        const returnUrl = sessionStorage.getItem('linkedin_oauth_return') || window.location.pathname;
+        window.history.replaceState({}, '', returnUrl);
+        sessionStorage.removeItem('linkedin_oauth_return');
+        return;
+      }
+
+      // Get LinkedIn profile and organizations
+      const profile = await getLinkedInProfile(accessToken);
+      const organizations = await getLinkedInOrganizations(accessToken);
+
+      // Store connections
+      const { data: workspaces } = await supabase.from('workspaces').select('id').eq('owner_id', user!.id).limit(1);
+      if (!workspaces?.length) throw new Error('No workspace found');
+
+      // Store personal profile
+      await supabase.from('social_accounts').upsert({
+        workspace_id: workspaces[0].id,
+        platform: 'linkedin',
+        platform_account_id: profile.sub || profile.id,
+        account_name: profile.name || `${profile.given_name} ${profile.family_name}` || 'LinkedIn Profile',
+        access_token: accessToken,
+        refresh_token: refreshToken,
+        expires_at: expiresIn ? new Date(Date.now() + expiresIn * 1000).toISOString() : null,
+        is_active: true,
+      }, { onConflict: 'workspace_id,platform,platform_account_id' });
+
+      // Store organizations
+      if (organizations && organizations.length > 0) {
+        for (const org of organizations) {
+          try {
+            const orgDetails = await getLinkedInOrganizationDetails(accessToken, org.organizationalTarget);
+            await supabase.from('social_accounts').upsert({
+              workspace_id: workspaces[0].id,
+              platform: 'linkedin',
+              platform_account_id: orgDetails.id || org.organizationalTarget,
+              account_name: orgDetails.name || 'LinkedIn Company Page',
+              access_token: accessToken,
+              refresh_token: refreshToken,
+              expires_at: expiresIn ? new Date(Date.now() + expiresIn * 1000).toISOString() : null,
+              is_active: true,
+            }, { onConflict: 'workspace_id,platform,platform_account_id' });
+          } catch (err) {
+            console.warn(`Failed to get details for organization:`, err);
+          }
+        }
+      }
+
+      const accountNames = [
+        profile.name || `${profile.given_name} ${profile.family_name}` || 'LinkedIn Profile',
+        ...(organizations?.map((org: any) => org.name || 'Company Page') || [])
+      ].filter(Boolean);
+
+      alert(`✅ Connected to LinkedIn: ${accountNames.join(', ')}!`);
+      fetchConnectedAccounts();
+      
+      // Clean up URL
+      const returnUrl = sessionStorage.getItem('linkedin_oauth_return') || window.location.pathname;
+      window.history.replaceState({}, '', returnUrl);
+      sessionStorage.removeItem('linkedin_oauth_return');
+    } catch (err: any) {
+      console.error('LinkedIn callback error:', err);
+      alert(`Failed to connect LinkedIn: ${err.message || 'Unknown error'}`);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const getRedirectURI = (): string => {
+    if (typeof window === 'undefined') {
+      return 'http://localhost:3000';
+    }
+    return `${window.location.origin}${window.location.pathname}${window.location.hash || ''}`;
   };
 
   const handleConnectFacebook = async () => {
@@ -339,7 +820,17 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
                       </span>
                     ) : (
                       <button
-                        onClick={() => account.platform === 'facebook' ? handleConnectFacebook() : alert(`${account.name} integration coming soon!`)}
+                        onClick={() => {
+                          if (account.platform === 'facebook') {
+                            handleConnectFacebook();
+                          } else if (account.platform === 'instagram') {
+                            handleConnectInstagram();
+                          } else if (account.platform === 'linkedin') {
+                            handleConnectLinkedIn();
+                          } else {
+                            alert(`${account.name} integration coming soon!`);
+                          }
+                        }}
                         className="flex items-center gap-1 text-[10px] font-bold text-white bg-blue-600 hover:bg-blue-700 px-3 py-1.5 rounded-full uppercase shadow-sm transition-all"
                       >
                         <Plus size={12} /> Connect

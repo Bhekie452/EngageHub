@@ -37,6 +37,11 @@ VITE_API_URL=https://your-backend-api.com
 # Facebook Integration (Optional)
 VITE_FACEBOOK_APP_ID=1621732999001688
 
+# LinkedIn Integration (Optional)
+VITE_LINKEDIN_CLIENT_ID=your-linkedin-client-id-here
+# NOTE: LinkedIn Client Secret should ONLY be in backend environment variables, NOT here!
+# See LINKEDIN_CLIENT_SECRET_GUIDE.md for details
+
 # Gemini AI (Optional)
 VITE_GEMINI_API_KEY=your-api-key-here
 ```
@@ -99,7 +104,13 @@ Click **Add New** and add each variable:
    - **Value:** `1621732999001688` (or your Facebook App ID)
    - **Environment:** Select all
 
-5. **VITE_GEMINI_API_KEY**
+5. **VITE_LINKEDIN_CLIENT_ID**
+   - **Name:** `VITE_LINKEDIN_CLIENT_ID`
+   - **Value:** `776oifhjg06le0` (or your LinkedIn Client ID)
+   - **Environment:** Select all
+   - **Note:** Client Secret should be added to backend environment variables only
+
+6. **VITE_GEMINI_API_KEY**
    - **Name:** `VITE_GEMINI_API_KEY`
    - **Value:** Your Gemini API key
    - **Environment:** Select all

@@ -183,7 +183,7 @@ export const loginWithFacebook = () => {
                             } else {
                                 // SDK login failed or was cancelled - fall back to redirect OAuth
                                 console.warn('Facebook SDK login failed or cancelled, using redirect OAuth');
-                                const scope = 'pages_manage_posts,pages_read_engagement,pages_show_list,public_profile';
+                                const scope = 'pages_manage_posts,pages_read_engagement,pages_show_list,public_profile,instagram_basic,instagram_content_publish';
                                 const state = 'facebook_oauth';
                                 const redirectUri = getRedirectURI();
                                 const authUrl = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${FB_APP_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}&state=${state}&response_type=code`;
@@ -192,13 +192,13 @@ export const loginWithFacebook = () => {
                                 window.location.href = authUrl;
                             }
                         }, {
-                            scope: 'pages_manage_posts,pages_read_engagement,pages_show_list,public_profile',
+                            scope: 'pages_manage_posts,pages_read_engagement,pages_show_list,public_profile,instagram_basic,instagram_content_publish',
                             return_scopes: true
                         });
                     } catch (err: any) {
                         // Fall back to redirect OAuth if SDK call fails
                         console.warn('Facebook SDK login error, using redirect OAuth:', err);
-                        const scope = 'pages_manage_posts,pages_read_engagement,public_profile';
+                        const scope = 'pages_manage_posts,pages_read_engagement,public_profile,instagram_basic,instagram_content_publish';
                         const state = 'facebook_oauth';
                         const redirectUri = getRedirectURI();
                         const authUrl = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${FB_APP_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}&state=${state}&response_type=code`;
@@ -234,7 +234,7 @@ export const loginWithFacebook = () => {
             }
             
             // Use redirect OAuth for HTTP (non-localhost)
-            const scope = 'pages_manage_posts,pages_read_engagement,public_profile';
+            const scope = 'pages_manage_posts,pages_read_engagement,public_profile,instagram_basic,instagram_content_publish';
             const state = 'facebook_oauth';
             const redirectUri = getRedirectURI();
             const authUrl = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${FB_APP_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}&state=${state}&response_type=code`;
@@ -308,7 +308,7 @@ const exchangeCodeForToken = async (code: string): Promise<any> => {
 export const getPageTokens = async (userAccessToken: string): Promise<any[]> => {
     try {
         const response = await fetch(
-            `https://graph.facebook.com/v21.0/me/accounts?access_token=${userAccessToken}`
+            `https://graph.facebook.com/v21.0/me/accounts?fields=id,name,access_token,instagram_business_account&access_token=${userAccessToken}`
         );
         const data = await response.json();
         
@@ -319,5 +319,25 @@ export const getPageTokens = async (userAccessToken: string): Promise<any[]> => 
         return data.data || [];
     } catch (error: any) {
         throw new Error(`Failed to get pages: ${error.message}`);
+    }
+};
+
+/**
+ * Get Instagram Business account details for a Facebook Page
+ */
+export const getInstagramAccount = async (pageAccessToken: string, instagramBusinessAccountId: string): Promise<any> => {
+    try {
+        const response = await fetch(
+            `https://graph.facebook.com/v21.0/${instagramBusinessAccountId}?fields=id,username,profile_picture_url&access_token=${pageAccessToken}`
+        );
+        const data = await response.json();
+        
+        if (data.error) {
+            throw new Error(data.error.message || 'Failed to fetch Instagram account');
+        }
+        
+        return data;
+    } catch (error: any) {
+        throw new Error(`Failed to get Instagram account: ${error.message}`);
     }
 };

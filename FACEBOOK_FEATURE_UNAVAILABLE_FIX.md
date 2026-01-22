@@ -67,11 +67,23 @@ This error occurs when your Facebook App is **incomplete** or **needs configurat
 
 ### Step 4: Add Pages Product
 
-1. Go to **Products** (in left sidebar)
-2. Click **+ Add Product**
-3. Find **"Pages"** in the list
-4. Click **"Set Up"** or **"Get Started"**
+**Direct Link:** https://developers.facebook.com/apps/1621732999001688/products/
+
+**Steps:**
+1. Go to **Products** (in left sidebar) OR use the direct link above
+2. Look for **"Pages"** in the product list
+3. If you see "Pages" but it's not set up:
+   - Click **"Set Up"** or **"Get Started"** next to Pages
+4. If you don't see "Pages":
+   - Click **"+ Add Product"** (top right or in sidebar)
+   - Search for **"Pages"** in the product list
+   - Click **"Set Up"** or **"Get Started"**
 5. Follow the setup wizard
+
+**Alternative:** If you can't find Products in the sidebar:
+- Go to: https://developers.facebook.com/apps/1621732999001688/settings/basic/
+- Scroll down to the **"Products"** section
+- Look for **"Pages"** and click **"Set Up"**
 
 ### Step 5: Request Required Permissions
 
