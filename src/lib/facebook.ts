@@ -34,8 +34,19 @@ export const initFacebookSDK = () => {
                 return;
             }
 
+            // Set a timeout for SDK loading
+            const loadTimeout = setTimeout(() => {
+                console.warn('Facebook SDK loading timeout - will use redirect OAuth fallback');
+                // Don't reject, just resolve so the app can continue with redirect OAuth
+                resolve(false);
+            }, 10000); // 10 second timeout
+
+            // Store original fbAsyncInit if it exists
+            const originalFbAsyncInit = (window as any).fbAsyncInit;
+
             (window as any).fbAsyncInit = function () {
                 try {
+                    clearTimeout(loadTimeout);
                     (window as any).FB.init({
                         appId: FB_APP_ID,
                         cookie: true,
@@ -45,8 +56,11 @@ export const initFacebookSDK = () => {
                     console.log('Facebook SDK Initialized');
                     resolve(true);
                 } catch (err: any) {
+                    clearTimeout(loadTimeout);
                     console.error('Facebook SDK init error:', err);
-                    reject(err);
+                    // Don't reject - allow fallback to redirect OAuth
+                    console.warn('Falling back to redirect OAuth method');
+                    resolve(false);
                 }
             };
 
@@ -55,14 +69,17 @@ export const initFacebookSDK = () => {
                 if (d.getElementById(id)) {
                     // Script already exists, wait for it to load
                     if ((window as any).FB) {
+                        clearTimeout(loadTimeout);
                         resolve(true);
                     } else {
                         // Wait a bit for the existing script to initialize
                         setTimeout(() => {
+                            clearTimeout(loadTimeout);
                             if ((window as any).FB) {
                                 resolve(true);
                             } else {
-                                reject(new Error('Facebook SDK failed to load'));
+                                console.warn('Facebook SDK script exists but not initialized - using redirect OAuth');
+                                resolve(false);
                             }
                         }, 2000);
                     }
@@ -71,6 +88,14 @@ export const initFacebookSDK = () => {
                 js = d.createElement(s) as any; js.id = id;
                 js.src = "https://connect.facebook.net/en_US/sdk.js";
                 js.async = true;
+                
+                // Add error handler for script loading
+                js.onerror = () => {
+                    clearTimeout(loadTimeout);
+                    console.warn('Facebook SDK script failed to load - using redirect OAuth fallback');
+                    resolve(false);
+                };
+                
                 fjs.parentNode?.insertBefore(js, fjs);
             }(document, 'script', 'facebook-jssdk'));
         } else {

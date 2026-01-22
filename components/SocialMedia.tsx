@@ -36,7 +36,10 @@ const SocialMedia: React.FC = () => {
 
   React.useEffect(() => {
     if (user) {
-      initFacebookSDK();
+      // Initialize Facebook SDK (non-blocking - will use redirect OAuth if SDK fails)
+      initFacebookSDK().catch((err) => {
+        console.warn('Facebook SDK initialization failed, will use redirect OAuth:', err);
+      });
       fetchConnectedAccounts();
       
       // Handle Facebook OAuth callback
@@ -166,38 +169,8 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
       return;
     }
 
-    // Show helpful message about Pages permissions requirement
-    const pagesPermissionInfo = `
-⚠️ Facebook Pages Permissions Required
-
-To connect Facebook, you need to add Pages permissions to your Facebook App:
-
-1. Go to: https://developers.facebook.com/apps/
-2. Select your app (ID: 1621732999001688)
-3. Add "Pages" product to your app
-4. Request these permissions:
-   - pages_manage_posts
-   - pages_read_engagement
-   - pages_show_list
-
-📖 See FACEBOOK_PAGES_PERMISSIONS_SETUP.md for detailed instructions.
-
-Note: For now, you can still create posts - all platforms are temporarily enabled for testing.
-
-Would you like to:
-- Continue anyway (will show error)
-- See setup instructions
-- Cancel
-    `;
-
-    const userChoice = confirm(pagesPermissionInfo + '\n\nClick OK to see setup guide, or Cancel to continue anyway.');
-    
-    if (userChoice) {
-      // Open setup guide
-      window.open('https://developers.facebook.com/docs/pages', '_blank');
-      setIsLoading(false);
-      return;
-    }
+    // Note: We'll show the permissions info only if there's an error
+    // For now, just proceed with the connection attempt
 
     setIsLoading(true);
     try {
