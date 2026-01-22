@@ -212,21 +212,35 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
       // Provide helpful error messages with setup instructions
       let errorMessage = 'Failed to connect to Facebook.\n\n';
       
-      // Check for "Feature Unavailable" error (Pages permissions missing)
+      // Check for "Feature Unavailable" error (App configuration issue)
       if (err.message?.includes('Feature Unavailable') || 
           err.message?.includes('unavailable') || 
-          err.message?.includes('updating additional details')) {
-        errorMessage = `🔴 Facebook Pages Permissions Required\n\n`;
-        errorMessage += `The "Feature Unavailable" error means your Facebook App needs Pages permissions.\n\n`;
-        errorMessage += `✅ Quick Fix:\n`;
-        errorMessage += `1. Go to: https://developers.facebook.com/apps/1621732999001688\n`;
-        errorMessage += `2. Add "Pages" product to your app\n`;
-        errorMessage += `3. Request permissions: pages_manage_posts, pages_read_engagement\n`;
-        errorMessage += `4. Add yourself as a test user (for immediate testing)\n\n`;
-        errorMessage += `📖 See FACEBOOK_PAGES_PERMISSIONS_SETUP.md for complete instructions.\n\n`;
-        errorMessage += `💡 Note: You can still create posts - all platforms are enabled for testing.`;
+          err.message?.includes('updating additional details') ||
+          err.message?.includes('currently unavailable')) {
+        errorMessage = `🔴 Facebook App Configuration Required\n\n`;
+        errorMessage += `The "Feature Unavailable" error means your Facebook App needs configuration.\n\n`;
+        errorMessage += `This usually happens when:\n`;
+        errorMessage += `• App is in development mode and needs setup\n`;
+        errorMessage += `• Pages product is not added\n`;
+        errorMessage += `• App settings are incomplete\n\n`;
+        errorMessage += `✅ Quick Fix Steps:\n\n`;
+        errorMessage += `1. Go to: https://developers.facebook.com/apps/1621732999001688\n\n`;
+        errorMessage += `2. Complete App Setup:\n`;
+        errorMessage += `   • Go to Settings → Basic\n`;
+        errorMessage += `   • Fill in all required fields (App Name, Contact Email, etc.)\n`;
+        errorMessage += `   • Add your domain to "App Domains"\n`;
+        errorMessage += `   • Add redirect URI to "Valid OAuth Redirect URIs"\n\n`;
+        errorMessage += `3. Add Pages Product:\n`;
+        errorMessage += `   • Go to Products → + Add Product\n`;
+        errorMessage += `   • Click "Set Up" on "Pages"\n\n`;
+        errorMessage += `4. For Testing (Immediate Access):\n`;
+        errorMessage += `   • Go to Roles → Test Users\n`;
+        errorMessage += `   • Add yourself as a test user\n\n`;
+        errorMessage += `📖 See FACEBOOK_FEATURE_UNAVAILABLE_FIX.md for detailed instructions.\n\n`;
+        errorMessage += `⏱️ Wait 5-10 minutes after making changes, then try again.`;
         
-        if (confirm(errorMessage + '\n\nOpen Facebook Developer Console?')) {
+        const shouldOpen = confirm(errorMessage + '\n\nOpen Facebook Developer Console now?');
+        if (shouldOpen) {
           window.open('https://developers.facebook.com/apps/1621732999001688', '_blank');
         }
       } else if (err.message?.includes('LOCALHOST_SETUP_REQUIRED')) {
