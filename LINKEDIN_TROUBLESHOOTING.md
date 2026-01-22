@@ -1,132 +1,180 @@
-# 🔧 LinkedIn Connection Troubleshooting
+# 🔧 LinkedIn OAuth Troubleshooting Guide
 
-## ⚠️ Current Issue: "LinkedIn Client ID not configured"
+## Error: "appid/redirect uri/code verifier does not match authorization code"
 
-If you're seeing this error even after adding the environment variable to Vercel, try these steps:
-
----
-
-## ✅ Step 1: Verify Environment Variable in Vercel
-
-1. Go to **Vercel Dashboard** → Your Project → **Settings** → **Environment Variables**
-2. Check that `VITE_LINKEDIN_CLIENT_ID` exists
-3. Value should be: `776oifhjg06le0`
-4. Make sure it's enabled for **Production** environment
+This error means LinkedIn rejected the token exchange because one of these doesn't match:
+1. **Client ID** - Doesn't match what was used in authorization
+2. **Redirect URI** - Doesn't match exactly what was used in authorization
+3. **Authorization code expired** - Codes expire quickly (usually 10 minutes)
 
 ---
 
-## ✅ Step 2: Check Deployment Status
+## ✅ Step-by-Step Fix
 
-1. Go to **Deployments** tab in Vercel
-2. Find the **latest deployment**
-3. Check if it shows **"Ready"** status
-4. If it's still building, wait for it to complete
+### Step 1: Verify Environment Variables in Vercel
 
-**Important:** Environment variables only take effect **after redeployment**.
+Go to **Vercel Dashboard → Your Project → Settings → Environment Variables**
 
----
+**Required Variables:**
+```
+✅ VITE_LINKEDIN_CLIENT_ID = 7760ifhjg06le0 (Frontend)
+✅ LINKEDIN_CLIENT_ID = 7760ifhjg06le0 (Backend - CRITICAL!)
+✅ LINKEDIN_CLIENT_SECRET = your_secret_here (Backend - CRITICAL!)
+✅ VITE_API_URL = https://engage-hub-ten.vercel.app (Frontend)
+```
 
-## ✅ Step 3: Clear Browser Cache
+**⚠️ IMPORTANT:**
+- `VITE_LINKEDIN_CLIENT_ID` = Used by frontend (during build)
+- `LINKEDIN_CLIENT_ID` = Used by backend serverless function (at runtime)
+- **You need BOTH!** The backend can't access `VITE_` prefixed variables.
 
-The browser might be caching the old build without the environment variable.
+### Step 2: Verify LinkedIn App Settings
 
-### Option A: Hard Refresh
-- **Windows/Linux:** Press `Ctrl + Shift + R`
-- **Mac:** Press `Cmd + Shift + R`
+1. Go to: **https://www.linkedin.com/developers/apps**
+2. Select your app
+3. Go to **"Auth"** tab
+4. Check **"Authorized redirect URLs"** - Must have EXACTLY:
+   ```
+   https://engage-hub-ten.vercel.app
+   ```
+   **Important:**
+   - ✅ No trailing slash
+   - ✅ No path (just root URL)
+   - ✅ Must be HTTPS (not HTTP)
+   - ✅ Must match exactly (case-sensitive)
 
-### Option B: Incognito/Private Window
-- Open a new incognito/private window
-- Navigate to your site
-- Try connecting LinkedIn again
+### Step 3: Redeploy After Adding Variables
 
-### Option C: Clear Cache Manually
-1. Press `F12` to open DevTools
-2. Right-click the refresh button
-3. Select **"Empty Cache and Hard Reload"**
-
----
-
-## ✅ Step 4: Verify in Browser Console
-
-1. Open your site: https://engage-hub-ten.vercel.app
-2. Press `F12` to open DevTools
-3. Go to **Console** tab
-4. Type: `console.log(import.meta.env.VITE_LINKEDIN_CLIENT_ID)`
-5. Press Enter
-
-**Expected result:** Should show `776oifhjg06le0`
-
-**If it shows `undefined`:**
-- The environment variable isn't being read
-- You need to redeploy (see Step 2)
-
----
-
-## ✅ Step 5: Force Redeploy
-
-If the variable is set but still not working:
-
-1. Go to **Deployments** tab
-2. Click **"⋯"** (three dots) on the latest deployment
+1. Go to **Vercel → Deployments**
+2. Click **"⋯"** on latest deployment
 3. Click **"Redeploy"**
-4. Wait 1-2 minutes for deployment to complete
-5. Clear browser cache (Step 3)
-6. Try again
+4. Wait for deployment to complete
+
+### Step 4: Clear Browser Cache
+
+1. **Hard refresh**: `Ctrl + Shift + R` (Windows) or `Cmd + Shift + R` (Mac)
+2. Or use **Incognito/Private window**
+3. Try connecting LinkedIn again
 
 ---
 
-## 🔍 Debug Information
+## 🔍 Debugging Steps
 
-The updated error message now includes debug logs. Check the browser console for:
+### Check Vercel Function Logs
 
-```
-🔍 Debug - VITE_LINKEDIN_CLIENT_ID: 776o...
-🔍 Debug - All env vars: ['VITE_LINKEDIN_CLIENT_ID', ...]
-```
+1. Go to **Vercel Dashboard → Your Project → Deployments**
+2. Click on the latest deployment
+3. Click **"Functions"** tab
+4. Click on `/api/linkedin/token`
+5. Check the **"Logs"** tab
 
-If you see `NOT FOUND`, the variable isn't being read.
+Look for:
+- `LinkedIn token exchange request:` - Shows what's being sent
+- `LinkedIn token exchange error:` - Shows LinkedIn's response
+- Check if `clientIdPrefix` shows the correct Client ID
+- Check if `redirectUri` matches exactly
 
----
+### Check Browser Console
 
-## ⚠️ Common Issues
-
-### Issue 1: Variable Added But Not Redeployed
-**Symptom:** Variable exists in Vercel but still getting error
-
-**Fix:** Redeploy (Step 5)
-
----
-
-### Issue 2: Browser Cache
-**Symptom:** Works in incognito but not in regular window
-
-**Fix:** Clear cache (Step 3)
-
----
-
-### Issue 3: Wrong Environment
-**Symptom:** Variable exists but only for Preview/Development
-
-**Fix:** Make sure variable is enabled for **Production** environment
+1. Open browser console (F12)
+2. Look for:
+   - `🔄 Exchanging code for token...`
+   - `Using redirect URI: ...`
+   - `Stored redirect URI: ...`
+3. Check the network tab for the `/api/linkedin/token` request
+4. Look at the request payload - verify `redirectUri` is correct
 
 ---
 
-### Issue 4: Typo in Variable Name
-**Symptom:** Variable exists but still not working
+## 🚨 Common Issues
 
-**Fix:** Check spelling - must be exactly: `VITE_LINKEDIN_CLIENT_ID` (case-sensitive)
+### Issue 1: "Client ID not configured" in backend
+
+**Solution:**
+- Add `LINKEDIN_CLIENT_ID` (without `VITE_`) to Vercel
+- Backend can't access `VITE_` prefixed variables
+- Redeploy after adding
+
+### Issue 2: Redirect URI mismatch
+
+**Symptoms:**
+- Error: "redirect uri does not match"
+- Works sometimes but not always
+
+**Solution:**
+- Check LinkedIn app settings - redirect URI must be exactly: `https://engage-hub-ten.vercel.app`
+- No trailing slash, no path
+- Must match what's stored in `sessionStorage` during authorization
+
+### Issue 3: Authorization code expired
+
+**Symptoms:**
+- Error: "authorization code expired"
+- Takes too long between authorization and token exchange
+
+**Solution:**
+- Authorization codes expire quickly (usually 10 minutes)
+- Try connecting again immediately after authorization
+- Don't wait between steps
+
+### Issue 4: Client Secret wrong or missing
+
+**Symptoms:**
+- Error: "invalid_client" or "unauthorized_client"
+
+**Solution:**
+- Verify `LINKEDIN_CLIENT_SECRET` is set in Vercel
+- Make sure it's the correct secret from LinkedIn app
+- No extra spaces or characters
+- Redeploy after adding/updating
 
 ---
 
-## 🚀 Quick Checklist
+## 📋 Verification Checklist
 
-- [ ] Environment variable added to Vercel
-- [ ] Variable enabled for Production environment
-- [ ] Latest deployment shows "Ready" status
-- [ ] Browser cache cleared (hard refresh)
-- [ ] Console shows correct Client ID value
-- [ ] Tried in incognito window
+Before trying to connect:
+
+- [ ] `VITE_LINKEDIN_CLIENT_ID` added to Vercel (frontend)
+- [ ] `LINKEDIN_CLIENT_ID` added to Vercel (backend) - **CRITICAL!**
+- [ ] `LINKEDIN_CLIENT_SECRET` added to Vercel (backend) - **CRITICAL!**
+- [ ] `VITE_API_URL` set to `https://engage-hub-ten.vercel.app`
+- [ ] All variables added to Production, Preview, AND Development
+- [ ] Project redeployed after adding variables
+- [ ] LinkedIn app has redirect URI: `https://engage-hub-ten.vercel.app` (exact match, no trailing slash)
+- [ ] Browser cache cleared (hard refresh or incognito)
+- [ ] Tried connecting immediately (don't wait between steps)
 
 ---
 
-**After completing all steps, LinkedIn connection should work!** ✅
+## 🆘 Still Not Working?
+
+1. **Check Vercel Function Logs:**
+   - Look for the actual error from LinkedIn
+   - Verify what redirect URI is being sent
+   - Verify Client ID is being read correctly
+
+2. **Test with curl/Postman:**
+   ```bash
+   curl -X POST https://engage-hub-ten.vercel.app/api/linkedin/token \
+     -H "Content-Type: application/json" \
+     -d '{"code":"test_code","redirectUri":"https://engage-hub-ten.vercel.app"}'
+   ```
+   (This will fail, but you'll see the error message)
+
+3. **Verify LinkedIn App Status:**
+   - Make sure your LinkedIn app is approved
+   - Check if app is in "Development" or "Production" mode
+   - Verify required products are added (Share on LinkedIn)
+
+4. **Contact Support:**
+   - Share Vercel function logs
+   - Share browser console logs
+   - Share LinkedIn app settings (screenshot, hide secrets)
+
+---
+
+## 📚 Related Guides
+
+- `LINKEDIN_QUICK_FIX.md` - Quick setup steps
+- `LINKEDIN_CONNECTION_GUIDE.md` - Complete setup guide
+- `VERCEL_ENV_VARS_SETUP.md` - General environment variable setup

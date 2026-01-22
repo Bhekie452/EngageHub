@@ -30,13 +30,15 @@ const getRedirectURI = (): string => {
     // DO NOT include pathname or hash - LinkedIn redirects to root with query params
     const isDevelopment = origin.includes('localhost') || origin.includes('127.0.0.1');
     if (isDevelopment) {
-        return origin;
+        // Remove trailing slash if present to ensure exact match
+        return origin.replace(/\/$/, '');
     }
     
     // For production, use just the origin (root path)
     // LinkedIn will redirect to the root with ?code=...&state=...
     // The redirect URI must match exactly what's registered in LinkedIn app settings
-    return origin;
+    // Remove trailing slash if present to ensure exact match
+    return origin.replace(/\/$/, '');
 };
 
 /**
