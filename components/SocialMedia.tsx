@@ -20,7 +20,9 @@ import {
   Music,
   Pin,
   Store,
-  Share2
+  Share2,
+  X,
+  Power
 } from 'lucide-react';
 import { useAuth } from '../src/hooks/useAuth';
 import { supabase } from '../src/lib/supabase';
@@ -597,17 +599,25 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
       let expiresIn: number;
 
       if (backendUrl) {
+        // CRITICAL: Use the EXACT redirect URI that was used in the authorization request
+        // This must match exactly, or LinkedIn will reject the token exchange
+        const storedRedirectUri = sessionStorage.getItem('linkedin_oauth_redirect_uri');
+        // Fallback to calculated URI if not stored (shouldn't happen, but safety)
+        const redirectUri = storedRedirectUri || window.location.origin.replace(/\/$/, '');
+        
+        console.log('🔍 Calling LinkedIn token endpoint:', `${backendUrl.replace(/\/$/, '')}/api/linkedin/token`);
+        console.log('🔍 Using stored redirect URI:', storedRedirectUri);
+        console.log('🔍 Final redirect URI:', redirectUri);
+        
         // Ensure backendUrl doesn't have trailing slash
         const apiUrl = `${backendUrl.replace(/\/$/, '')}/api/linkedin/token`;
-        
-        console.log('🔍 Calling LinkedIn token endpoint:', apiUrl);
         
         const response = await fetch(apiUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ 
             code, 
-            redirectUri: `${window.location.origin}${window.location.pathname}${window.location.hash || ''}` 
+            redirectUri: redirectUri
           })
         });
         
@@ -1066,9 +1076,18 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
                   </div>
                   <div className="flex flex-col items-end gap-2 shrink-0">
                     {isConnected ? (
-                      <span className="flex items-center gap-1 text-[10px] font-bold text-green-600 bg-green-50 px-2 py-0.5 rounded-full uppercase">
-                        <CheckCircle2 size={10} /> Live
-                      </span>
+                      <>
+                        <span className="flex items-center gap-1 text-[10px] font-bold text-green-600 bg-green-50 px-2 py-0.5 rounded-full uppercase">
+                          <CheckCircle2 size={10} /> Connected
+                        </span>
+                        <button
+                          onClick={() => handleDisconnect(connectedAccount.id)}
+                          className="flex items-center gap-1 text-[10px] font-bold text-red-600 bg-red-50 hover:bg-red-100 px-2 py-1 rounded-full transition-all"
+                          title="Disconnect account"
+                        >
+                          <X size={10} /> Disconnect
+                        </button>
+                      </>
                     ) : (
                       <button
                         onClick={() => {
@@ -1087,14 +1106,6 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
                         className="flex items-center gap-1 text-[10px] font-bold text-white bg-blue-600 hover:bg-blue-700 px-3 py-1.5 rounded-full uppercase shadow-sm transition-all"
                       >
                         <Plus size={12} /> Connect
-                      </button>
-                    )}
-                    {isConnected && (
-                      <button
-                        onClick={() => handleDisconnect(connectedAccount.id)}
-                        className="p-1 text-gray-300 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-all"
-                      >
-                        <MoreVertical size={16} />
                       </button>
                     )}
                   </div>
