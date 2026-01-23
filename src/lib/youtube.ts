@@ -9,26 +9,24 @@ const YOUTUBE_CLIENT_SECRET = import.meta.env.VITE_YOUTUBE_CLIENT_SECRET || impo
 /**
  * Get redirect URI (calculated at call time to avoid hydration issues)
  * Normalizes 127.0.0.1 to localhost for development
+ * Uses just the origin (root URL) to match Google Cloud Console settings
  */
 const getRedirectURI = (): string => {
     if (typeof window === 'undefined') {
         return 'http://localhost:3000';
     }
     
-    // Normalize 127.0.0.1 to localhost for development
+    // Normalize 127.0.0.1 to localhost for development (Google requires exact match)
     let origin = window.location.origin;
     if (origin.includes('127.0.0.1')) {
         origin = origin.replace('127.0.0.1', 'localhost');
     }
     
-    // For development, use just the origin (root path)
-    // For production, use the full path
-    const isDevelopment = origin.includes('localhost');
-    if (isDevelopment) {
-        return origin;
-    }
-    
-    return `${origin}${window.location.pathname}${window.location.hash || ''}`;
+    // For both development and production, use just the origin (root path)
+    // Google OAuth redirects to root with query params, so we use root URL
+    // DO NOT include pathname or hash - Google redirects to root with ?code=...&state=...
+    // Remove trailing slash if present to ensure exact match
+    return origin.replace(/\/$/, '');
 };
 
 /**
