@@ -130,11 +130,31 @@ export default async function handler(
         error: tokenData.error,
         errorDescription: tokenData.error_description,
         redirectUri: redirectUri,
-        clientIdPrefix: CLIENT_ID ? `${CLIENT_ID.substring(0, 4)}...` : 'NOT FOUND'
+        clientIdPrefix: CLIENT_ID ? `${CLIENT_ID.substring(0, 4)}...` : 'NOT FOUND',
+        fullError: tokenData
       });
+      
+      // Provide more helpful error messages
+      let errorMessage = tokenData.error_description || tokenData.error || 'Failed to exchange authorization code for access token';
+      
+      if (tokenData.error === 'redirect_uri_mismatch') {
+        errorMessage = `Redirect URI mismatch!\n\n` +
+          `The redirect URI used (${redirectUri}) does not match what's registered in Google Cloud Console.\n\n` +
+          `Please verify in Google Cloud Console → OAuth Client → Authorized redirect URIs:\n` +
+          `- http://localhost:3000 (for local development)\n` +
+          `- https://engage-hub-ten.vercel.app (for production)\n\n` +
+          `Make sure there are NO trailing slashes and NO paths - just the root URL.`;
+      } else if (tokenData.error === 'invalid_grant') {
+        errorMessage = `Invalid authorization code. This usually means:\n\n` +
+          `1. The code has expired (codes expire quickly)\n` +
+          `2. The code was already used\n` +
+          `3. The redirect URI doesn't match\n\n` +
+          `Please try connecting again.`;
+      }
+      
       return res.status(400).json({ 
         error: tokenData.error || 'Token exchange failed',
-        message: tokenData.error_description || tokenData.error || 'Failed to exchange authorization code for access token',
+        message: errorMessage,
         details: tokenData
       });
     }

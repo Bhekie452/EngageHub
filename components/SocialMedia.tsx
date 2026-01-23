@@ -826,15 +826,20 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
 
       if (backendUrl) {
         // CRITICAL: Use the EXACT redirect URI that was used in the authorization request
+        // For localhost, use just the origin (no pathname/hash) to match Google Cloud Console
         const storedRedirectUri = sessionStorage.getItem('youtube_oauth_redirect_uri');
-        const redirectUri = storedRedirectUri || `${window.location.origin}${window.location.pathname}${window.location.hash || ''}`;
+        // Fallback: use just origin (root URL) to match what was used in authorization
+        const fallbackRedirectUri = window.location.origin.replace(/\/$/, '');
+        const redirectUri = storedRedirectUri || fallbackRedirectUri;
         
         console.log('🔍 YouTube Token Exchange Debug:');
         console.log('  - Backend URL:', backendUrl);
         console.log('  - API Endpoint:', `${backendUrl.replace(/\/$/, '')}/api/youtube/token`);
         console.log('  - Stored redirect URI:', storedRedirectUri);
+        console.log('  - Fallback redirect URI:', fallbackRedirectUri);
         console.log('  - Final redirect URI:', redirectUri);
         console.log('  - Code received:', code ? `${code.substring(0, 20)}...` : 'MISSING');
+        console.log('  - Current URL:', window.location.href);
         
         const response = await fetch(`${backendUrl}/api/youtube/token`, {
           method: 'POST',
@@ -856,12 +861,27 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
           }
           
           let errorMessage = 'Token exchange failed';
+          let errorDetails: any = null;
           try {
             const error = await response.json();
             errorMessage = error.message || error.error || 'Token exchange failed';
+            errorDetails = error;
+            console.error('YouTube token exchange error details:', error);
           } catch {
             errorMessage = response.statusText || 'Token exchange failed';
           }
+          
+          // Provide more detailed error message
+          if (errorDetails?.error === 'redirect_uri_mismatch') {
+            throw new Error(
+              `Redirect URI mismatch!\n\n` +
+              `Expected: ${redirectUri}\n` +
+              `Make sure this exact URL is in Google Cloud Console → OAuth Client → Authorized redirect URIs.\n\n` +
+              `For localhost: http://localhost:3000\n` +
+              `For production: https://engage-hub-ten.vercel.app`
+            );
+          }
+          
           throw new Error(errorMessage);
         }
         
