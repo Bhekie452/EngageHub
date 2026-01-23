@@ -21,6 +21,10 @@ export const currencies = [
   { code: 'SZL', symbol: 'E', name: 'Swazi Lilangeni' },
 ];
 
+// Track ongoing requests to prevent duplicates
+let ongoingRequest: Promise<void> | null = null;
+let lastFetchedUserId: string | null = null;
+
 export const useCurrency = create<CurrencyState>((set, get) => ({
   currency: 'USD',
   symbol: '$',
@@ -28,27 +32,51 @@ export const useCurrency = create<CurrencyState>((set, get) => ({
   availableCurrencies: currencies,
 
   fetchCurrency: async (userId: string) => {
-    set({ isLoading: true });
-    try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('currency, currency_symbol')
-        .eq('id', userId)
-        .single();
-
-      if (error) throw error;
-
-      if (data) {
-        set({
-          currency: data.currency || 'USD',
-          symbol: data.currency_symbol || '$'
-        });
-      }
-    } catch (error) {
-      console.error('Error fetching currency:', error);
-    } finally {
-      set({ isLoading: false });
+    // If same user and request already in progress, return existing promise
+    if (ongoingRequest && lastFetchedUserId === userId) {
+      return ongoingRequest;
     }
+
+    // Create new request
+    const request = (async () => {
+      set({ isLoading: true });
+      try {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('currency, currency_symbol')
+          .eq('id', userId)
+          .single();
+
+        if (error) throw error;
+
+        if (data) {
+          set({
+            currency: data.currency || 'USD',
+            symbol: data.currency_symbol || '$'
+          });
+        }
+      } catch (error: any) {
+        // Ignore AbortError - it's expected when requests are cancelled
+        if (error?.name === 'AbortError' || error?.message?.includes('aborted')) {
+          // Silently ignore abort errors
+          return;
+        }
+        // Only log non-abort errors
+        console.error('Error fetching currency:', error);
+      } finally {
+        set({ isLoading: false });
+        // Clear ongoing request when done
+        if (ongoingRequest === request) {
+          ongoingRequest = null;
+        }
+      }
+    })();
+
+    // Store as ongoing request
+    ongoingRequest = request;
+    lastFetchedUserId = userId;
+    
+    return request;
   },
 
   setCurrency: async (code: string) => {

@@ -15,6 +15,7 @@ const CRMDashboard: React.FC = () => {
     if (user?.id) {
       fetchCurrency(user.id);
     }
+    // Cleanup: AbortController is handled by Supabase internally
   }, [user?.id, fetchCurrency]);
   const {
     kpis,
