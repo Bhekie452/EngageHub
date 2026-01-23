@@ -30,6 +30,7 @@ import { initFacebookSDK, loginWithFacebook, getPageTokens, getInstagramAccount 
 import { loginWithLinkedIn, getLinkedInProfile, getLinkedInOrganizations, getLinkedInOrganizationDetails } from '../src/lib/linkedin';
 import { connectYouTube, getYouTubeChannel } from '../src/lib/youtube';
 import { connectTwitter, exchangeCodeForToken, getTwitterProfile } from '../src/lib/twitter';
+import { connectTikTok, exchangeCodeForToken as exchangeTikTokCodeForToken, getTikTokProfile } from '../src/lib/tiktok';
 
 type SocialTab = 'accounts' | 'schedule' | 'engagement' | 'mentions' | 'comments' | 'dms';
 
@@ -109,6 +110,8 @@ const SocialMedia: React.FC = () => {
         handleYouTubeCallback(code);
       } else if (code && state === 'twitter_oauth') {
         handleTwitterCallback(code);
+      } else if (code && state === 'tiktok_oauth') {
+        handleTikTokCallback(code);
       }
     }
   }, [user]);
@@ -329,6 +332,138 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
     } catch (err: any) {
       console.error('Twitter callback error:', err);
       alert(`Failed to connect Twitter: ${err.message || 'Unknown error'}`);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleConnectTikTok = async () => {
+    if (!user) {
+      alert('Please log in first');
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      console.log('🔍 Starting TikTok connection...');
+      
+      // Check if Client Key is configured before attempting connection
+      const clientKey = import.meta.env.VITE_TIKTOK_CLIENT_KEY;
+      if (!clientKey) {
+        console.error('❌ TikTok Client Key not found');
+        setIsLoading(false);
+        // Error will be shown by connectTikTok
+        await connectTikTok();
+        return;
+      }
+      
+      console.log('✅ TikTok Client Key found:', clientKey.substring(0, 4) + '...');
+      
+      // connectTikTok will redirect to TikTok OAuth
+      await connectTikTok();
+      
+      // If we get here, OAuth redirect happened
+      setIsLoading(false);
+    } catch (err: any) {
+      console.error('TikTok connection error:', err);
+      
+      let errorMessage = 'Failed to connect to TikTok.\n\n';
+      
+      if (err.message?.includes('Client Key not configured')) {
+        errorMessage = `🔴 TikTok App Configuration Required\n\n`;
+        errorMessage += `TikTok Client Key is not configured.\n\n`;
+        
+        const isProduction = window.location.hostname.includes('vercel.app');
+        if (isProduction) {
+          errorMessage += `⚠️ Production Environment Detected\n\n`;
+          errorMessage += `If you just added the environment variable to Vercel:\n`;
+          errorMessage += `1. ✅ Make sure you redeployed after adding the variable\n`;
+          errorMessage += `2. 🔄 Clear your browser cache:\n`;
+          errorMessage += `   • Press Ctrl+Shift+R (Windows) or Cmd+Shift+R (Mac)\n`;
+          errorMessage += `   • Or try incognito/private window\n`;
+          errorMessage += `3. ⏱️ Wait 1-2 minutes for deployment to complete\n\n`;
+        }
+        
+        errorMessage += `✅ Setup Steps:\n\n`;
+        errorMessage += `1. Create TikTok App:\n`;
+        errorMessage += `   • Go to: https://developers.tiktok.com/apps/\n`;
+        errorMessage += `   • Create a new app or use existing\n`;
+        errorMessage += `   • Get Client Key and Client Secret\n\n`;
+        errorMessage += `2. Add to Vercel Environment Variables:\n`;
+        errorMessage += `   • Go to: Vercel Dashboard → Your Project → Settings → Environment Variables\n`;
+        errorMessage += `   • Add: VITE_TIKTOK_CLIENT_KEY = your_client_key\n`;
+        errorMessage += `   • Add: TIKTOK_CLIENT_KEY = your_client_key (backend)\n`;
+        errorMessage += `   • Add: TIKTOK_CLIENT_SECRET = your_client_secret (backend only)\n`;
+        errorMessage += `   • Select all environments (Production, Preview, Development)\n`;
+        errorMessage += `   • Click "Save"\n\n`;
+        errorMessage += `3. Configure TikTok App:\n`;
+        errorMessage += `   • Add Callback URL: http://localhost:3000 (for dev)\n`;
+        errorMessage += `   • Add Callback URL: https://engage-hub-ten.vercel.app (for production)\n`;
+        errorMessage += `   • Enable OAuth 2.0\n`;
+        errorMessage += `   • Set App permissions: user.info.basic, video.upload\n\n`;
+        errorMessage += `4. Redeploy and Clear Cache:\n`;
+        errorMessage += `   • Redeploy your Vercel app\n`;
+        errorMessage += `   • Hard refresh: Ctrl+Shift+R (Windows) or Cmd+Shift+R (Mac)\n\n`;
+        errorMessage += `📖 See TIKTOK_CONNECTION_GUIDE.md for detailed instructions.`;
+        
+        alert(errorMessage);
+      } else if (err.message) {
+        errorMessage = `TikTok connection error:\n\n${err.message}`;
+        alert(errorMessage);
+      } else {
+        alert(errorMessage + 'Please check your TikTok App configuration.');
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleTikTokCallback = async (code: string) => {
+    setIsLoading(true);
+    try {
+      // Exchange code for token
+      const tokenData = await exchangeTikTokCodeForToken(code);
+      
+      // Get TikTok profile
+      const profileData = await getTikTokProfile(tokenData.accessToken);
+      
+      if (!profileData.data) {
+        alert('Failed to fetch TikTok profile. Please try again.');
+        setIsLoading(false);
+        return;
+      }
+
+      const profile = profileData.data.user;
+      const { data: workspaces } = await supabase.from('workspaces').select('id').eq('owner_id', user!.id).limit(1);
+      if (!workspaces?.length) throw new Error('No workspace found');
+
+      // Store TikTok connection
+      await supabase.from('social_accounts').upsert({
+        workspace_id: workspaces[0].id,
+        connected_by: user!.id,
+        platform: 'tiktok',
+        account_id: profile.open_id || profile.union_id,
+        display_name: profile.display_name || 'TikTok Account',
+        username: profile.username,
+        avatar_url: profile.avatar_url,
+        access_token: tokenData.accessToken,
+        refresh_token: tokenData.refreshToken,
+        token_expires_at: tokenData.expiresIn ? new Date(Date.now() + tokenData.expiresIn * 1000).toISOString() : null,
+        is_active: true,
+        connection_status: 'connected',
+      }, { onConflict: 'workspace_id,platform,account_id' });
+
+      const accountName = profile.display_name || profile.username || 'TikTok Account';
+      alert(`✅ Connected to TikTok: ${accountName}!`);
+      fetchConnectedAccounts();
+      
+      // Clean up URL
+      const returnUrl = sessionStorage.getItem('tiktok_oauth_return') || window.location.pathname;
+      window.history.replaceState({}, '', returnUrl);
+      sessionStorage.removeItem('tiktok_oauth_return');
+    } catch (err: any) {
+      console.error('TikTok callback error:', err);
+      alert(`Failed to connect TikTok: ${err.message || 'Unknown error'}`);
     } finally {
       setIsLoading(false);
     }
@@ -1329,6 +1464,8 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
                             handleConnectYouTube();
                           } else if (account.platform === 'twitter') {
                             handleConnectTwitter();
+                          } else if (account.platform === 'tiktok') {
+                            handleConnectTikTok();
                           } else {
                             alert(`${account.name} integration coming soon!`);
                           }
