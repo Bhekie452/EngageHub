@@ -1086,7 +1086,7 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
                     <div className="overflow-hidden">
                       <h4 className="text-sm font-bold truncate">{account.name}</h4>
                       <p className="text-xs text-gray-500 truncate">
-                        {isConnected ? connectedAccount.account_name : account.handle}
+                        {isConnected ? (connectedAccount.display_name || connectedAccount.username || connectedAccount.account_name || 'Connected') : account.handle}
                       </p>
                     </div>
                   </div>
@@ -1098,10 +1098,10 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
                         </span>
                         <button
                           onClick={() => handleDisconnect(connectedAccount.id)}
-                          className="flex items-center gap-1 text-[10px] font-bold text-red-600 bg-red-50 hover:bg-red-100 px-2 py-1 rounded-full transition-all"
+                          className="flex items-center gap-1 text-[10px] font-bold text-red-600 bg-red-50 hover:bg-red-100 px-2 py-1 rounded transition-all"
                           title="Disconnect account"
                         >
-                          <X size={10} /> Disconnect
+                          <X size={12} /> Disconnect
                         </button>
                       </>
                     ) : (
