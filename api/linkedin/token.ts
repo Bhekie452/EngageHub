@@ -113,18 +113,28 @@ export default async function handler(
     });
 
     // Exchange code for access token
+    const tokenRequestBody = new URLSearchParams({
+      grant_type: 'authorization_code',
+      code: code,
+      redirect_uri: redirectUri,
+      client_id: CLIENT_ID,
+      client_secret: CLIENT_SECRET,
+    });
+    
+    console.log('LinkedIn token request body (sanitized):', {
+      grant_type: 'authorization_code',
+      code: code ? `${code.substring(0, 10)}...` : 'MISSING',
+      redirect_uri: redirectUri,
+      client_id: CLIENT_ID ? `${CLIENT_ID.substring(0, 4)}...` : 'MISSING',
+      client_secret: CLIENT_SECRET ? '***SET***' : 'MISSING'
+    });
+    
     const tokenResponse = await fetch('https://www.linkedin.com/oauth/v2/accessToken', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
       },
-      body: new URLSearchParams({
-        grant_type: 'authorization_code',
-        code: code,
-        redirect_uri: redirectUri,
-        client_id: CLIENT_ID,
-        client_secret: CLIENT_SECRET,
-      }),
+      body: tokenRequestBody,
     });
 
     const tokenData = await tokenResponse.json();

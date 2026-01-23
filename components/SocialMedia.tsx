@@ -605,9 +605,13 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
         // Fallback to calculated URI if not stored (shouldn't happen, but safety)
         const redirectUri = storedRedirectUri || window.location.origin.replace(/\/$/, '');
         
-        console.log('🔍 Calling LinkedIn token endpoint:', `${backendUrl.replace(/\/$/, '')}/api/linkedin/token`);
-        console.log('🔍 Using stored redirect URI:', storedRedirectUri);
-        console.log('🔍 Final redirect URI:', redirectUri);
+        console.log('🔍 LinkedIn Token Exchange Debug:');
+        console.log('  - Backend URL:', backendUrl);
+        console.log('  - API Endpoint:', `${backendUrl.replace(/\/$/, '')}/api/linkedin/token`);
+        console.log('  - Stored redirect URI:', storedRedirectUri);
+        console.log('  - Final redirect URI:', redirectUri);
+        console.log('  - Code received:', code ? `${code.substring(0, 20)}...` : 'MISSING');
+        console.log('  - Current URL:', window.location.href);
         
         // Ensure backendUrl doesn't have trailing slash
         const apiUrl = `${backendUrl.replace(/\/$/, '')}/api/linkedin/token`;
