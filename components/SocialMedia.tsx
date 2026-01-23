@@ -29,6 +29,7 @@ import { supabase } from '../src/lib/supabase';
 import { initFacebookSDK, loginWithFacebook, getPageTokens, getInstagramAccount } from '../src/lib/facebook';
 import { loginWithLinkedIn, getLinkedInProfile, getLinkedInOrganizations, getLinkedInOrganizationDetails } from '../src/lib/linkedin';
 import { connectYouTube, getYouTubeChannel } from '../src/lib/youtube';
+import { connectTwitter, exchangeCodeForToken, getTwitterProfile } from '../src/lib/twitter';
 
 type SocialTab = 'accounts' | 'schedule' | 'engagement' | 'mentions' | 'comments' | 'dms';
 
@@ -106,6 +107,8 @@ const SocialMedia: React.FC = () => {
         handleLinkedInCallback(code);
       } else if (code && state === 'youtube_oauth') {
         handleYouTubeCallback(code);
+      } else if (code && state === 'twitter_oauth') {
+        handleTwitterCallback(code);
       }
     }
   }, [user]);
@@ -194,6 +197,138 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
     } catch (err: any) {
       console.error('Facebook callback error:', err);
       alert(`Failed to connect to Facebook: ${err.message || 'Unknown error'}`);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleConnectTwitter = async () => {
+    if (!user) {
+      alert('Please log in first');
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      console.log('🔍 Starting Twitter connection...');
+      
+      // Check if Client ID is configured before attempting connection
+      const clientId = import.meta.env.VITE_TWITTER_CLIENT_ID;
+      if (!clientId) {
+        console.error('❌ Twitter Client ID not found');
+        setIsLoading(false);
+        // Error will be shown by connectTwitter
+        await connectTwitter();
+        return;
+      }
+      
+      console.log('✅ Twitter Client ID found:', clientId.substring(0, 4) + '...');
+      
+      // connectTwitter will redirect to Twitter OAuth
+      await connectTwitter();
+      
+      // If we get here, OAuth redirect happened
+      setIsLoading(false);
+    } catch (err: any) {
+      console.error('Twitter connection error:', err);
+      
+      let errorMessage = 'Failed to connect to Twitter.\n\n';
+      
+      if (err.message?.includes('Client ID not configured')) {
+        errorMessage = `🔴 Twitter App Configuration Required\n\n`;
+        errorMessage += `Twitter Client ID is not configured.\n\n`;
+        
+        const isProduction = window.location.hostname.includes('vercel.app');
+        if (isProduction) {
+          errorMessage += `⚠️ Production Environment Detected\n\n`;
+          errorMessage += `If you just added the environment variable to Vercel:\n`;
+          errorMessage += `1. ✅ Make sure you redeployed after adding the variable\n`;
+          errorMessage += `2. 🔄 Clear your browser cache:\n`;
+          errorMessage += `   • Press Ctrl+Shift+R (Windows) or Cmd+Shift+R (Mac)\n`;
+          errorMessage += `   • Or try incognito/private window\n`;
+          errorMessage += `3. ⏱️ Wait 1-2 minutes for deployment to complete\n\n`;
+        }
+        
+        errorMessage += `✅ Setup Steps:\n\n`;
+        errorMessage += `1. Create Twitter App:\n`;
+        errorMessage += `   • Go to: https://developer.twitter.com/en/portal/dashboard\n`;
+        errorMessage += `   • Create a new app or use existing\n`;
+        errorMessage += `   • Get Client ID and Client Secret\n\n`;
+        errorMessage += `2. Add to Vercel Environment Variables:\n`;
+        errorMessage += `   • Go to: Vercel Dashboard → Your Project → Settings → Environment Variables\n`;
+        errorMessage += `   • Add: VITE_TWITTER_CLIENT_ID = your_client_id\n`;
+        errorMessage += `   • Add: TWITTER_CLIENT_ID = your_client_id (backend)\n`;
+        errorMessage += `   • Add: TWITTER_CLIENT_SECRET = your_client_secret (backend only)\n`;
+        errorMessage += `   • Select all environments (Production, Preview, Development)\n`;
+        errorMessage += `   • Click "Save"\n\n`;
+        errorMessage += `3. Configure Twitter App:\n`;
+        errorMessage += `   • Add Callback URL: http://localhost:3000 (for dev)\n`;
+        errorMessage += `   • Add Callback URL: https://engage-hub-ten.vercel.app (for production)\n`;
+        errorMessage += `   • Enable OAuth 2.0\n`;
+        errorMessage += `   • Set App permissions: Read\n\n`;
+        errorMessage += `4. Redeploy and Clear Cache:\n`;
+        errorMessage += `   • Redeploy your Vercel app\n`;
+        errorMessage += `   • Hard refresh: Ctrl+Shift+R (Windows) or Cmd+Shift+R (Mac)\n\n`;
+        errorMessage += `📖 See TWITTER_CONNECTION_GUIDE.md for detailed instructions.`;
+        
+        alert(errorMessage);
+      } else if (err.message) {
+        errorMessage = `Twitter connection error:\n\n${err.message}`;
+        alert(errorMessage);
+      } else {
+        alert(errorMessage + 'Please check your Twitter App configuration.');
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleTwitterCallback = async (code: string) => {
+    setIsLoading(true);
+    try {
+      // Exchange code for token
+      const tokenData = await exchangeCodeForToken(code);
+      
+      // Get Twitter profile
+      const profileData = await getTwitterProfile(tokenData.accessToken);
+      
+      if (!profileData.data) {
+        alert('Failed to fetch Twitter profile. Please try again.');
+        setIsLoading(false);
+        return;
+      }
+
+      const profile = profileData.data;
+      const { data: workspaces } = await supabase.from('workspaces').select('id').eq('owner_id', user!.id).limit(1);
+      if (!workspaces?.length) throw new Error('No workspace found');
+
+      // Store Twitter connection
+      await supabase.from('social_accounts').upsert({
+        workspace_id: workspaces[0].id,
+        connected_by: user!.id,
+        platform: 'twitter',
+        account_id: profile.id,
+        display_name: profile.name || 'Twitter Account',
+        username: profile.username || profile.username,
+        avatar_url: profile.profile_image_url,
+        access_token: tokenData.accessToken,
+        refresh_token: tokenData.refreshToken,
+        token_expires_at: tokenData.expiresIn ? new Date(Date.now() + tokenData.expiresIn * 1000).toISOString() : null,
+        is_active: true,
+        connection_status: 'connected',
+      }, { onConflict: 'workspace_id,platform,account_id' });
+
+      const accountName = profile.name || profile.username || 'Twitter Account';
+      alert(`✅ Connected to Twitter: ${accountName}!`);
+      fetchConnectedAccounts();
+      
+      // Clean up URL
+      const returnUrl = sessionStorage.getItem('twitter_oauth_return') || window.location.pathname;
+      window.history.replaceState({}, '', returnUrl);
+      sessionStorage.removeItem('twitter_oauth_return');
+    } catch (err: any) {
+      console.error('Twitter callback error:', err);
+      alert(`Failed to connect Twitter: ${err.message || 'Unknown error'}`);
     } finally {
       setIsLoading(false);
     }
@@ -1127,7 +1262,7 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
               { name: 'Facebook Page', handle: 'Engagehub Community', platform: 'facebook', icon: <Facebook className="text-blue-600" /> },
               { name: 'Instagram', handle: '@engagehub_creations', platform: 'instagram', icon: <Instagram className="text-pink-600" /> },
               { name: 'LinkedIn Profile', handle: 'John Doe', platform: 'linkedin', icon: <Linkedin className="text-blue-700" /> },
-              { name: 'X (Twitter)', handle: '@engagehub', platform: 'twitter', icon: <Twitter className="text-sky-500" /> },
+              { name: 'X (Twitter)', handle: '@engagehub', platform: 'twitter', icon: <X className="text-black" /> },
               { name: 'TikTok', handle: '@engagehub_official', platform: 'tiktok', icon: <Music className="text-black" /> },
               { name: 'YouTube', handle: 'Engagehub Tutorials', platform: 'youtube', icon: <Youtube className="text-red-600" /> },
               { name: 'Pinterest', handle: 'Engagehub Design', platform: 'pinterest', icon: <Pin className="text-red-700" /> },
@@ -1192,6 +1327,8 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
                             handleConnectLinkedIn();
                           } else if (account.platform === 'youtube') {
                             handleConnectYouTube();
+                          } else if (account.platform === 'twitter') {
+                            handleConnectTwitter();
                           } else {
                             alert(`${account.name} integration coming soon!`);
                           }
