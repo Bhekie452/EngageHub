@@ -253,21 +253,19 @@ export const getLinkedInOrganizations = async (accessToken: string): Promise<any
 
 /**
  * Get LinkedIn organization details
+ * Uses backend API to avoid CORS issues
  */
 export const getLinkedInOrganizationDetails = async (accessToken: string, organizationUrn: string): Promise<any> => {
     try {
-        // Extract organization ID from URN (format: urn:li:organization:123456)
-        const orgId = organizationUrn.split(':').pop();
-        
-        const response = await fetch(
-            `https://api.linkedin.com/v2/organizations/${orgId}`,
-            {
-                headers: {
-                    'Authorization': `Bearer ${accessToken}`,
-                    'Content-Type': 'application/json'
-                }
-            }
-        );
+        // Use backend endpoint to avoid CORS issues
+        const backendUrl = import.meta.env.VITE_API_URL || window.location.origin;
+        const response = await fetch(`${backendUrl}/api/linkedin/organization-details`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ accessToken, organizationUrn })
+        });
         
         if (!response.ok) {
             const error = await response.json();
