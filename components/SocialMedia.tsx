@@ -47,18 +47,18 @@ const SocialMedia: React.FC = () => {
         console.warn('Facebook SDK initialization failed, will use redirect OAuth:', err);
       });
       fetchConnectedAccounts();
-      
+
       // Handle Facebook OAuth callback and errors
       const urlParams = new URLSearchParams(window.location.search);
       const code = urlParams.get('code');
       const state = urlParams.get('state');
       const errorCode = urlParams.get('error_code');
       const errorMessage = urlParams.get('error_message');
-      
+
       // Handle Facebook OAuth errors
       if (errorCode || errorMessage) {
         const decodedMessage = errorMessage ? decodeURIComponent(errorMessage) : '';
-        
+
         // Facebook Error 1349220: Feature Unavailable
         if (errorCode === '1349220' || decodedMessage.includes('Feature Unavailable')) {
           const setupMessage = `🔴 Facebook App Configuration Required\n\n` +
@@ -80,26 +80,26 @@ const SocialMedia: React.FC = () => {
             `   • Click "Set Up"\n\n` +
             `5. Wait 5-10 minutes after making changes\n\n` +
             `📖 See FACEBOOK_FEATURE_UNAVAILABLE_FIX.md for detailed instructions.`;
-          
+
           alert(setupMessage);
-          
+
           // Clean up URL
           const cleanUrl = window.location.pathname + (window.location.hash || '');
           window.history.replaceState({}, '', cleanUrl);
           return;
         }
-        
+
         // Other Facebook errors
         if (errorCode || errorMessage) {
           alert(`Facebook OAuth Error:\n\nCode: ${errorCode || 'Unknown'}\nMessage: ${decodedMessage || 'Unknown error'}\n\nPlease check your Facebook App configuration.`);
-          
+
           // Clean up URL
           const cleanUrl = window.location.pathname + (window.location.hash || '');
           window.history.replaceState({}, '', cleanUrl);
           return;
         }
       }
-      
+
       if (code && state === 'facebook_oauth') {
         handleFacebookCallback(code);
       } else if (code && state === 'instagram_oauth') {
@@ -128,17 +128,17 @@ const SocialMedia: React.FC = () => {
         const response = await fetch(`${backendUrl}/api/facebook/token`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            code, 
-            redirectUri: `${window.location.origin}${window.location.pathname}${window.location.hash || ''}` 
+          body: JSON.stringify({
+            code,
+            redirectUri: `${window.location.origin}${window.location.pathname}${window.location.hash || ''}`
           })
         });
-        
+
         if (!response.ok) {
           const error = await response.json();
           throw new Error(error.message || 'Token exchange failed');
         }
-        
+
         const data = await response.json();
         accessToken = data.access_token;
       } else {
@@ -214,7 +214,7 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
     setIsLoading(true);
     try {
       console.log('🔍 Starting Twitter connection...');
-      
+
       // Check if Client ID is configured before attempting connection
       const clientId = import.meta.env.VITE_TWITTER_CLIENT_ID;
       if (!clientId) {
@@ -224,23 +224,23 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
         await connectTwitter();
         return;
       }
-      
+
       console.log('✅ Twitter Client ID found:', clientId.substring(0, 4) + '...');
-      
+
       // connectTwitter will redirect to Twitter OAuth
       await connectTwitter();
-      
+
       // If we get here, OAuth redirect happened
       setIsLoading(false);
     } catch (err: any) {
       console.error('Twitter connection error:', err);
-      
+
       let errorMessage = 'Failed to connect to Twitter.\n\n';
-      
+
       if (err.message?.includes('Client ID not configured')) {
         errorMessage = `🔴 Twitter App Configuration Required\n\n`;
         errorMessage += `Twitter Client ID is not configured.\n\n`;
-        
+
         const isProduction = window.location.hostname.includes('vercel.app');
         if (isProduction) {
           errorMessage += `⚠️ Production Environment Detected\n\n`;
@@ -251,7 +251,7 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
           errorMessage += `   • Or try incognito/private window\n`;
           errorMessage += `3. ⏱️ Wait 1-2 minutes for deployment to complete\n\n`;
         }
-        
+
         errorMessage += `✅ Setup Steps:\n\n`;
         errorMessage += `1. Create Twitter App:\n`;
         errorMessage += `   • Go to: https://developer.twitter.com/en/portal/dashboard\n`;
@@ -273,7 +273,7 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
         errorMessage += `   • Redeploy your Vercel app\n`;
         errorMessage += `   • Hard refresh: Ctrl+Shift+R (Windows) or Cmd+Shift+R (Mac)\n\n`;
         errorMessage += `📖 See TWITTER_CONNECTION_GUIDE.md for detailed instructions.`;
-        
+
         alert(errorMessage);
       } else if (err.message) {
         errorMessage = `Twitter connection error:\n\n${err.message}`;
@@ -291,10 +291,10 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
     try {
       // Exchange code for token
       const tokenData = await exchangeCodeForToken(code);
-      
+
       // Get Twitter profile
       const profileData = await getTwitterProfile(tokenData.accessToken);
-      
+
       if (!profileData.data) {
         alert('Failed to fetch Twitter profile. Please try again.');
         setIsLoading(false);
@@ -324,7 +324,7 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
       const accountName = profile.name || profile.username || 'Twitter Account';
       alert(`✅ Connected to Twitter: ${accountName}!`);
       fetchConnectedAccounts();
-      
+
       // Clean up URL
       const returnUrl = sessionStorage.getItem('twitter_oauth_return') || window.location.pathname;
       window.history.replaceState({}, '', returnUrl);
@@ -346,7 +346,7 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
     setIsLoading(true);
     try {
       console.log('🔍 Starting TikTok connection...');
-      
+
       // Check if Client Key is configured before attempting connection
       const clientKey = import.meta.env.VITE_TIKTOK_CLIENT_KEY;
       if (!clientKey) {
@@ -356,23 +356,23 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
         await connectTikTok();
         return;
       }
-      
+
       console.log('✅ TikTok Client Key found:', clientKey.substring(0, 4) + '...');
-      
+
       // connectTikTok will redirect to TikTok OAuth
       await connectTikTok();
-      
+
       // If we get here, OAuth redirect happened
       setIsLoading(false);
     } catch (err: any) {
       console.error('TikTok connection error:', err);
-      
+
       let errorMessage = 'Failed to connect to TikTok.\n\n';
-      
+
       if (err.message?.includes('Client Key not configured')) {
         errorMessage = `🔴 TikTok App Configuration Required\n\n`;
         errorMessage += `TikTok Client Key is not configured.\n\n`;
-        
+
         const isProduction = window.location.hostname.includes('vercel.app');
         if (isProduction) {
           errorMessage += `⚠️ Production Environment Detected\n\n`;
@@ -383,7 +383,7 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
           errorMessage += `   • Or try incognito/private window\n`;
           errorMessage += `3. ⏱️ Wait 1-2 minutes for deployment to complete\n\n`;
         }
-        
+
         errorMessage += `✅ Setup Steps:\n\n`;
         errorMessage += `1. Create TikTok App:\n`;
         errorMessage += `   • Go to: https://developers.tiktok.com/apps/\n`;
@@ -405,7 +405,7 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
         errorMessage += `   • Redeploy your Vercel app\n`;
         errorMessage += `   • Hard refresh: Ctrl+Shift+R (Windows) or Cmd+Shift+R (Mac)\n\n`;
         errorMessage += `📖 See TIKTOK_CONNECTION_GUIDE.md for detailed instructions.`;
-        
+
         alert(errorMessage);
       } else if (err.message) {
         errorMessage = `TikTok connection error:\n\n${err.message}`;
@@ -423,10 +423,10 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
     try {
       // Exchange code for token
       const tokenData = await exchangeTikTokCodeForToken(code);
-      
+
       // Get TikTok profile
       const profileData = await getTikTokProfile(tokenData.accessToken);
-      
+
       if (!profileData.data) {
         alert('Failed to fetch TikTok profile. Please try again.');
         setIsLoading(false);
@@ -456,7 +456,7 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
       const accountName = profile.display_name || profile.username || 'TikTok Account';
       alert(`✅ Connected to TikTok: ${accountName}!`);
       fetchConnectedAccounts();
-      
+
       // Clean up URL
       const returnUrl = sessionStorage.getItem('tiktok_oauth_return') || window.location.pathname;
       window.history.replaceState({}, '', returnUrl);
@@ -534,7 +534,7 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
           'You need to connect Facebook first to access Instagram.\n\n' +
           'Would you like to connect Facebook now?'
         );
-        
+
         if (shouldConnectFacebook) {
           setIsLoading(false);
           handleConnectFacebook();
@@ -548,9 +548,9 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
       // User has Facebook connected, now get Instagram accounts
       // Store that we're connecting Instagram
       sessionStorage.setItem('instagram_oauth_return', window.location.href);
-      
+
       const authResponse: any = await loginWithFacebook();
-      
+
       if (!authResponse || !authResponse.accessToken) {
         // OAuth redirect happened, callback will handle it
         return;
@@ -633,17 +633,17 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
         const response = await fetch(`${backendUrl}/api/facebook/token`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            code, 
-            redirectUri: `${window.location.origin}${window.location.pathname}${window.location.hash || ''}` 
+          body: JSON.stringify({
+            code,
+            redirectUri: `${window.location.origin}${window.location.pathname}${window.location.hash || ''}`
           })
         });
-        
+
         if (!response.ok) {
           const error = await response.json();
           throw new Error(error.message || 'Token exchange failed');
         }
-        
+
         const data = await response.json();
         accessToken = data.access_token;
       } else {
@@ -707,7 +707,7 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
 
       alert(`✅ Connected to Instagram: ${instagramAccounts.map((acc: any) => acc.username || acc.page_name).join(', ')}!`);
       fetchConnectedAccounts();
-      
+
       // Clean up URL
       const returnUrl = sessionStorage.getItem('instagram_oauth_return') || window.location.pathname;
       window.history.replaceState({}, '', returnUrl);
@@ -729,7 +729,7 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
     setIsLoading(true);
     try {
       console.log('🔍 Starting LinkedIn connection...');
-      
+
       // Check if Client ID is configured before attempting connection
       const clientId = import.meta.env.VITE_LINKEDIN_CLIENT_ID;
       if (!clientId) {
@@ -739,14 +739,14 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
         await loginWithLinkedIn();
         return;
       }
-      
+
       console.log('✅ LinkedIn Client ID found:', clientId.substring(0, 4) + '...');
-      
+
       // loginWithLinkedIn will redirect to LinkedIn OAuth
       // When redirect happens, window.location.href changes and page navigates away
       // If we get a response, it means we're handling a callback
       const authResponse: any = await loginWithLinkedIn();
-      
+
       // If we got here, we're handling a callback (code in URL)
       // The callback handler will process it, but we can also handle it here
       if (!authResponse || !authResponse.accessToken) {
@@ -812,18 +812,18 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
       fetchConnectedAccounts();
     } catch (err: any) {
       console.error('LinkedIn connection error:', err);
-      
+
       // Debug: Check if environment variable is actually available
       const clientId = import.meta.env.VITE_LINKEDIN_CLIENT_ID;
       console.log('🔍 Debug - VITE_LINKEDIN_CLIENT_ID:', clientId ? `${clientId.substring(0, 4)}...` : 'NOT FOUND');
       console.log('🔍 Debug - All env vars:', Object.keys(import.meta.env).filter(k => k.includes('LINKEDIN')));
-      
+
       let errorMessage = 'Failed to connect to LinkedIn.\n\n';
-      
+
       if (err.message?.includes('Client ID not configured')) {
         errorMessage = `🔴 LinkedIn App Configuration Required\n\n`;
         errorMessage += `LinkedIn Client ID is not configured.\n\n`;
-        
+
         // Check if we're in production and suggest cache clear
         const isProduction = window.location.hostname.includes('vercel.app');
         if (isProduction) {
@@ -835,7 +835,7 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
           errorMessage += `   • Or try incognito/private window\n`;
           errorMessage += `3. ⏱️ Wait 1-2 minutes for deployment to complete\n\n`;
         }
-        
+
         errorMessage += `✅ Setup Steps:\n\n`;
         errorMessage += `1. Add to Vercel Environment Variables:\n`;
         errorMessage += `   • Go to: Vercel Dashboard → Your Project → Settings → Environment Variables\n`;
@@ -851,7 +851,7 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
         errorMessage += `   • Hard refresh: Ctrl+Shift+R (Windows) or Cmd+Shift+R (Mac)\n`;
         errorMessage += `   • Or use incognito/private window\n\n`;
         errorMessage += `📖 See VERCEL_ENV_VARS_SETUP.md for detailed instructions.`;
-        
+
         alert(errorMessage);
       } else if (err.message?.includes('LOCAL_DEV_API_ERROR')) {
         errorMessage = `🔴 Local Development API Issue\n\n`;
@@ -861,7 +861,7 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
         errorMessage += `Change: VITE_API_URL=http://localhost:3000\n`;
         errorMessage += `To: VITE_API_URL=https://engage-hub-ten.vercel.app\n\n`;
         errorMessage += `Then restart your dev server.`;
-        
+
         alert(errorMessage + '\n\nPlease update .env.local manually and restart your dev server.');
       } else if (err.message?.includes('backend')) {
         errorMessage = `🔴 Backend Setup Required\n\n`;
@@ -898,7 +898,7 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
         const storedRedirectUri = sessionStorage.getItem('linkedin_oauth_redirect_uri');
         // Fallback to calculated URI if not stored (shouldn't happen, but safety)
         const redirectUri = storedRedirectUri || window.location.origin.replace(/\/$/, '');
-        
+
         console.log('🔍 LinkedIn Token Exchange Debug:');
         console.log('  - Backend URL:', backendUrl);
         console.log('  - API Endpoint:', `${backendUrl.replace(/\/$/, '')}/api/linkedin/token`);
@@ -906,19 +906,19 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
         console.log('  - Final redirect URI:', redirectUri);
         console.log('  - Code received:', code ? `${code.substring(0, 20)}...` : 'MISSING');
         console.log('  - Current URL:', window.location.href);
-        
+
         // Ensure backendUrl doesn't have trailing slash
         const apiUrl = `${backendUrl.replace(/\/$/, '')}/api/linkedin/token`;
-        
+
         const response = await fetch(apiUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            code, 
+          body: JSON.stringify({
+            code,
             redirectUri: redirectUri
           })
         });
-        
+
         if (!response.ok) {
           // Handle 404 (endpoint not found) with helpful message
           if (response.status === 404) {
@@ -935,7 +935,7 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
               );
             }
           }
-          
+
           // Try to parse error response
           let errorMessage = 'Token exchange failed';
           try {
@@ -947,7 +947,7 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
           }
           throw new Error(errorMessage);
         }
-        
+
         const data = await response.json();
         accessToken = data.access_token;
         refreshToken = data.refresh_token;
@@ -1015,7 +1015,7 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
 
       alert(`✅ Connected to LinkedIn: ${accountNames.join(', ')}!`);
       fetchConnectedAccounts();
-      
+
       // Clean up URL
       const returnUrl = sessionStorage.getItem('linkedin_oauth_return') || window.location.pathname;
       window.history.replaceState({}, '', returnUrl);
@@ -1037,7 +1037,7 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
     setIsLoading(true);
     try {
       const authResponse: any = await connectYouTube();
-      
+
       // If we got redirected, the callback handler will process it
       if (!authResponse || !authResponse.accessToken) {
         // OAuth redirect happened, callback will handle it
@@ -1046,7 +1046,7 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
 
       // Get YouTube channel info
       const channelData = await getYouTubeChannel(authResponse.accessToken);
-      
+
       if (!channelData.channels || channelData.channels.length === 0) {
         alert('No YouTube channels found. Please make sure you have a YouTube channel associated with your Google account.');
         setIsLoading(false);
@@ -1101,7 +1101,7 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
         // Fallback: use just origin (root URL) to match what was used in authorization
         const fallbackRedirectUri = window.location.origin.replace(/\/$/, '');
         const redirectUri = storedRedirectUri || fallbackRedirectUri;
-        
+
         console.log('🔍 YouTube Token Exchange Debug:');
         console.log('  - Backend URL:', backendUrl);
         console.log('  - API Endpoint:', `${backendUrl.replace(/\/$/, '')}/api/youtube/token`);
@@ -1110,16 +1110,16 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
         console.log('  - Final redirect URI:', redirectUri);
         console.log('  - Code received:', code ? `${code.substring(0, 20)}...` : 'MISSING');
         console.log('  - Current URL:', window.location.href);
-        
+
         const response = await fetch(`${backendUrl}/api/youtube/token`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            code, 
+          body: JSON.stringify({
+            code,
             redirectUri: redirectUri
           })
         });
-        
+
         if (!response.ok) {
           if (response.status === 404) {
             throw new Error(
@@ -1129,7 +1129,7 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
               'See YOUTUBE_CONNECTION_GUIDE.md for setup instructions.'
             );
           }
-          
+
           let errorMessage = 'Token exchange failed';
           let errorDetails: any = null;
           try {
@@ -1140,7 +1140,7 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
           } catch {
             errorMessage = response.statusText || 'Token exchange failed';
           }
-          
+
           // Provide more detailed error message
           if (errorDetails?.error === 'redirect_uri_mismatch') {
             throw new Error(
@@ -1151,10 +1151,10 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
               `For production: https://engage-hub-ten.vercel.app`
             );
           }
-          
+
           throw new Error(errorMessage);
         }
-        
+
         const data = await response.json();
         accessToken = data.access_token;
         refreshToken = data.refresh_token;
@@ -1172,7 +1172,7 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
 
       // Get YouTube channel info
       const channelData = await getYouTubeChannel(accessToken);
-      
+
       if (!channelData.channels || channelData.channels.length === 0) {
         alert('No YouTube channels found. Please make sure you have a YouTube channel associated with your Google account.');
         setIsLoading(false);
@@ -1203,7 +1203,7 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
       const channelNames = channelData.channels.map((ch: any) => ch.snippet?.title || 'YouTube Channel').join(', ');
       alert(`✅ Connected to YouTube: ${channelNames}!`);
       fetchConnectedAccounts();
-      
+
       // Clean up URL and stored data
       const returnUrl = sessionStorage.getItem('youtube_oauth_return') || window.location.pathname;
       window.history.replaceState({}, '', returnUrl);
@@ -1211,13 +1211,13 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
       sessionStorage.removeItem('youtube_oauth_redirect_uri');
     } catch (err: any) {
       console.error('YouTube callback error:', err);
-      
+
       let errorMessage = 'Failed to connect to YouTube.\n\n';
-      
+
       if (err.message?.includes('Client ID not configured') || err.message?.includes('requires a backend')) {
         errorMessage = `🔴 YouTube Setup Required\n\n`;
         errorMessage += err.message + '\n\n';
-        
+
         const isProduction = window.location.hostname.includes('vercel.app');
         if (isProduction) {
           errorMessage += `⚠️ Production Environment Detected\n\n`;
@@ -1230,12 +1230,12 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
           errorMessage += `   • Add YOUTUBE_CLIENT_SECRET to backend env vars\n\n`;
           errorMessage += `3. Redeploy and clear cache\n\n`;
         }
-        
+
         errorMessage += `📖 See YOUTUBE_CONNECTION_GUIDE.md for detailed instructions.`;
       } else {
         errorMessage += err.message || 'Unknown error';
       }
-      
+
       alert(errorMessage);
     } finally {
       setIsLoading(false);
@@ -1261,7 +1261,7 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
     setIsLoading(true);
     try {
       const authResponse: any = await loginWithFacebook();
-      
+
       // If we got redirected, the callback handler will process it
       if (!authResponse || !authResponse.accessToken) {
         // OAuth redirect happened, callback will handle it
@@ -1294,15 +1294,15 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
       fetchConnectedAccounts();
     } catch (err: any) {
       console.error('Connection error:', err);
-      
+
       // Provide helpful error messages with setup instructions
       let errorMessage = 'Failed to connect to Facebook.\n\n';
-      
+
       // Check for "Feature Unavailable" error (App configuration issue)
-      if (err.message?.includes('Feature Unavailable') || 
-          err.message?.includes('unavailable') || 
-          err.message?.includes('updating additional details') ||
-          err.message?.includes('currently unavailable')) {
+      if (err.message?.includes('Feature Unavailable') ||
+        err.message?.includes('unavailable') ||
+        err.message?.includes('updating additional details') ||
+        err.message?.includes('currently unavailable')) {
         errorMessage = `🔴 Facebook App Configuration Required\n\n`;
         errorMessage += `The "Feature Unavailable" error means your Facebook App needs configuration.\n\n`;
         errorMessage += `This usually happens when:\n`;
@@ -1324,7 +1324,7 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
         errorMessage += `   • Add yourself as a test user\n\n`;
         errorMessage += `📖 See FACEBOOK_FEATURE_UNAVAILABLE_FIX.md for detailed instructions.\n\n`;
         errorMessage += `⏱️ Wait 5-10 minutes after making changes, then try again.`;
-        
+
         const shouldOpen = confirm(errorMessage + '\n\nOpen Facebook Developer Console now?');
         if (shouldOpen) {
           window.open('https://developers.facebook.com/apps/1621732999001688', '_blank');
@@ -1338,7 +1338,7 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
         errorMessage += '4. Add "http://localhost:3000" to Valid OAuth Redirect URIs\n';
         errorMessage += '5. For production, deploy with HTTPS\n\n';
         errorMessage += 'Would you like to open Facebook Developer docs?';
-        
+
         if (confirm(errorMessage)) {
           window.open('https://developers.facebook.com/docs/facebook-login/web', '_blank');
         }
@@ -1404,9 +1404,9 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
             ].map((account, idx) => {
               const connectedAccount = connectedAccounts.find(ca => ca.platform === account.platform);
               const isConnected = !!connectedAccount;
-              
+
               // Get the actual user name from connected account
-              const connectedName = isConnected 
+              const connectedName = isConnected
                 ? (connectedAccount.display_name || connectedAccount.username || connectedAccount.account_name || null)
                 : null;
 
@@ -1421,58 +1421,49 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
               }
 
               return (
-                <div key={idx} className="bg-white p-5 rounded-xl border border-gray-200 flex items-center justify-between group hover:border-blue-300 transition-all shadow-sm">
-                  <div className="flex items-center gap-3 flex-1 min-w-0">
-                    <div className="w-10 h-10 rounded-lg bg-gray-50 flex items-center justify-center shrink-0">
-                      {account.icon}
+                <div key={idx} className={`p-5 rounded-xl border flex items-center justify-between group transition-all shadow-sm ${isConnected ? 'bg-white border-blue-200 ring-1 ring-blue-50' : 'bg-gray-50/50 border-gray-200 filter grayscale-[0.5]'}`}>
+                  <div className="flex items-center gap-3">
+                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 shadow-sm ${isConnected ? 'bg-white' : 'bg-gray-100'}`}>
+                      {React.cloneElement(account.icon as React.ReactElement, { size: 24, className: isConnected ? (account.icon as React.ReactElement).props.className : 'text-gray-400' })}
                     </div>
-                    <div className="overflow-hidden flex-1 min-w-0">
-                      <h4 className="text-sm font-bold truncate">
+                    <div className="overflow-hidden">
+                      <h4 className={`text-sm font-bold truncate ${isConnected ? 'text-gray-900' : 'text-gray-500'}`}>
                         {isConnected && connectedName ? connectedName : account.name}
                       </h4>
-                      <p className="text-xs text-gray-500 truncate">
-                        {isConnected 
-                          ? (connectedName ? account.name : 'Connected') 
-                          : account.handle}
+                      <p className="text-xs text-gray-400 truncate font-medium">
+                        {isConnected ? (connectedName ? account.name : 'Connected') : 'Not connected'}
                       </p>
                     </div>
                   </div>
                   <div className="flex flex-col items-end gap-2 shrink-0">
                     {isConnected ? (
-                      <>
-                        <span className="flex items-center gap-1 text-[10px] font-bold text-green-600 bg-green-50 px-2 py-0.5 rounded-full uppercase">
-                          <CheckCircle2 size={10} /> Connected
+                      <div className="flex flex-col items-end gap-1">
+                        <span className="flex items-center gap-1.5 text-[10px] font-black text-green-600 bg-green-50 px-2.5 py-1 rounded-full uppercase tracking-wider border border-green-100 shadow-sm">
+                          <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
+                          Live
                         </span>
                         <button
                           onClick={() => handleDisconnect(connectedAccount.id)}
-                          className="flex items-center gap-1 text-[10px] font-bold text-red-600 bg-red-50 hover:bg-red-100 px-2 py-1 rounded transition-all"
+                          className="p-1 text-gray-300 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-all"
                           title="Disconnect account"
                         >
-                          <X size={12} /> Disconnect
+                          <X size={14} />
                         </button>
-                      </>
+                      </div>
                     ) : (
                       <button
                         onClick={() => {
-                          if (account.platform === 'facebook') {
-                            handleConnectFacebook();
-                          } else if (account.platform === 'instagram') {
-                            handleConnectInstagram();
-                          } else if (account.platform === 'linkedin') {
-                            handleConnectLinkedIn();
-                          } else if (account.platform === 'youtube') {
-                            handleConnectYouTube();
-                          } else if (account.platform === 'twitter') {
-                            handleConnectTwitter();
-                          } else if (account.platform === 'tiktok') {
-                            handleConnectTikTok();
-                          } else {
-                            alert(`${account.name} integration coming soon!`);
-                          }
+                          if (account.platform === 'facebook') handleConnectFacebook();
+                          else if (account.platform === 'instagram') handleConnectInstagram();
+                          else if (account.platform === 'linkedin') handleConnectLinkedIn();
+                          else if (account.platform === 'youtube') handleConnectYouTube();
+                          else if (account.platform === 'twitter') handleConnectTwitter();
+                          else if (account.platform === 'tiktok') handleConnectTikTok();
+                          else alert(`${account.name} integration coming soon!`);
                         }}
-                        className="flex items-center gap-1 text-[10px] font-bold text-white bg-blue-600 hover:bg-blue-700 px-3 py-1.5 rounded-full uppercase shadow-sm transition-all"
+                        className="flex items-center gap-1.5 text-[10px] font-black text-white bg-blue-600 hover:bg-blue-700 hover:scale-105 active:scale-95 px-4 py-2 rounded-full uppercase tracking-wider shadow-lg shadow-blue-200/50 transition-all"
                       >
-                        <Plus size={12} /> Connect
+                        Connect
                       </button>
                     )}
                   </div>

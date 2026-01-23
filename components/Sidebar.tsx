@@ -1,9 +1,10 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { ChevronLeft, ChevronRight, Plus, LogOut, Settings, User } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, LogOut, Settings, User, AlertCircle } from 'lucide-react';
 import { useAuth } from '../src/hooks/useAuth';
 import { NAVIGATION_ITEMS } from '../constants';
 import { MenuSection } from '../types';
+import { supabase } from '../src/lib/supabase';
 
 interface SidebarProps {
   currentSection: MenuSection;
@@ -15,7 +16,42 @@ interface SidebarProps {
 const Sidebar: React.FC<SidebarProps> = ({ currentSection, onSelect, isCollapsed, setIsCollapsed }) => {
   const { user, signOut } = useAuth();
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [hasConnectedAccounts, setHasConnectedAccounts] = useState<boolean | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const fetchAccountStatus = async () => {
+      if (!user) return;
+      try {
+        const { data: workspaces } = await supabase.from('workspaces').select('id').eq('owner_id', user.id).limit(1);
+        if (!workspaces?.length) return;
+
+        const { count } = await supabase
+          .from('social_accounts')
+          .select('*', { count: 'exact', head: true })
+          .eq('workspace_id', workspaces[0].id)
+          .eq('is_active', true);
+
+        setHasConnectedAccounts((count || 0) > 0);
+      } catch (err) {
+        console.error('Error fetching account status:', err);
+      }
+    };
+
+    fetchAccountStatus();
+
+    // Refresh status when a social account is connected/disconnected
+    const channel = supabase
+      .channel('social_accounts_status')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'social_accounts' }, () => {
+        fetchAccountStatus();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -62,22 +98,37 @@ const Sidebar: React.FC<SidebarProps> = ({ currentSection, onSelect, isCollapsed
 
 
       <nav className="flex-1 overflow-y-auto px-2 space-y-1 py-4 no-scrollbar">
-        {NAVIGATION_ITEMS.map((item) => (
-          <button
-            key={item.id}
-            onClick={() => onSelect(item.id)}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all group ${currentSection === item.id
-              ? 'bg-sidebar-active text-sidebar-activeText font-black'
-              : 'text-sidebar-text hover:bg-black/5 dark:hover:bg-white/5 hover:text-sidebar-activeText'
-              }`}
-          >
-            <span className={`${currentSection === item.id ? 'text-sidebar-activeText' : 'text-sidebar-text group-hover:text-sidebar-activeText'}`}>
-              {/* Fix: cast to React.ReactElement<any> to avoid 'size' prop error */}
-              {React.cloneElement(item.icon as React.ReactElement<any>, { size: 18 })}
-            </span>
-            {!isCollapsed && <span className="text-xs font-bold uppercase tracking-wider">{item.label}</span>}
-          </button>
-        ))}
+        {NAVIGATION_ITEMS.map((item) => {
+          const needsAttention = hasConnectedAccounts === false && (item.id === MenuSection.Content || item.id === MenuSection.SocialMedia);
+
+          return (
+            <button
+              key={item.id}
+              onClick={() => onSelect(item.id)}
+              className={`w-full flex items-center justify-between p-1 rounded-xl transition-all group relative ${currentSection === item.id
+                ? 'bg-sidebar-active text-sidebar-activeText font-black'
+                : 'text-sidebar-text hover:bg-black/5 dark:hover:bg-white/5 hover:text-sidebar-activeText'
+                }`}
+            >
+              <div className="flex items-center gap-3 px-3 py-2">
+                <span className={`${currentSection === item.id ? 'text-sidebar-activeText' : 'text-sidebar-text group-hover:text-sidebar-activeText'}`}>
+                  {React.cloneElement(item.icon as React.ReactElement<any>, { size: 18 })}
+                </span>
+                {!isCollapsed && <span className="text-xs font-bold uppercase tracking-wider">{item.label}</span>}
+              </div>
+
+              {!isCollapsed && needsAttention && (
+                <div className="mr-3 flex items-center gap-1 text-[10px] font-black text-red-500 bg-red-50 px-1.5 py-0.5 rounded-md animate-pulse border border-red-100 shadow-sm shrink-0">
+                  <AlertCircle size={10} strokeWidth={3} />
+                  <span>!]</span>
+                </div>
+              )}
+              {isCollapsed && needsAttention && (
+                <div className="absolute right-2 top-2 w-2 h-2 bg-red-500 rounded-full border border-white dark:border-slate-900 animate-pulse" />
+              )}
+            </button>
+          );
+        })}
       </nav>
 
       <div className="p-4 border-t border-gray-100 dark:border-slate-800 relative" ref={menuRef}>
