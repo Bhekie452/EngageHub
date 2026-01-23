@@ -206,11 +206,29 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
       const { data: workspaces } = await supabase.from('workspaces').select('id').eq('owner_id', user.id).limit(1);
       if (!workspaces?.length) return;
 
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('social_accounts')
         .select('*')
         .eq('workspace_id', workspaces[0].id)
         .eq('is_active', true);
+
+      if (error) {
+        console.error('Error fetching connected accounts:', error);
+      } else {
+        console.log('Fetched connected accounts:', data);
+        // Log LinkedIn account specifically
+        const linkedInAccount = data?.find((acc: any) => acc.platform === 'linkedin');
+        if (linkedInAccount) {
+          console.log('LinkedIn account data:', {
+            id: linkedInAccount.id,
+            display_name: linkedInAccount.display_name,
+            username: linkedInAccount.username,
+            account_name: linkedInAccount.account_name,
+            platform: linkedInAccount.platform,
+            full_data: linkedInAccount
+          });
+        }
+      }
 
       setConnectedAccounts(data || []);
     } catch (err) {
