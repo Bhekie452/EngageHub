@@ -28,25 +28,44 @@ const getRedirectURI = (): string => {
 
 /**
  * Generate a random code verifier for PKCE
+ * Must be 43-128 characters, URL-safe
  */
 function generateCodeVerifier(): string {
-    const array = new Uint32Array(56 / 2);
+    const array = new Uint8Array(32);
     crypto.getRandomValues(array);
-    return Array.from(array, dec => ('0' + dec.toString(16)).substr(-2)).join('');
+    // Convert to base64url (URL-safe base64)
+    return btoa(String.fromCharCode(...array))
+        .replace(/\+/g, '-')
+        .replace(/\//g, '_')
+        .replace(/=/g, '');
 }
 
 /**
- * Generate code challenge from verifier (using plain method as Twitter supports it)
+ * Generate code challenge from verifier using S256 (SHA256)
+ * Twitter OAuth 2.0 requires S256, not plain
  */
-function generateCodeChallenge(verifier: string): string {
-    return verifier; // Twitter supports plain method, so challenge = verifier
+async function generateCodeChallenge(verifier: string): Promise<string> {
+    // Convert verifier to ArrayBuffer
+    const encoder = new TextEncoder();
+    const data = encoder.encode(verifier);
+    
+    // Hash with SHA256
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    
+    // Convert to base64url
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    const base64 = btoa(String.fromCharCode(...hashArray));
+    return base64
+        .replace(/\+/g, '-')
+        .replace(/\//g, '_')
+        .replace(/=/g, '');
 }
 
 /**
  * Connect to Twitter/X (redirects to Twitter OAuth)
  */
-export const connectTwitter = () => {
-    return new Promise((resolve, reject) => {
+export const connectTwitter = async () => {
+    return new Promise(async (resolve, reject) => {
         if (!TWITTER_CLIENT_ID) {
             const isProduction = window.location.hostname !== 'localhost' && !window.location.hostname.includes('127.0.0.1');
             const errorMessage = isProduction
@@ -62,15 +81,15 @@ export const connectTwitter = () => {
             const oauthState = 'twitter_oauth';
             const redirectUri = getRedirectURI();
             
-            // Generate code verifier and challenge for PKCE (Twitter OAuth 2.0 requires PKCE)
+            // Generate code verifier and challenge for PKCE (Twitter OAuth 2.0 requires PKCE with S256)
             const codeVerifier = generateCodeVerifier();
-            const codeChallenge = generateCodeChallenge(codeVerifier);
+            const codeChallenge = await generateCodeChallenge(codeVerifier);
             
             // Store code verifier for later use in token exchange
             sessionStorage.setItem('twitter_oauth_code_verifier', codeVerifier);
             
             // Twitter OAuth 2.0 authorization endpoint
-            const authUrl = `https://twitter.com/i/oauth2/authorize?client_id=${TWITTER_CLIENT_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent(scope)}&state=${oauthState}&code_challenge=${codeChallenge}&code_challenge_method=plain`;
+            const authUrl = `https://twitter.com/i/oauth2/authorize?client_id=${TWITTER_CLIENT_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent(scope)}&state=${oauthState}&code_challenge=${codeChallenge}&code_challenge_method=S256`;
             
             // Store the current URL to return to after OAuth
             sessionStorage.setItem('twitter_oauth_return', window.location.href);

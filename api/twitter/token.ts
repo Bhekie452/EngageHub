@@ -107,8 +107,10 @@ export default async function handler(
     // Debug logging
     console.log('Twitter token exchange request:', {
       hasCode: !!code,
+      codePrefix: code ? `${code.substring(0, 20)}...` : 'MISSING',
       redirectUri: redirectUri,
       hasCodeVerifier: !!codeVerifier,
+      codeVerifierPrefix: codeVerifier ? `${codeVerifier.substring(0, 10)}...` : 'MISSING',
       clientIdPrefix: CLIENT_ID ? `${CLIENT_ID.substring(0, 4)}...` : 'NOT FOUND',
       hasClientSecret: !!CLIENT_SECRET
     });
@@ -140,7 +142,10 @@ export default async function handler(
         statusText: tokenResponse.statusText,
         error: tokenData.error,
         errorDescription: tokenData.error_description,
+        errorDetails: tokenData.error_description || tokenData,
         redirectUri: redirectUri,
+        codePrefix: code ? `${code.substring(0, 20)}...` : 'MISSING',
+        codeVerifierPrefix: codeVerifier ? `${codeVerifier.substring(0, 10)}...` : 'MISSING',
         clientIdPrefix: CLIENT_ID ? `${CLIENT_ID.substring(0, 4)}...` : 'NOT FOUND',
         fullError: tokenData
       });
