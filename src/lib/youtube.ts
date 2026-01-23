@@ -92,6 +92,13 @@ export const connectYouTube = () => {
         
         // Store the current URL to return to after OAuth
         sessionStorage.setItem('youtube_oauth_return', window.location.href);
+        // CRITICAL: Store the exact redirect URI used in authorization request
+        // This must match exactly when exchanging the token
+        sessionStorage.setItem('youtube_oauth_redirect_uri', redirectUri);
+        
+        console.log('🔄 Redirecting to Google OAuth for YouTube...');
+        console.log('Redirect URI:', redirectUri);
+        console.log('Auth URL:', authUrl);
         
         window.location.href = authUrl;
         // Note: This will redirect, so the promise won't resolve until callback
@@ -104,6 +111,14 @@ export const connectYouTube = () => {
  */
 const exchangeCodeForToken = async (code: string): Promise<any> => {
     try {
+        // CRITICAL: Use the EXACT redirect URI that was used in the authorization request
+        const storedRedirectUri = sessionStorage.getItem('youtube_oauth_redirect_uri');
+        const redirectUri = storedRedirectUri || getRedirectURI();
+        
+        console.log('🔄 Exchanging YouTube code for token...');
+        console.log('Using redirect URI:', redirectUri);
+        console.log('Stored redirect URI:', storedRedirectUri);
+        
         // Check if we have a backend endpoint for token exchange
         const backendUrl = import.meta.env.VITE_API_URL || '';
         
@@ -112,7 +127,7 @@ const exchangeCodeForToken = async (code: string): Promise<any> => {
             const response = await fetch(`${backendUrl}/api/youtube/token`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ code, redirectUri: getRedirectURI() })
+                body: JSON.stringify({ code, redirectUri })
             });
             
             if (!response.ok) {
@@ -122,10 +137,11 @@ const exchangeCodeForToken = async (code: string): Promise<any> => {
             
             const data = await response.json();
             
-            // Clean up URL
+            // Clean up URL and stored data
             const returnUrl = sessionStorage.getItem('youtube_oauth_return') || window.location.pathname;
             window.history.replaceState({}, '', returnUrl);
             sessionStorage.removeItem('youtube_oauth_return');
+            sessionStorage.removeItem('youtube_oauth_redirect_uri');
             
             return {
                 accessToken: data.access_token,

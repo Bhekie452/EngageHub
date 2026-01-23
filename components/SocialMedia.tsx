@@ -825,12 +825,23 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
       let expiresIn: number;
 
       if (backendUrl) {
+        // CRITICAL: Use the EXACT redirect URI that was used in the authorization request
+        const storedRedirectUri = sessionStorage.getItem('youtube_oauth_redirect_uri');
+        const redirectUri = storedRedirectUri || `${window.location.origin}${window.location.pathname}${window.location.hash || ''}`;
+        
+        console.log('🔍 YouTube Token Exchange Debug:');
+        console.log('  - Backend URL:', backendUrl);
+        console.log('  - API Endpoint:', `${backendUrl.replace(/\/$/, '')}/api/youtube/token`);
+        console.log('  - Stored redirect URI:', storedRedirectUri);
+        console.log('  - Final redirect URI:', redirectUri);
+        console.log('  - Code received:', code ? `${code.substring(0, 20)}...` : 'MISSING');
+        
         const response = await fetch(`${backendUrl}/api/youtube/token`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ 
             code, 
-            redirectUri: `${window.location.origin}${window.location.pathname}${window.location.hash || ''}` 
+            redirectUri: redirectUri
           })
         });
         
@@ -903,10 +914,11 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
       alert(`✅ Connected to YouTube: ${channelNames}!`);
       fetchConnectedAccounts();
       
-      // Clean up URL
+      // Clean up URL and stored data
       const returnUrl = sessionStorage.getItem('youtube_oauth_return') || window.location.pathname;
       window.history.replaceState({}, '', returnUrl);
       sessionStorage.removeItem('youtube_oauth_return');
+      sessionStorage.removeItem('youtube_oauth_redirect_uri');
     } catch (err: any) {
       console.error('YouTube callback error:', err);
       
