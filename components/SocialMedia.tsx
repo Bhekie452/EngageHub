@@ -1076,17 +1076,32 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
             ].map((account, idx) => {
               const connectedAccount = connectedAccounts.find(ca => ca.platform === account.platform);
               const isConnected = !!connectedAccount;
+              
+              // Get the actual user name from connected account
+              const connectedName = isConnected 
+                ? (connectedAccount.display_name || connectedAccount.username || connectedAccount.account_name || null)
+                : null;
+
+              // Debug logging
+              if (isConnected && account.platform === 'linkedin') {
+                console.log('LinkedIn connected account data:', {
+                  display_name: connectedAccount.display_name,
+                  username: connectedAccount.username,
+                  account_name: connectedAccount.account_name,
+                  full_account: connectedAccount
+                });
+              }
 
               return (
                 <div key={idx} className="bg-white p-5 rounded-xl border border-gray-200 flex items-center justify-between group hover:border-blue-300 transition-all shadow-sm">
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
                     <div className="w-10 h-10 rounded-lg bg-gray-50 flex items-center justify-center shrink-0">
                       {account.icon}
                     </div>
-                    <div className="overflow-hidden">
+                    <div className="overflow-hidden flex-1 min-w-0">
                       <h4 className="text-sm font-bold truncate">{account.name}</h4>
                       <p className="text-xs text-gray-500 truncate">
-                        {isConnected ? (connectedAccount.display_name || connectedAccount.username || connectedAccount.account_name || 'Connected') : account.handle}
+                        {connectedName || (isConnected ? 'Connected' : account.handle)}
                       </p>
                     </div>
                   </div>
