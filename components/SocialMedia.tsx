@@ -1117,9 +1117,13 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
                       {account.icon}
                     </div>
                     <div className="overflow-hidden flex-1 min-w-0">
-                      <h4 className="text-sm font-bold truncate">{account.name}</h4>
+                      <h4 className="text-sm font-bold truncate">
+                        {isConnected && connectedName ? connectedName : account.name}
+                      </h4>
                       <p className="text-xs text-gray-500 truncate">
-                        {connectedName || (isConnected ? 'Connected' : account.handle)}
+                        {isConnected 
+                          ? (connectedName ? account.name : 'Connected') 
+                          : account.handle}
                       </p>
                     </div>
                   </div>
