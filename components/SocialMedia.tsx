@@ -790,14 +790,18 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
       for (const channel of channelData.channels) {
         await supabase.from('social_accounts').upsert({
           workspace_id: workspaces[0].id,
+          connected_by: user!.id,
           platform: 'youtube',
-          platform_account_id: channel.id,
-          account_name: channel.snippet?.title || 'YouTube Channel',
+          account_id: channel.id,
+          display_name: channel.snippet?.title || 'YouTube Channel',
+          username: channel.snippet?.customUrl || channel.snippet?.title,
+          avatar_url: channel.snippet?.thumbnails?.default?.url || channel.snippet?.thumbnails?.high?.url,
           access_token: authResponse.accessToken,
           refresh_token: authResponse.refreshToken,
-          expires_at: authResponse.expiresIn ? new Date(Date.now() + authResponse.expiresIn * 1000).toISOString() : null,
+          token_expires_at: authResponse.expiresIn ? new Date(Date.now() + authResponse.expiresIn * 1000).toISOString() : null,
           is_active: true,
-        }, { onConflict: 'workspace_id,platform,platform_account_id' });
+          connection_status: 'connected',
+        }, { onConflict: 'workspace_id,platform,account_id' });
       }
 
       const channelNames = channelData.channels.map((ch: any) => ch.snippet?.title || 'YouTube Channel').join(', ');
@@ -881,14 +885,18 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
       for (const channel of channelData.channels) {
         await supabase.from('social_accounts').upsert({
           workspace_id: workspaces[0].id,
+          connected_by: user!.id,
           platform: 'youtube',
-          platform_account_id: channel.id,
-          account_name: channel.snippet?.title || 'YouTube Channel',
+          account_id: channel.id,
+          display_name: channel.snippet?.title || 'YouTube Channel',
+          username: channel.snippet?.customUrl || channel.snippet?.title,
+          avatar_url: channel.snippet?.thumbnails?.default?.url || channel.snippet?.thumbnails?.high?.url,
           access_token: accessToken,
           refresh_token: refreshToken,
-          expires_at: expiresIn ? new Date(Date.now() + expiresIn * 1000).toISOString() : null,
+          token_expires_at: expiresIn ? new Date(Date.now() + expiresIn * 1000).toISOString() : null,
           is_active: true,
-        }, { onConflict: 'workspace_id,platform,platform_account_id' });
+          connection_status: 'connected',
+        }, { onConflict: 'workspace_id,platform,account_id' });
       }
 
       const channelNames = channelData.channels.map((ch: any) => ch.snippet?.title || 'YouTube Channel').join(', ');

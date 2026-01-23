@@ -155,48 +155,26 @@ const exchangeCodeForToken = async (code: string): Promise<any> => {
 
 /**
  * Get YouTube channel information
+ * Uses backend API to avoid CORS issues
  */
 export const getYouTubeChannel = async (accessToken: string): Promise<any> => {
     try {
-        // First get user info from Google
-        const userInfoResponse = await fetch(
-            'https://www.googleapis.com/oauth2/v2/userinfo',
-            {
-                headers: {
-                    'Authorization': `Bearer ${accessToken}`,
-                    'Content-Type': 'application/json'
-                }
-            }
-        );
+        // Use backend endpoint to avoid CORS issues
+        const backendUrl = import.meta.env.VITE_API_URL || window.location.origin;
+        const response = await fetch(`${backendUrl}/api/youtube/channel`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ accessToken })
+        });
         
-        if (!userInfoResponse.ok) {
-            throw new Error('Failed to fetch user info');
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.message || 'Failed to fetch YouTube channel');
         }
         
-        const userInfo = await userInfoResponse.json();
-        
-        // Then get YouTube channel info
-        const channelResponse = await fetch(
-            'https://www.googleapis.com/youtube/v3/channels?part=snippet,contentDetails,statistics&mine=true',
-            {
-                headers: {
-                    'Authorization': `Bearer ${accessToken}`,
-                    'Content-Type': 'application/json'
-                }
-            }
-        );
-        
-        if (!channelResponse.ok) {
-            const error = await channelResponse.json();
-            throw new Error(error.error?.message || 'Failed to fetch YouTube channel');
-        }
-        
-        const channelData = await channelResponse.json();
-        
-        return {
-            user: userInfo,
-            channels: channelData.items || []
-        };
+        return await response.json();
     } catch (error: any) {
         throw new Error(`Failed to get YouTube channel: ${error.message}`);
     }
