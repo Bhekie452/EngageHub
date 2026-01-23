@@ -479,14 +479,17 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
       // Store personal profile connection
       await supabase.from('social_accounts').upsert({
         workspace_id: workspaces[0].id,
+        connected_by: user!.id,
         platform: 'linkedin',
-        platform_account_id: profile.sub || profile.id,
-        account_name: profile.name || `${profile.given_name} ${profile.family_name}` || 'LinkedIn Profile',
+        account_id: profile.sub || profile.id,
+        display_name: profile.name || `${profile.given_name} ${profile.family_name}` || 'LinkedIn Profile',
+        username: profile.email || profile.preferred_username,
         access_token: authResponse.accessToken,
         refresh_token: authResponse.refreshToken,
-        expires_at: authResponse.expiresIn ? new Date(Date.now() + authResponse.expiresIn * 1000).toISOString() : null,
+        token_expires_at: authResponse.expiresIn ? new Date(Date.now() + authResponse.expiresIn * 1000).toISOString() : null,
         is_active: true,
-      }, { onConflict: 'workspace_id,platform,platform_account_id' });
+        connection_status: 'connected',
+      }, { onConflict: 'workspace_id,platform,account_id' });
 
       // Store organization connections if available
       if (organizations && organizations.length > 0) {
@@ -495,14 +498,17 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
             const orgDetails = await getLinkedInOrganizationDetails(authResponse.accessToken, org.organizationalTarget);
             await supabase.from('social_accounts').upsert({
               workspace_id: workspaces[0].id,
+              connected_by: user!.id,
               platform: 'linkedin',
-              platform_account_id: orgDetails.id || org.organizationalTarget,
-              account_name: orgDetails.name || 'LinkedIn Company Page',
+              account_id: orgDetails.id || org.organizationalTarget,
+              display_name: orgDetails.name || 'LinkedIn Company Page',
+              account_type: 'business',
               access_token: authResponse.accessToken,
               refresh_token: authResponse.refreshToken,
-              expires_at: authResponse.expiresIn ? new Date(Date.now() + authResponse.expiresIn * 1000).toISOString() : null,
+              token_expires_at: authResponse.expiresIn ? new Date(Date.now() + authResponse.expiresIn * 1000).toISOString() : null,
               is_active: true,
-            }, { onConflict: 'workspace_id,platform,platform_account_id' });
+              connection_status: 'connected',
+            }, { onConflict: 'workspace_id,platform,account_id' });
           } catch (err) {
             console.warn(`Failed to get details for organization ${org.organizationalTarget}:`, err);
           }
@@ -678,14 +684,17 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
       // Store personal profile
       await supabase.from('social_accounts').upsert({
         workspace_id: workspaces[0].id,
+        connected_by: user!.id,
         platform: 'linkedin',
-        platform_account_id: profile.sub || profile.id,
-        account_name: profile.name || `${profile.given_name} ${profile.family_name}` || 'LinkedIn Profile',
+        account_id: profile.sub || profile.id,
+        display_name: profile.name || `${profile.given_name} ${profile.family_name}` || 'LinkedIn Profile',
+        username: profile.email || profile.preferred_username,
         access_token: accessToken,
         refresh_token: refreshToken,
-        expires_at: expiresIn ? new Date(Date.now() + expiresIn * 1000).toISOString() : null,
+        token_expires_at: expiresIn ? new Date(Date.now() + expiresIn * 1000).toISOString() : null,
         is_active: true,
-      }, { onConflict: 'workspace_id,platform,platform_account_id' });
+        connection_status: 'connected',
+      }, { onConflict: 'workspace_id,platform,account_id' });
 
       // Store organizations
       if (organizations && organizations.length > 0) {
@@ -694,14 +703,17 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
             const orgDetails = await getLinkedInOrganizationDetails(accessToken, org.organizationalTarget);
             await supabase.from('social_accounts').upsert({
               workspace_id: workspaces[0].id,
+              connected_by: user!.id,
               platform: 'linkedin',
-              platform_account_id: orgDetails.id || org.organizationalTarget,
-              account_name: orgDetails.name || 'LinkedIn Company Page',
+              account_id: orgDetails.id || org.organizationalTarget,
+              display_name: orgDetails.name || 'LinkedIn Company Page',
+              account_type: 'business',
               access_token: accessToken,
               refresh_token: refreshToken,
-              expires_at: expiresIn ? new Date(Date.now() + expiresIn * 1000).toISOString() : null,
+              token_expires_at: expiresIn ? new Date(Date.now() + expiresIn * 1000).toISOString() : null,
               is_active: true,
-            }, { onConflict: 'workspace_id,platform,platform_account_id' });
+              connection_status: 'connected',
+            }, { onConflict: 'workspace_id,platform,account_id' });
           } catch (err) {
             console.warn(`Failed to get details for organization:`, err);
           }
