@@ -35,7 +35,9 @@ import {
   Save,
   Eye,
   Share2,
-  AlertCircle
+  AlertCircle,
+  Youtube,
+  Music
 } from 'lucide-react';
 import { initFacebookSDK, loginWithFacebook, getPageTokens } from '../src/lib/facebook';
 import { useAuth } from '../src/hooks/useAuth';
@@ -156,7 +158,7 @@ const Content: React.FC = () => {
           console.log(`🔍 Processing platform: "${acc.platform}" -> "${platformId}"`);
 
           // Check if platform matches our supported platforms
-          if (['facebook', 'instagram', 'twitter', 'linkedin', 'whatsapp'].includes(platformId)) {
+          if (['facebook', 'instagram', 'twitter', 'linkedin', 'whatsapp', 'youtube', 'tiktok'].includes(platformId)) {
             linked[platformId] = true;
             console.log(`✅ Platform connected: ${platformId}`);
           } else {
@@ -322,6 +324,8 @@ const Content: React.FC = () => {
     { id: 'instagram', icon: <Instagram className="text-[#E4405F]" />, label: 'Instagram' },
     { id: 'twitter', icon: <Twitter className="text-[#1DA1F2]" />, label: 'X (Twitter)' },
     { id: 'linkedin', icon: <Linkedin className="text-[#0A66C2]" />, label: 'LinkedIn' },
+    { id: 'youtube', icon: <Youtube className="text-[#FF0000]" />, label: 'YouTube' },
+    { id: 'tiktok', icon: <Music className="text-[#000000]" />, label: 'TikTok' },
     { id: 'whatsapp', icon: <MessageCircle className="text-[#25D366]" />, label: 'WhatsApp' },
   ];
 
