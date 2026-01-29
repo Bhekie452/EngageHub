@@ -978,7 +978,7 @@ const Content: React.FC = () => {
                           <div key={p.id} className="relative group">
                             <button
                               onClick={() => togglePlatform(p.id)}
-                              className={`w-20 h-20 rounded-xl border-2 flex flex-col items-center justify-center gap-2 transition-all overflow-hidden ${!isConnected
+                              className={`w-[60px] h-[60px] rounded-xl border-2 flex flex-col items-center justify-center gap-1.5 transition-all overflow-hidden ${!isConnected
                                 ? 'bg-gray-50 border-gray-100 opacity-60 hover:opacity-100 hover:border-amber-200 grayscale-[0.8] hover:grayscale-0'
                                 : isSelected
                                   ? 'border-blue-600 bg-blue-50 shadow-md shadow-blue-100'
@@ -988,11 +988,11 @@ const Content: React.FC = () => {
                             >
                               <div className={`transition-transform duration-300 ${isSelected && isConnected ? 'scale-110' : 'group-hover:scale-110'}`}>
                                 {React.cloneElement(p.icon as React.ReactElement<any>, {
-                                  size: 28,
+                                  size: 22,
                                   className: !isConnected ? 'text-gray-400' : (p.icon as React.ReactElement).props.className
                                 })}
                               </div>
-                              <span className={`text-[9px] font-black uppercase tracking-wider ${!isConnected ? 'text-gray-400' : isSelected ? 'text-blue-700' : 'text-gray-500'}`}>
+                              <span className={`text-[8px] font-black uppercase tracking-wider ${!isConnected ? 'text-gray-400' : isSelected ? 'text-blue-700' : 'text-gray-500'}`}>
                                 {p.id}
                               </span>
                             </button>
