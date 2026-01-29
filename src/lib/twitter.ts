@@ -76,8 +76,8 @@ export const connectTwitter = async () => {
         }
 
         try {
-            // Twitter OAuth 2.0 scopes
-            const scope = 'tweet.read users.read offline.access';
+            // Twitter OAuth 2.0 scopes (tweet.write required for posting)
+            const scope = 'tweet.read tweet.write users.read offline.access';
             const oauthState = 'twitter_oauth';
             const redirectUri = getRedirectURI();
 

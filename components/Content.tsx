@@ -1,4 +1,4 @@
-import React, { useState, useRef, useMemo } from 'react';
+﻿import React, { useState, useRef, useMemo } from 'react';
 import {
   PenTool,
   FileText,
@@ -67,11 +67,18 @@ const Content: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, user]);
 
-  // Fetch posts and initialize social accounts
+  // Fetch posts and initialize social accounts; process due scheduled posts first when viewing list
   React.useEffect(() => {
-    if (['all', 'all_list', 'drafts', 'scheduled', 'published'].includes(activeTab)) {
+    if (!['all', 'all_list', 'drafts', 'scheduled', 'published'].includes(activeTab) || !user) return;
+    const run = async () => {
+      try {
+        await fetch(`${window.location.origin}/api/process-scheduled-posts`, { method: 'GET' });
+      } catch {
+        // API may not be deployed; scheduled posts will run when cron hits the endpoint
+      }
       fetchPosts();
-    }
+    };
+    run();
   }, [activeTab, user]);
 
   React.useEffect(() => {
@@ -424,7 +431,8 @@ const Content: React.FC = () => {
 
       // Simple implementation: Post to feed
       // In a real app, you'd handle images/videos separately via the Graph API
-      const response = await fetch(`https://graph.facebook.com/v21.0/${account.platform_account_id}/feed`, {
+      const pageId = account.account_id || (account as any).platform_account_id;
+      const response = await fetch(`https://graph.facebook.com/v21.0/${pageId}/feed`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -441,6 +449,99 @@ const Content: React.FC = () => {
       console.error('Facebook publish error:', err);
       throw err;
     }
+  };
+
+  const publishToTwitter = async (content: string) => {
+    const { data: workspaces } = await supabase.from('workspaces').select('id').eq('owner_id', user!.id).limit(1);
+    if (!workspaces?.length) throw new Error('No workspace found');
+    const { data: account } = await supabase
+      .from('social_accounts')
+      .select('*')
+      .eq('workspace_id', workspaces[0].id)
+      .eq('platform', 'twitter')
+      .eq('is_active', true)
+      .single();
+    if (!account?.access_token) throw new Error('Twitter account not connected');
+    const res = await fetch('https://api.twitter.com/2/tweets', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${account.access_token}` },
+      body: JSON.stringify({ text: content.slice(0, 280) }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error((data as any)?.detail || (data as any)?.title || res.statusText);
+    return data;
+  };
+
+  const publishToLinkedIn = async (content: string) => {
+    const { data: workspaces } = await supabase.from('workspaces').select('id').eq('owner_id', user!.id).limit(1);
+    if (!workspaces?.length) throw new Error('No workspace found');
+    const { data: account } = await supabase
+      .from('social_accounts')
+      .select('*')
+      .eq('workspace_id', workspaces[0].id)
+      .eq('platform', 'linkedin')
+      .eq('is_active', true)
+      .single();
+    if (!account?.access_token) throw new Error('LinkedIn account not connected');
+    const authorUrn = (account.account_id || '').startsWith('urn:') ? account.account_id : `urn:li:person:${account.account_id}`;
+    const res = await fetch('https://api.linkedin.com/v2/ugcPosts', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Restli-Protocol-Version': '2.0.0',
+        Authorization: `Bearer ${account.access_token}`,
+      },
+      body: JSON.stringify({
+        author: authorUrn,
+        lifecycleState: 'PUBLISHED',
+        specificContent: {
+          'com.linkedin.ugc.ShareContent': {
+            shareCommentary: { text: content },
+            shareMediaCategory: 'NONE',
+          },
+        },
+        visibility: { 'com.linkedin.ugc.MemberNetworkVisibility': 'PUBLIC' },
+      }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error((data as any)?.message || (data as any)?.status || res.statusText);
+    return data;
+  };
+
+  /** Instagram: 2-step flow (create media container, then publish). Requires a publicly accessible image or video URL. */
+  const publishToInstagram = async (content: string, mediaUrls: string[]) => {
+    const publicUrl = mediaUrls.find((u) => typeof u === 'string' && (u.startsWith('http://') || u.startsWith('https://')));
+    if (!publicUrl) throw new Error('Instagram requires a publicly accessible image or video URL. Upload media to storage first.');
+    const { data: workspaces } = await supabase.from('workspaces').select('id').eq('owner_id', user!.id).limit(1);
+    if (!workspaces?.length) throw new Error('No workspace found');
+    const { data: account } = await supabase
+      .from('social_accounts')
+      .select('*')
+      .eq('workspace_id', workspaces[0].id)
+      .eq('platform', 'instagram')
+      .eq('is_active', true)
+      .single();
+    if (!account?.access_token) throw new Error('Instagram account not connected');
+    const igUserId = account.account_id;
+    const isVideo = /\.(mp4|webm|mov)$/i.test(publicUrl) || publicUrl.includes('video');
+    const containerParams: Record<string, string> = isVideo
+      ? { media_type: 'REELS', video_url: publicUrl, caption: content }
+      : { image_url: publicUrl, caption: content };
+    const containerRes = await fetch(
+      `https://graph.facebook.com/v21.0/${igUserId}/media?${new URLSearchParams({ ...containerParams, access_token: account.access_token })}`,
+      { method: 'POST' }
+    );
+    const containerData = await containerRes.json().catch(() => ({}));
+    if (containerData?.error) throw new Error(containerData.error.message || 'Failed to create Instagram media');
+    const creationId = containerData?.id;
+    if (!creationId) throw new Error('Instagram media container missing id');
+    const publishRes = await fetch(
+      `https://graph.facebook.com/v21.0/${igUserId}/media_publish?creation_id=${creationId}&access_token=${account.access_token}`,
+      { method: 'POST' }
+    );
+    const publishData = await publishRes.json().catch(() => ({}));
+    if (publishData?.error) throw new Error(publishData.error.message || 'Failed to publish to Instagram');
+    return publishData;
   };
 
   const handleEditPost = (post: any) => {
@@ -532,6 +633,26 @@ const Content: React.FC = () => {
       return;
     }
 
+    if (scheduleMode === 'later') {
+      if (!scheduleDate?.trim()) {
+        alert('Please select a date for the scheduled post.');
+        return;
+      }
+      if (!scheduleTime?.trim()) {
+        alert('Please select a time for the scheduled post.');
+        return;
+      }
+      const scheduledAt = new Date(`${scheduleDate} ${scheduleTime}`);
+      if (Number.isNaN(scheduledAt.getTime()) || scheduledAt <= new Date()) {
+        alert('Please select a future date and time.');
+        return;
+      }
+      if (isRecur && (!recurUntil?.trim() || new Date(recurUntil) < scheduledAt)) {
+        alert('Recur end date must be on or after the scheduled date.');
+        return;
+      }
+    }
+
     // Temporarily skip connection verification (for testing)
     // Verify all selected platforms are connected
     // for (const p of selectedPlatforms) {
@@ -607,12 +728,45 @@ const Content: React.FC = () => {
       }
 
       // 4. Actual Social Publishing (if 'Post Now')
-      // Temporarily skip actual publishing (for testing)
-      // if (scheduleMode === 'now') {
-      //   if (selectedPlatforms.includes('facebook')) {
-      //     await publishToFacebook(postContent, [...uploadedImages, ...uploadedVideos]);
-      //   }
-      // }
+      if (scheduleMode === 'now') {
+        const mediaUrls = [...uploadedImages, ...uploadedVideos];
+        const publishErrors: string[] = [];
+        if (selectedPlatforms.includes('facebook')) {
+          try {
+            await publishToFacebook(postContent, mediaUrls);
+          } catch (err: any) {
+            console.error('Facebook publish error:', err);
+            publishErrors.push('Facebook');
+          }
+        }
+        if (selectedPlatforms.includes('twitter')) {
+          try {
+            await publishToTwitter(postContent);
+          } catch (err: any) {
+            console.error('Twitter publish error:', err);
+            publishErrors.push('Twitter');
+          }
+        }
+        if (selectedPlatforms.includes('linkedin')) {
+          try {
+            await publishToLinkedIn(postContent);
+          } catch (err: any) {
+            console.error('LinkedIn publish error:', err);
+            publishErrors.push('LinkedIn');
+          }
+        }
+        if (selectedPlatforms.includes('instagram')) {
+          try {
+            await publishToInstagram(postContent, mediaUrls);
+          } catch (err: any) {
+            console.error('Instagram publish error:', err);
+            publishErrors.push('Instagram');
+          }
+        }
+        if (publishErrors.length > 0) {
+          alert(`Post saved. Failed to publish to: ${publishErrors.join(', ')}. Check your connected accounts.`);
+        }
+      }
 
       alert(`Post ${editingPost ? 'updated' : scheduleMode === 'now' ? 'published' : 'scheduled'} successfully! 🎉`);
       await fetchPosts();
@@ -1079,6 +1233,7 @@ const Content: React.FC = () => {
                               value={scheduleDate}
                               onChange={(e) => setScheduleDate(e.target.value)}
                               disabled={scheduleMode === 'now'}
+                              placeholder="dd/mm/yyyy"
                               className="w-full pl-9 pr-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all"
                             />
                           </div>
@@ -1089,6 +1244,7 @@ const Content: React.FC = () => {
                               value={scheduleTime}
                               onChange={(e) => setScheduleTime(e.target.value)}
                               disabled={scheduleMode === 'now'}
+                              placeholder="10:00 am"
                               className="w-full pl-9 pr-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all"
                             />
                           </div>

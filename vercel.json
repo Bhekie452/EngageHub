@@ -1,4 +1,10 @@
 {
+  "crons": [
+    {
+      "path": "/api/process-scheduled-posts",
+      "schedule": "*/5 * * * *"
+    }
+  ],
   "rewrites": [
     {
       "source": "/api/(.*)",

@@ -72,6 +72,72 @@ type Campaign = {
   post_count?: number;
 };
 
+/** Publish campaign message to a single social account. Uses account_id and access_token from social_accounts. */
+async function publishToSocialAccount(account: { platform: string; account_id: string; access_token?: string | null }, content: string): Promise<{ ok: boolean; platform: string; error?: string }> {
+  const platform = (account.platform || '').toLowerCase();
+  const token = account.access_token;
+  const pageOrAccountId = account.account_id;
+
+  if (!token) return { ok: false, platform, error: 'No access token' };
+
+  try {
+    if (platform === 'facebook') {
+      const res = await fetch(`https://graph.facebook.com/v21.0/${pageOrAccountId}/feed`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: content, access_token: token }),
+      });
+      const data = await res.json();
+      if (data?.error) return { ok: false, platform, error: data.error.message };
+      return { ok: true, platform };
+    }
+    if (platform === 'twitter') {
+      const res = await fetch('https://api.twitter.com/2/tweets', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ text: content.slice(0, 280) }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) return { ok: false, platform, error: (data as any)?.detail || (data as any)?.title || res.statusText };
+      return { ok: true, platform };
+    }
+    if (platform === 'linkedin') {
+      const authorUrn = pageOrAccountId.startsWith('urn:') ? pageOrAccountId : `urn:li:person:${pageOrAccountId}`;
+      const res = await fetch('https://api.linkedin.com/v2/ugcPosts', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Restli-Protocol-Version': '2.0.0',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          author: authorUrn,
+          lifecycleState: 'PUBLISHED',
+          specificContent: {
+            'com.linkedin.ugc.ShareContent': {
+              shareCommentary: { text: content },
+              shareMediaCategory: 'NONE',
+            },
+          },
+          visibility: { 'com.linkedin.ugc.MemberNetworkVisibility': 'PUBLIC' },
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) return { ok: false, platform, error: (data as any)?.message || (data as any)?.status || res.statusText };
+      return { ok: true, platform };
+    }
+    if (platform === 'youtube') {
+      return { ok: false, platform, error: 'YouTube does not support text posts; use Content to upload videos.' };
+    }
+    return { ok: false, platform, error: 'Publishing not yet supported for this platform' };
+  } catch (e: any) {
+    return { ok: false, platform, error: e?.message || 'Request failed' };
+  }
+}
+
 const CreateCampaignModal: React.FC<{ isOpen: boolean; onClose: () => void; onSuccess: () => void }> = ({ isOpen, onClose, onSuccess }) => {
   const { user } = useAuth();
   const { currency, symbol, availableCurrencies } = useCurrency();
@@ -134,7 +200,7 @@ const CreateCampaignModal: React.FC<{ isOpen: boolean; onClose: () => void; onSu
   // Keep form "channels" in sync with selected social accounts so validation passes
   React.useEffect(() => {
     const selectedAccounts = socialAccounts.filter(acc => selectedAccountIds.includes(acc.id));
-    const derivedChannels = [...new Set(selectedAccounts.map(acc => acc.platform))];
+    const derivedChannels = [...new Set(selectedAccounts.map((acc: any) => acc.platform as string))] as string[];
     setValue('channels', derivedChannels);
   }, [selectedAccountIds, socialAccounts, setValue]);
 
@@ -194,6 +260,21 @@ const CreateCampaignModal: React.FC<{ isOpen: boolean; onClose: () => void; onSu
           .insert(links);
 
         if (linkError) console.error('Error linking social accounts:', linkError);
+
+        // Push campaign message to selected social accounts
+        const selectedAccounts = socialAccounts.filter(acc => selectedAccountIds.includes(acc.id));
+        const message = [data.name, data.description].filter(Boolean).join('\n\n').trim() || data.name;
+        const results = await Promise.all(
+          selectedAccounts.map(acc => publishToSocialAccount(acc, message))
+        );
+        const succeeded = results.filter(r => r.ok).map(r => r.platform);
+        const failed = results.filter(r => !r.ok);
+        if (succeeded.length) {
+          alert(`Campaign created and published to: ${[...new Set(succeeded)].join(', ')}.`);
+        }
+        if (failed.length && failed.some(f => f.error && !f.error.includes('not yet supported'))) {
+          console.warn('Publish failures:', failed);
+        }
       }
 
       onSuccess();
