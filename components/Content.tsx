@@ -727,44 +727,30 @@ const Content: React.FC = () => {
         }
       }
 
-      // 4. Actual Social Publishing (if 'Post Now')
+      // 4. Actual Social Publishing (if 'Post Now') – via API to avoid CORS and Facebook profile errors
       if (scheduleMode === 'now') {
         const mediaUrls = [...uploadedImages, ...uploadedVideos];
-        const publishErrors: string[] = [];
-        if (selectedPlatforms.includes('facebook')) {
-          try {
-            await publishToFacebook(postContent, mediaUrls);
-          } catch (err: any) {
-            console.error('Facebook publish error:', err);
-            publishErrors.push('Facebook');
+        try {
+          const origin = window.location.origin;
+          const r = await fetch(`${origin}/api/publish-post`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              content: postContent,
+              platforms: selectedPlatforms,
+              mediaUrls,
+              workspaceId,
+            }),
+          });
+          const payload = await r.json().catch(() => ({}));
+          const failed = payload.failed || [];
+          if (failed.length > 0) {
+            const names = [...new Set(failed.map((f: any) => f?.platform).filter(Boolean))];
+            alert(`Post saved. Failed to publish to: ${names.join(', ')}. Check your connected accounts (use Facebook Page, not profile).`);
           }
-        }
-        if (selectedPlatforms.includes('twitter')) {
-          try {
-            await publishToTwitter(postContent);
-          } catch (err: any) {
-            console.error('Twitter publish error:', err);
-            publishErrors.push('Twitter');
-          }
-        }
-        if (selectedPlatforms.includes('linkedin')) {
-          try {
-            await publishToLinkedIn(postContent);
-          } catch (err: any) {
-            console.error('LinkedIn publish error:', err);
-            publishErrors.push('LinkedIn');
-          }
-        }
-        if (selectedPlatforms.includes('instagram')) {
-          try {
-            await publishToInstagram(postContent, mediaUrls);
-          } catch (err: any) {
-            console.error('Instagram publish error:', err);
-            publishErrors.push('Instagram');
-          }
-        }
-        if (publishErrors.length > 0) {
-          alert(`Post saved. Failed to publish to: ${publishErrors.join(', ')}. Check your connected accounts.`);
+        } catch (e) {
+          console.warn('Publish API call failed:', e);
+          alert('Post saved. Could not reach publish service; try again later.');
         }
       }
 

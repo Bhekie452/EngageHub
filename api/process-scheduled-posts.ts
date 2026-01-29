@@ -31,6 +31,7 @@ async function publishToPlatform(
   const p = (platform || '').toLowerCase();
   try {
     if (p === 'facebook') {
+      if ((account.account_id || '').startsWith('profile_')) return { ok: false, error: 'Facebook Page required (profiles not supported)' };
       const res = await fetch(`https://graph.facebook.com/v21.0/${account.account_id}/feed`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

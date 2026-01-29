@@ -148,6 +148,9 @@ const CreateCampaignModal: React.FC<{ isOpen: boolean; onClose: () => void; onSu
   // Default currency to user's preference or USD
   const defaultCurrency = currency || 'USD';
 
+  const today = new Date().toISOString().slice(0, 10);
+  const defaultEndDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+
   const {
     register,
     handleSubmit,
@@ -161,7 +164,9 @@ const CreateCampaignModal: React.FC<{ isOpen: boolean; onClose: () => void; onSu
       budget_currency: defaultCurrency,
       status: 'draft',
       channels: [],
-      budget: 0
+      budget: 0,
+      start_date: today,
+      end_date: defaultEndDate
     }
   });
 
@@ -239,8 +244,13 @@ const CreateCampaignModal: React.FC<{ isOpen: boolean; onClose: () => void; onSu
       const selectedAccounts = socialAccounts.filter(acc => selectedAccountIds.includes(acc.id));
       const derivedChannels = [...new Set(selectedAccounts.map(acc => acc.platform))];
 
+      const startDate = (data.start_date && data.start_date.trim()) ? data.start_date : today;
+      const endDate = (data.end_date && data.end_date.trim()) ? data.end_date : defaultEndDate;
+
       const { data: campaign, error } = await supabase.from('campaigns').insert({
         ...data,
+        start_date: startDate,
+        end_date: endDate,
         channels: derivedChannels,
         workspace_id: workspaces[0].id,
         created_by: user.id
@@ -261,19 +271,22 @@ const CreateCampaignModal: React.FC<{ isOpen: boolean; onClose: () => void; onSu
 
         if (linkError) console.error('Error linking social accounts:', linkError);
 
-        // Push campaign message to selected social accounts
-        const selectedAccounts = socialAccounts.filter(acc => selectedAccountIds.includes(acc.id));
+        // Publish via API (avoids CORS; Facebook Page-only, Twitter/LinkedIn server-side)
         const message = [data.name, data.description].filter(Boolean).join('\n\n').trim() || data.name;
-        const results = await Promise.all(
-          selectedAccounts.map(acc => publishToSocialAccount(acc, message))
-        );
-        const succeeded = results.filter(r => r.ok).map(r => r.platform);
-        const failed = results.filter(r => !r.ok);
-        if (succeeded.length) {
-          alert(`Campaign created and published to: ${[...new Set(succeeded)].join(', ')}.`);
-        }
-        if (failed.length && failed.some(f => f.error && !f.error.includes('not yet supported'))) {
-          console.warn('Publish failures:', failed);
+        try {
+          const origin = window.location.origin;
+          const r = await fetch(`${origin}/api/publish-campaign`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ campaignId: campaign.id, message }),
+          });
+          const payload = await r.json().catch(() => ({}));
+          const succeeded = payload.succeeded || [];
+          const failed = payload.failed || [];
+          if (succeeded.length) alert(`Campaign created and published to: ${[...new Set(succeeded)].join(', ')}.`);
+          if (failed.length && failed.some((f: any) => f?.error)) console.warn('Publish failures:', failed);
+        } catch (e) {
+          console.warn('Publish API call failed:', e);
         }
       }
 
