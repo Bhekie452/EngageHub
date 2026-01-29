@@ -149,6 +149,38 @@ async function handleTwitter(req: VercelRequest, res: VercelResponse, action: st
         return res.status(response.ok ? 200 : response.status).json(data);
     }
 
+    if (action === 'refresh') {
+        const { refresh_token: refreshToken } = req.body || {};
+        if (!refreshToken || typeof refreshToken !== 'string') {
+            return res.status(400).json({ error: 'Missing refresh_token' });
+        }
+        if (!CLIENT_ID || !CLIENT_SECRET) {
+            return res.status(500).json({ error: 'Twitter app not configured' });
+        }
+        const basicAuth = Buffer.from(`${CLIENT_ID}:${CLIENT_SECRET}`).toString('base64');
+        const response = await fetch('https://api.twitter.com/2/oauth2/token', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'Authorization': `Basic ${basicAuth}`
+            },
+            body: new URLSearchParams({
+                grant_type: 'refresh_token',
+                refresh_token: refreshToken
+            }),
+        });
+        const data = await response.json();
+        if (!response.ok) {
+            const msg = (data as any)?.error_description || (data as any)?.error || 'Token refresh failed';
+            return res.status(response.status).json({ error: msg });
+        }
+        return res.status(200).json({
+            access_token: data.access_token,
+            refresh_token: data.refresh_token ?? refreshToken,
+            expires_in: data.expires_in
+        });
+    }
+
     if (action === 'profile') {
         const { accessToken } = req.body;
         const response = await fetch('https://api.twitter.com/2/users/me?user.fields=profile_image_url,username,name', {

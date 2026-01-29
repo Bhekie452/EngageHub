@@ -745,17 +745,45 @@ const Content: React.FC = () => {
           // Fetch tokens client-side (user session allows RLS) so the API can publish when server has no service-role key
           const { data: accountRows } = await supabase
             .from('social_accounts')
-            .select('platform, account_id, access_token')
+            .select('platform, account_id, access_token, refresh_token')
             .eq('workspace_id', workspaceId)
             .eq('is_active', true)
             .in('platform', selectedPlatforms.map((p) => (p || '').toLowerCase()));
           const accountTokens: Record<string, { account_id: string; access_token: string }> = {};
-          (accountRows || []).forEach((row: any) => {
+          for (const row of accountRows || []) {
             const platform = (row.platform || '').toLowerCase();
-            if (platform && row.access_token) {
-              accountTokens[platform] = { account_id: row.account_id || '', access_token: row.access_token };
+            if (!platform) continue;
+            let accessToken = row.access_token;
+            // Twitter OAuth 2.0 tokens expire (~2h); refresh so publish doesn't get 401 Unauthorized
+            if (platform === 'twitter' && row.refresh_token) {
+              try {
+                const refreshRes = await fetch(`${window.location.origin}/api/auth?provider=twitter&action=refresh`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ refresh_token: row.refresh_token }),
+                });
+                const refreshData = await refreshRes.json().catch(() => ({}));
+                if (refreshRes.ok && refreshData.access_token) {
+                  accessToken = refreshData.access_token;
+                  await supabase
+                    .from('social_accounts')
+                    .update({
+                      access_token: refreshData.access_token,
+                      ...(refreshData.refresh_token && { refresh_token: refreshData.refresh_token }),
+                      ...(refreshData.expires_in && { token_expires_at: new Date(Date.now() + refreshData.expires_in * 1000).toISOString() }),
+                    })
+                    .eq('workspace_id', workspaceId)
+                    .eq('platform', 'twitter')
+                    .eq('account_id', row.account_id);
+                }
+              } catch (_) {
+                // use existing access_token; publish may still work or return 401
+              }
             }
-          });
+            if (accessToken) {
+              accountTokens[platform] = { account_id: row.account_id || '', access_token: accessToken };
+            }
+          }
 
           const origin = window.location.origin;
           const r = await fetch(`${origin}/api/publish-post`, {

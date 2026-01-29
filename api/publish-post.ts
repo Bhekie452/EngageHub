@@ -32,7 +32,13 @@ async function publishOne(
         body: JSON.stringify({ text: content.slice(0, 280) }),
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) return { ok: false, platform: p, error: (data as any)?.detail || res.statusText };
+      if (!res.ok) {
+        const msg = (data as any)?.detail || (data as any)?.title || (data as any)?.error_description || res.statusText;
+        const hint = res.status === 401
+          ? ' Token may have expired. Disconnect and reconnect Twitter in Social Media > Connected Accounts.'
+          : '';
+        return { ok: false, platform: p, error: (msg || 'Unauthorized') + hint };
+      }
       return { ok: true, platform: p };
     }
     if (p === 'linkedin') {
