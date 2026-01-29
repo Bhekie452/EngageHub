@@ -12,8 +12,7 @@ if (typeof window !== 'undefined') {
   });
 }
 
-import * as React from 'react';
-import { Component, ErrorInfo, ReactNode } from 'react';
+import React, { Component, ErrorInfo, ReactNode } from 'react';
 import ReactDOM from 'react-dom/client';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClient } from './src/lib/queryClient';
@@ -42,18 +41,15 @@ interface ErrorBoundaryState {
   error: Error | null;
 }
 
-class ErrorBoundary extends React.Component<{ children: React.ReactNode }, ErrorBoundaryState> {
+class ErrorBoundary extends Component<{ children: ReactNode }, ErrorBoundaryState> {
   public state: ErrorBoundaryState = { hasError: false, error: null };
 
-  constructor(props: { children: React.ReactNode }) {
-    super(props);
-  }
 
   static getDerivedStateFromError(error: Error): ErrorBoundaryState {
     return { hasError: true, error };
   }
 
-  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error('React Error Boundary caught an error:', error, errorInfo);
   }
 
@@ -91,21 +87,21 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, Error
 
 const Router: React.FC = () => {
   const { user, loading } = useAuth();
-  const [currentView, setCurrentView] = useState<View>('landing');
-  const [pathname, setPathname] = useState(getPathname);
-  const [pendingPlan, setPendingPlan] = useState<string | null>(() => {
+  const [currentView, setCurrentView] = React.useState<View>('landing');
+  const [pathname, setPathname] = React.useState(getPathname);
+  const [pendingPlan, setPendingPlan] = React.useState<string | null>(() => {
     if (typeof window === 'undefined') return null;
     return window.sessionStorage.getItem('pending_subscription_plan');
   });
 
-  useEffect(() => {
+  React.useEffect(() => {
     const onPop = () => setPathname(getPathname());
     window.addEventListener('popstate', onPop);
     return () => window.removeEventListener('popstate', onPop);
   }, []);
 
   // Listen for auth navigation events from components (e.g., PaymentCheckout)
-  useEffect(() => {
+  React.useEffect(() => {
     const handler = (event: Event) => {
       const detail = (event as CustomEvent)?.detail || {};
       const view = detail.view as View | undefined;
@@ -119,7 +115,7 @@ const Router: React.FC = () => {
   }, []);
 
   // Listen for subscription intent events (user clicked Start Free Trial while logged out)
-  useEffect(() => {
+  React.useEffect(() => {
     const handler = (event: Event) => {
       const detail = (event as CustomEvent)?.detail || {};
       if (detail.planTier) {
