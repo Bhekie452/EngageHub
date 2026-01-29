@@ -66,7 +66,10 @@ type Campaign = {
     roi?: number;
     impressions?: number;
     clicks?: number;
+    leads?: number;
+    conversions?: number;
   };
+  post_count?: number;
 };
 
 const CreateCampaignModal: React.FC<{ isOpen: boolean; onClose: () => void; onSuccess: () => void }> = ({ isOpen, onClose, onSuccess }) => {
@@ -246,8 +249,8 @@ const CreateCampaignModal: React.FC<{ isOpen: boolean; onClose: () => void; onSu
                   type="button"
                   onClick={() => toggleChannel(channel)}
                   className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${selectedChannels.includes(channel)
-                      ? 'bg-brand-50 border-brand-200 text-brand-700'
-                      : 'bg-white border-gray-200 text-gray-500 hover:border-gray-300'
+                    ? 'bg-brand-50 border-brand-200 text-brand-700'
+                    : 'bg-white border-gray-200 text-gray-500 hover:border-gray-300'
                     }`}
                 >
                   {channel}
@@ -397,7 +400,7 @@ const ManageCampaignModal: React.FC<{ isOpen: boolean; onClose: () => void; camp
 
   const handleDelete = async () => {
     if (!campaign || !confirm('Are you sure you want to delete this campaign? This action cannot be undone.')) return;
-    
+
     try {
       const { error } = await supabase
         .from('campaigns')
@@ -554,7 +557,7 @@ const ManageCampaignModal: React.FC<{ isOpen: boolean; onClose: () => void; camp
   };
 
   if (!isOpen) return null;
-  
+
   if (!campaign) {
     console.warn('ManageCampaignModal: campaign is null');
     return null;
@@ -562,9 +565,9 @@ const ManageCampaignModal: React.FC<{ isOpen: boolean; onClose: () => void; camp
 
   const metrics = campaign.actual_metrics && Object.keys(campaign.actual_metrics).length > 0
     ? {
-        ...getMockMetrics(campaign),
-        ...campaign.actual_metrics,
-      }
+      ...getMockMetrics(campaign),
+      ...campaign.actual_metrics,
+    }
     : getMockMetrics(campaign);
 
   const mockLeadsTable = [
@@ -591,7 +594,7 @@ const ManageCampaignModal: React.FC<{ isOpen: boolean; onClose: () => void; camp
       <div className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-6xl max-h-[90vh] overflow-hidden shadow-2xl border border-gray-100 dark:border-slate-800 flex flex-col">
         {/* Header with breadcrumbs and title */}
         <div className="p-6 border-b border-gray-100 dark:border-slate-800 bg-gray-50 dark:bg-slate-800/50">
-          <button 
+          <button
             onClick={onClose}
             className="flex items-center gap-2 text-sm text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200 mb-4 transition-colors"
           >
@@ -602,15 +605,14 @@ const ManageCampaignModal: React.FC<{ isOpen: boolean; onClose: () => void; camp
             <div className="flex-1">
               <div className="flex items-center gap-3 mb-2">
                 <h2 className="text-3xl font-black text-gray-900 dark:text-white">{campaign.name}</h2>
-                <span className={`px-3 py-1 rounded-md text-xs font-black uppercase tracking-wider ${
-                  campaign.status === 'active' 
-                    ? 'bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400'
-                    : campaign.status === 'draft'
+                <span className={`px-3 py-1 rounded-md text-xs font-black uppercase tracking-wider ${campaign.status === 'active'
+                  ? 'bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400'
+                  : campaign.status === 'draft'
                     ? 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'
                     : campaign.status === 'paused'
-                    ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/20 dark:text-yellow-400'
-                    : 'bg-blue-100 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400'
-                }`}>
+                      ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/20 dark:text-yellow-400'
+                      : 'bg-blue-100 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400'
+                  }`}>
                   {campaign.status}
                 </span>
               </div>
@@ -619,7 +621,7 @@ const ManageCampaignModal: React.FC<{ isOpen: boolean; onClose: () => void; camp
               </p>
             </div>
             <div className="flex items-center gap-2">
-              <button 
+              <button
                 onClick={() => setActiveTab('edit')}
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-bold hover:bg-blue-700 transition-colors flex items-center gap-2"
               >
@@ -643,11 +645,10 @@ const ManageCampaignModal: React.FC<{ isOpen: boolean; onClose: () => void; camp
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id as any)}
-              className={`px-4 py-3 text-sm font-bold border-b-2 transition-all flex items-center gap-2 ${
-                activeTab === tab.id
-                  ? 'border-brand-600 text-brand-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-800 dark:text-slate-400'
-              }`}
+              className={`px-4 py-3 text-sm font-bold border-b-2 transition-all flex items-center gap-2 ${activeTab === tab.id
+                ? 'border-brand-600 text-brand-600'
+                : 'border-transparent text-gray-500 hover:text-gray-800 dark:text-slate-400'
+                }`}
             >
               {tab.icon}
               {tab.label}
@@ -967,11 +968,10 @@ const ManageCampaignModal: React.FC<{ isOpen: boolean; onClose: () => void; camp
                       key={channel}
                       type="button"
                       onClick={() => toggleChannel(channel)}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${
-                        selectedChannels.includes(channel)
-                          ? 'bg-brand-50 border-brand-200 text-brand-700'
-                          : 'bg-white border-gray-200 text-gray-500 hover:border-gray-300'
-                      }`}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${selectedChannels.includes(channel)
+                        ? 'bg-brand-50 border-brand-200 text-brand-700'
+                        : 'bg-white border-gray-200 text-gray-500 hover:border-gray-300'
+                        }`}
                     >
                       {channel}
                     </button>
@@ -1074,11 +1074,10 @@ const ManageCampaignModal: React.FC<{ isOpen: boolean; onClose: () => void; camp
                               {platform}
                             </span>
                           ))}
-                          <span className={`px-2 py-0.5 rounded text-xs font-bold uppercase ${
-                            post.status === 'published' ? 'bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400' :
+                          <span className={`px-2 py-0.5 rounded text-xs font-bold uppercase ${post.status === 'published' ? 'bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400' :
                             post.status === 'scheduled' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400' :
-                            'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'
-                          }`}>
+                              'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'
+                            }`}>
                             {post.status}
                           </span>
                         </div>
@@ -1132,11 +1131,10 @@ const ManageCampaignModal: React.FC<{ isOpen: boolean; onClose: () => void; camp
                           {availablePosts.map((post) => (
                             <label
                               key={post.id}
-                              className={`flex items-start gap-3 p-4 border-2 rounded-xl cursor-pointer transition-all ${
-                                selectedPostIds.includes(post.id)
-                                  ? 'border-brand-600 bg-brand-50 dark:bg-brand-900/20'
-                                  : 'border-gray-200 dark:border-slate-700 hover:border-gray-300 dark:hover:border-slate-600'
-                              }`}
+                              className={`flex items-start gap-3 p-4 border-2 rounded-xl cursor-pointer transition-all ${selectedPostIds.includes(post.id)
+                                ? 'border-brand-600 bg-brand-50 dark:bg-brand-900/20'
+                                : 'border-gray-200 dark:border-slate-700 hover:border-gray-300 dark:hover:border-slate-600'
+                                }`}
                             >
                               <input
                                 type="checkbox"
@@ -1200,14 +1198,14 @@ const ManageCampaignModal: React.FC<{ isOpen: boolean; onClose: () => void; camp
           {activeTab === 'analytics' && (() => {
             // Generate mock analytics data based on campaign
             const campaignIdHash = campaign.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-            
+
             // Time series data for last 30 days
             // Use seeded random to avoid hydration mismatches
             const seededRandom = (seed: number) => {
               const x = Math.sin(seed) * 10000;
               return x - Math.floor(x);
             };
-            
+
             const generateTimeSeries = () => {
               const days = 30;
               const startDate = new Date(campaign.start_date);
@@ -1229,7 +1227,7 @@ const ManageCampaignModal: React.FC<{ isOpen: boolean; onClose: () => void; camp
             };
 
             const timeSeriesData = generateTimeSeries();
-            
+
             // Channel performance data
             const channelData = campaign.channels?.map((channel, idx) => ({
               name: channel,
@@ -1237,14 +1235,14 @@ const ManageCampaignModal: React.FC<{ isOpen: boolean; onClose: () => void; camp
               clicks: Math.round(metrics.clicks * (0.35 - idx * 0.08)) || Math.round(metrics.clicks * 0.2),
               conversions: Math.round(metrics.conversions * (0.3 - idx * 0.07)) || Math.round(metrics.conversions * 0.15),
             })) || [
-              { name: 'Facebook', value: Math.round(metrics.leads * 0.4), clicks: Math.round(metrics.clicks * 0.35), conversions: Math.round(metrics.conversions * 0.3) },
-              { name: 'Instagram', value: Math.round(metrics.leads * 0.3), clicks: Math.round(metrics.clicks * 0.25), conversions: Math.round(metrics.conversions * 0.25) },
-              { name: 'Google Ads', value: Math.round(metrics.leads * 0.2), clicks: Math.round(metrics.clicks * 0.2), conversions: Math.round(metrics.conversions * 0.2) },
-              { name: 'LinkedIn', value: Math.round(metrics.leads * 0.1), clicks: Math.round(metrics.clicks * 0.2), conversions: Math.round(metrics.conversions * 0.25) },
-            ];
+                { name: 'Facebook', value: Math.round(metrics.leads * 0.4), clicks: Math.round(metrics.clicks * 0.35), conversions: Math.round(metrics.conversions * 0.3) },
+                { name: 'Instagram', value: Math.round(metrics.leads * 0.3), clicks: Math.round(metrics.clicks * 0.25), conversions: Math.round(metrics.conversions * 0.25) },
+                { name: 'Google Ads', value: Math.round(metrics.leads * 0.2), clicks: Math.round(metrics.clicks * 0.2), conversions: Math.round(metrics.conversions * 0.2) },
+                { name: 'LinkedIn', value: Math.round(metrics.leads * 0.1), clicks: Math.round(metrics.clicks * 0.2), conversions: Math.round(metrics.conversions * 0.25) },
+              ];
 
             const pieColors = ['#10b981', '#3b82f6', '#8b5cf6', '#f59e0b', '#ef4444'];
-            
+
             // Conversion funnel
             const funnelData = [
               { stage: 'Impressions', value: metrics.impressions || metrics.clicks * 10, color: '#3b82f6' },
@@ -1332,16 +1330,16 @@ const ManageCampaignModal: React.FC<{ isOpen: boolean; onClose: () => void; camp
                       <AreaChart data={timeSeriesData}>
                         <defs>
                           <linearGradient id="colorImpressions" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
-                            <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                            <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
+                            <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
                           </linearGradient>
                           <linearGradient id="colorClicks" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.3}/>
-                            <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0}/>
+                            <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.3} />
+                            <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} />
                           </linearGradient>
                           <linearGradient id="colorConversions" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
-                            <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                            <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
+                            <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
                           </linearGradient>
                         </defs>
                         <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
@@ -1504,12 +1502,16 @@ const Campaigns: React.FC = () => {
       const workspaceId = workspaces[0].id;
       const { data, error } = await supabase
         .from('campaigns')
-        .select('*')
+        .select('*, campaign_posts(count)')
         .eq('workspace_id', workspaceId)
         .order('created_at', { ascending: false });
 
       if (!error && data) {
-        setCampaigns(data as Campaign[]);
+        const campaignsWithCounts = (data as any[]).map(c => ({
+          ...c,
+          post_count: c.campaign_posts?.[0]?.count || 0
+        }));
+        setCampaigns(campaignsWithCounts as Campaign[]);
       }
     }
     setIsLoading(false);
@@ -1605,19 +1607,18 @@ const Campaigns: React.FC = () => {
         {/* Filter + search row */}
         <div className="px-6 py-4 border-b border-gray-100 dark:border-slate-800 flex flex-col md:flex-row md:items-center gap-4">
           <div className="flex gap-4 overflow-x-auto no-scrollbar">
-          {['all', 'active', 'draft', 'scheduled', 'completed'].map((status) => (
-            <button
-              key={status}
-              onClick={() => setFilterType(status)}
-                className={`pb-2 text-sm font-bold border-b-2 transition-all capitalize ${
-                  filterType === status
-                ? 'border-brand-600 text-brand-600'
-                : 'border-transparent text-gray-500 hover:text-gray-800 dark:text-slate-400 dark:hover:text-slate-200'
-                }`}
-            >
+            {['all', 'active', 'draft', 'scheduled', 'completed'].map((status) => (
+              <button
+                key={status}
+                onClick={() => setFilterType(status)}
+                className={`pb-2 text-sm font-bold border-b-2 transition-all capitalize ${filterType === status
+                  ? 'border-brand-600 text-brand-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-800 dark:text-slate-400 dark:hover:text-slate-200'
+                  }`}
+              >
                 {status}
-            </button>
-          ))}
+              </button>
+            ))}
           </div>
           <div className="flex-1 md:ml-auto">
             <div className="relative max-w-sm ml-auto">
@@ -1649,6 +1650,7 @@ const Campaigns: React.FC = () => {
                 <tr>
                   <th className="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Campaign Name</th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
+                  <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Posts</th>
                   <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Leads</th>
                   <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Conversions</th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Start Date</th>
@@ -1669,24 +1671,26 @@ const Campaigns: React.FC = () => {
                       </td>
                       <td className="px-4 py-4">
                         <span
-                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold capitalize ${
-                            campaign.status === 'active'
-                              ? 'bg-green-50 text-green-700'
-                              : campaign.status === 'paused'
+                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold capitalize ${campaign.status === 'active'
+                            ? 'bg-green-50 text-green-700'
+                            : campaign.status === 'paused'
                               ? 'bg-yellow-50 text-yellow-700'
                               : campaign.status === 'draft'
-                              ? 'bg-gray-100 text-gray-700'
-                              : 'bg-blue-50 text-blue-700'
-                          }`}
+                                ? 'bg-gray-100 text-gray-700'
+                                : 'bg-blue-50 text-blue-700'
+                            }`}
                         >
-                      {campaign.status}
-                    </span>
+                          {campaign.status}
+                        </span>
+                      </td>
+                      <td className="px-4 py-4 text-right text-gray-900 dark:text-white font-bold">
+                        {campaign.post_count || 0}
                       </td>
                       <td className="px-4 py-4 text-right text-gray-900 dark:text-white">
-                        {leads !== null ? leads.toLocaleString() : 'N/A'}
+                        {leads !== null ? leads.toLocaleString() : '0'}
                       </td>
                       <td className="px-4 py-4 text-right text-gray-900 dark:text-white">
-                        {conversions !== null ? conversions.toLocaleString() : 'N/A'}
+                        {conversions !== null ? conversions.toLocaleString() : '0'}
                       </td>
                       <td className="px-4 py-4 text-gray-900 dark:text-white">
                         {new Date(campaign.start_date).toLocaleDateString()}
@@ -1699,8 +1703,8 @@ const Campaigns: React.FC = () => {
                           }}
                           className="inline-flex items-center px-3 py-1.5 text-xs font-semibold text-brand-600 bg-brand-50 rounded-lg hover:bg-brand-100"
                         >
-                    Manage
-                  </button>
+                          Manage
+                        </button>
                       </td>
                     </tr>
                   );
