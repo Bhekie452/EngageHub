@@ -566,7 +566,6 @@ const SocialMedia: React.FC = () => {
             id: linkedInAccount.id,
             display_name: linkedInAccount.display_name,
             username: linkedInAccount.username,
-            account_name: linkedInAccount.account_name,
             platform: linkedInAccount.platform,
             full_data: linkedInAccount
           });
@@ -1223,7 +1222,7 @@ const SocialMedia: React.FC = () => {
 
               // Get the actual user name from connected account
               const connectedName = isConnected
-                ? (connectedAccount.display_name || connectedAccount.username || connectedAccount.account_name || null)
+                ? (connectedAccount.display_name || connectedAccount.username || null)
                 : null;
 
               // Debug logging
@@ -1231,7 +1230,6 @@ const SocialMedia: React.FC = () => {
                 console.log('LinkedIn connected account data:', {
                   display_name: connectedAccount.display_name,
                   username: connectedAccount.username,
-                  account_name: connectedAccount.account_name,
                   full_account: connectedAccount
                 });
               }

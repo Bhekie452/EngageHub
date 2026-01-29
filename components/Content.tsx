@@ -132,7 +132,7 @@ const Content: React.FC = () => {
       // Fetch social accounts - get ALL fields for debugging
       const { data, error } = await supabase
         .from('social_accounts')
-        .select('platform, is_active, account_name, created_at')
+        .select('platform, is_active, display_name, created_at')
         .eq('workspace_id', workspaces[0].id)
         .eq('is_active', true);
 
