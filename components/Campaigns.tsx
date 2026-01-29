@@ -76,6 +76,8 @@ const CreateCampaignModal: React.FC<{ isOpen: boolean; onClose: () => void; onSu
   const { user } = useAuth();
   const { currency, symbol, availableCurrencies } = useCurrency();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [socialAccounts, setSocialAccounts] = useState<any[]>([]);
+  const [selectedAccountIds, setSelectedAccountIds] = useState<string[]>([]);
 
   // Default currency to user's preference or USD
   const defaultCurrency = currency || 'USD';
@@ -100,6 +102,43 @@ const CreateCampaignModal: React.FC<{ isOpen: boolean; onClose: () => void; onSu
   // Watch channels for UI toggle
   const selectedChannels = watch('channels') || [];
 
+  // Fetch connected social accounts
+  const fetchSocialAccounts = async () => {
+    if (!user) return;
+    try {
+      const { data: workspaces } = await supabase.from('workspaces').select('id').eq('owner_id', user.id).limit(1);
+      if (!workspaces?.length) return;
+
+      const { data, error } = await supabase
+        .from('social_accounts')
+        .select('*')
+        .eq('workspace_id', workspaces[0].id)
+        .eq('is_active', true)
+        .order('platform', { ascending: true });
+
+      if (!error && data) {
+        setSocialAccounts(data);
+      }
+    } catch (error) {
+      console.error('Error fetching social accounts:', error);
+    }
+  };
+
+  React.useEffect(() => {
+    if (isOpen) {
+      fetchSocialAccounts();
+      setSelectedAccountIds([]);
+    }
+  }, [isOpen, user]);
+
+  const toggleAccount = (accountId: string) => {
+    setSelectedAccountIds(prev =>
+      prev.includes(accountId)
+        ? prev.filter(id => id !== accountId)
+        : [...prev, accountId]
+    );
+  };
+
   const toggleChannel = (channel: string) => {
     const current = selectedChannels;
     if (current.includes(channel)) {
@@ -116,17 +155,37 @@ const CreateCampaignModal: React.FC<{ isOpen: boolean; onClose: () => void; onSu
       const { data: workspaces } = await supabase.from('workspaces').select('id').eq('owner_id', user.id).limit(1);
       if (!workspaces?.length) throw new Error('No workspace found');
 
-      const { error } = await supabase.from('campaigns').insert({
+      // Derive channels from selected accounts
+      const selectedAccounts = socialAccounts.filter(acc => selectedAccountIds.includes(acc.id));
+      const derivedChannels = [...new Set(selectedAccounts.map(acc => acc.platform))];
+
+      const { data: campaign, error } = await supabase.from('campaigns').insert({
         ...data,
+        channels: derivedChannels,
         workspace_id: workspaces[0].id,
         created_by: user.id
-      });
+      }).select().single();
 
       if (error) throw error;
+
+      // Link selected social accounts to campaign
+      if (campaign && selectedAccountIds.length > 0) {
+        const links = selectedAccountIds.map(accountId => ({
+          campaign_id: campaign.id,
+          social_account_id: accountId
+        }));
+
+        const { error: linkError } = await supabase
+          .from('campaign_social_accounts')
+          .insert(links);
+
+        if (linkError) console.error('Error linking social accounts:', linkError);
+      }
 
       onSuccess();
       onClose();
       reset();
+      setSelectedAccountIds([]);
     } catch (error: any) {
       console.error('Error creating campaign:', error);
       alert('Failed to create campaign: ' + error.message);
@@ -241,23 +300,61 @@ const CreateCampaignModal: React.FC<{ isOpen: boolean; onClose: () => void; onSu
           </div>
 
           <div className="space-y-2">
-            <label className="text-xs font-bold text-gray-500 uppercase">Channels</label>
-            <div className="flex flex-wrap gap-2">
-              {['Facebook', 'Instagram', 'Twitter', 'LinkedIn', 'Email', 'Google Ads'].map((channel) => (
-                <button
-                  key={channel}
-                  type="button"
-                  onClick={() => toggleChannel(channel)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${selectedChannels.includes(channel)
-                    ? 'bg-brand-50 border-brand-200 text-brand-700'
-                    : 'bg-white border-gray-200 text-gray-500 hover:border-gray-300'
-                    }`}
-                >
-                  {channel}
-                </button>
-              ))}
-            </div>
-            {/* Hidden input to ensure proper registration if needed manually, though logic handles it via setValue */}
+            <label className="text-xs font-bold text-gray-500 uppercase">Social Media Accounts</label>
+            <p className="text-xs text-gray-500 mb-2">Select the social media accounts for this campaign:</p>
+
+            {socialAccounts.length === 0 ? (
+              <div className="p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
+                <p className="text-sm text-amber-800 dark:text-amber-200 font-medium">
+                  No social media accounts connected. Please connect accounts in the Social Media section first.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-2 max-h-64 overflow-y-auto border border-gray-200 dark:border-slate-700 rounded-lg p-3">
+                {socialAccounts.map((account) => (
+                  <label
+                    key={account.id}
+                    className={`flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer transition-all ${selectedAccountIds.includes(account.id)
+                        ? 'border-brand-600 bg-brand-50 dark:bg-brand-900/20'
+                        : 'border-gray-200 dark:border-slate-700 hover:border-gray-300 dark:hover:border-slate-600'
+                      }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedAccountIds.includes(account.id)}
+                      onChange={() => toggleAccount(account.id)}
+                      className="w-4 h-4 text-brand-600 rounded focus:ring-brand-500"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${account.platform === 'facebook' ? 'bg-blue-100 text-blue-700' :
+                            account.platform === 'instagram' ? 'bg-pink-100 text-pink-700' :
+                              account.platform === 'twitter' ? 'bg-sky-100 text-sky-700' :
+                                account.platform === 'linkedin' ? 'bg-blue-100 text-blue-800' :
+                                  account.platform === 'youtube' ? 'bg-red-100 text-red-700' :
+                                    account.platform === 'tiktok' ? 'bg-gray-100 text-gray-700' :
+                                      'bg-gray-100 text-gray-600'
+                          }`}>
+                          {account.platform}
+                        </span>
+                        <span className="text-sm font-bold text-gray-900 dark:text-white truncate">
+                          {account.display_name || account.username || 'Unnamed Account'}
+                        </span>
+                      </div>
+                      {account.username && account.display_name && (
+                        <p className="text-xs text-gray-500 dark:text-slate-400 mt-0.5">@{account.username}</p>
+                      )}
+                    </div>
+                  </label>
+                ))}
+              </div>
+            )}
+
+            {selectedAccountIds.length > 0 && (
+              <p className="text-xs text-gray-600 dark:text-slate-400 mt-2">
+                {selectedAccountIds.length} account{selectedAccountIds.length !== 1 ? 's' : ''} selected
+              </p>
+            )}
             {errors.channels && <p className="text-red-500 text-xs font-medium">{errors.channels.message}</p>}
           </div>
 
