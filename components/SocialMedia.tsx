@@ -101,9 +101,6 @@ const SocialMedia: React.FC = () => {
         }
       }
 
-      // Reset OAuth redirect flag when handling callbacks (we're back from redirect)
-      setIsOAuthRedirect(false);
-
       if (code && state === 'facebook_oauth') {
         handleFacebookCallback(code);
       } else if (code && state === 'instagram_oauth') {
@@ -624,7 +621,12 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
 
     setIsLoading(true);
     try {
-      const { data: workspaces } = await supabase.from('workspaces').select('id').eq('owner_id', user.id).limit(1);
+      const { data: workspaces } = await supabase
+        .from('workspaces')
+        .select('id')
+        .eq('owner_id', user.id)
+        .limit(1);
+
       if (!workspaces?.length) throw new Error('No workspace found');
 
       const { data: facebookAccounts } = await supabase
@@ -634,78 +636,43 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
         .eq('platform', 'facebook')
         .eq('is_active', true);
 
-      // If user has Facebook connected, try to get Instagram using stored token
-      const isProfileOnly = facebookAccounts?.length && String((facebookAccounts[0] as { account_id?: string }).account_id || '').startsWith('profile_');
+      if (!facebookAccounts || facebookAccounts.length === 0) {
+        const shouldConnectFacebook = confirm(
+          'Instagram Business accounts must be linked to a Facebook Page.\n\n' +
+          'You need to connect Facebook first to access Instagram.\n\n' +
+          'Would you like to connect Facebook now?'
+        );
 
-      if (facebookAccounts?.length && !isProfileOnly) {
-        const fbToken = (facebookAccounts[0] as { access_token?: string }).access_token;
-        if (fbToken) {
-          const ok = await tryConnectInstagramWithToken(fbToken);
-          if (ok) {
-            const names = (await supabase.from('social_accounts').select('display_name,username').eq('workspace_id', workspaces[0].id).eq('platform', 'instagram').eq('is_active', true)).data;
-            alert(`✅ Connected to Instagram: ${(names || []).map((n: any) => n.display_name || n.username || '').filter(Boolean).join(', ') || 'Instagram'}!`);
-            setIsLoading(false);
-            return;
-          }
+        if (shouldConnectFacebook) {
+          setIsLoading(false);
+          handleConnectFacebook();
+        } else {
+          setIsLoading(false);
         }
+        return;
       }
 
-      // No Facebook, profile-only Facebook, or token couldn't get Instagram
-      const profileOnlyMessage =
-        'Instagram connects via a Facebook Page (not a profile).\n\n' +
-        '⚠️ Your Facebook is connected as a profile only, so we can\'t see any Pages or linked Instagram.\n\n' +
-        'Even though you have a Facebook Page in Meta Business Suite, EngageHub needs Page permissions to access it.\n\n' +
-        'Do this:\n' +
-        '1. Make sure your Instagram Business/Creator account is linked to your Facebook Page in Meta Business Suite (business.facebook.com).\n' +
-        '2. Click "Reconnect Facebook with Page Access" button below to grant Page permissions.\n' +
-        '3. Then try connecting Instagram again.\n\n' +
-        'Note: If Page permissions are not available, your Facebook App may need App Review. See FACEBOOK_PAGES_PERMISSIONS_SETUP.md for details.';
-
-      if (!facebookAccounts?.length) {
-        const should = confirm(
-          'Instagram connects via Facebook. Connect Facebook first, then we’ll look for Instagram Business accounts linked to your Pages.\n\nConnect Facebook now?'
-        );
-        if (!should) {
-          setIsLoading(false);
-          return;
-        }
-      } else if (isProfileOnly) {
-        const should = confirm(profileOnlyMessage + '\n\nReconnect Facebook now to request Page access?');
-        if (!should) {
-          setIsLoading(false);
-          return;
-        }
-      } else {
-        const should = confirm(
-          'No Instagram Business accounts found using your current Facebook connection.\n\n' +
-          'Make sure your Instagram is a Business/Creator account linked to a Facebook Page (Meta Business Suite). Then try logging in to Facebook again to refresh and look for linked Instagram?\n\n' +
-          'https://www.facebook.com/business/help/898752960195806'
-        );
-        if (!should) {
-          setIsLoading(false);
-          return;
-        }
-      }
-
+      // User has Facebook connected, now try to connect Instagram using the same token
       sessionStorage.setItem('instagram_oauth_return', window.location.href);
       const authResponse: any = await loginWithFacebook();
 
       if (!authResponse?.accessToken) {
+        // OAuth redirect happened, callback will finish the flow
         setIsOAuthRedirect(true);
         return;
       }
 
       const ok = await tryConnectInstagramWithToken(authResponse.accessToken);
       if (ok) {
-        alert(`✅ Connected to Instagram!`);
+        alert('✅ Connected to Instagram!');
         return;
       }
 
       alert(
         'No Instagram Business accounts found.\n\n' +
-        '• Your Instagram must be a Business or Creator account (switch in the Instagram **mobile app** only — not on web).\n' +
-        '• Link it to a Facebook Page: business.facebook.com → Settings → Accounts → Instagram accounts → Connect account.\n' +
-        '• Your Facebook connection here must have Page access (reconnect Facebook if you only connected as profile).\n\n' +
+        '• Your Instagram must be a Business or Creator account (switch in the Instagram mobile app).\n' +
+        '• Link it to a Facebook Page: business.facebook.com → Settings → Accounts → Instagram accounts.\n' +
+        '• You must be an admin of both the Page and the Instagram account.\n\n' +
         'Help: https://www.facebook.com/business/help/898752960195806'
       );
     } catch (err: any) {
@@ -1548,7 +1515,6 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
             ].map((account, idx) => {
               const connectedAccount = connectedAccounts.find(ca => ca.platform === account.platform);
               const isConnected = !!connectedAccount;
-              const fbProfileOnly = connectedAccounts.some(ca => ca.platform === 'facebook' && String((ca as { account_id?: string }).account_id || '').startsWith('profile_'));
 
               // Get the actual user name from connected account
               const connectedName = isConnected
@@ -1565,7 +1531,6 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
                 });
               }
 
-              const instagramNeedsPage = account.platform === 'instagram' && !isConnected && fbProfileOnly;
 
               return (
                 <div key={idx} className={`p-5 rounded-xl border flex items-center justify-between group transition-all shadow-sm ${isConnected ? 'bg-white border-blue-200 ring-1 ring-blue-50' : 'bg-gray-50/50 border-gray-200 filter grayscale-[0.5]'}`}>
@@ -1577,43 +1542,11 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
                       <h4 className={`text-sm font-bold truncate ${isConnected ? 'text-gray-900' : 'text-gray-500'}`}>
                         {isConnected && connectedName ? connectedName : account.name}
                       </h4>
-                      <p className="text-xs text-gray-400 truncate font-medium">
-                        {isConnected ? (connectedName ? account.name : 'Connected') : 'Not connected'}
+                      <p className="text-xs text-gray-500 truncate">
+                        {isConnected
+                          ? (connectedName ? account.name : 'Connected')
+                          : account.handle}
                       </p>
-                      {instagramNeedsPage && (
-                        <div className="mt-2 space-y-1">
-                          <p className="text-[10px] text-amber-600 font-medium" title="Instagram is linked to your Facebook, but we only have profile access. Reconnect Facebook with Page access to see Instagram here.">
-                            Facebook is profile-only — needs Page access to link Instagram
-                          </p>
-                          <button
-                            onClick={async () => {
-                              if (!confirm(
-                                'To connect Instagram, you need to reconnect Facebook with Page permissions.\n\n' +
-                                'This will:\n' +
-                                '1. Disconnect your current Facebook connection\n' +
-                                '2. Reconnect with Page access permissions\n' +
-                                '3. Automatically connect Instagram if it\'s linked to your Page\n\n' +
-                                'Make sure your Instagram Business account is linked to your Facebook Page in Meta Business Suite first.\n\n' +
-                                'Continue?'
-                              )) return;
-                              
-                              // Disconnect current Facebook
-                              const fbAccount = connectedAccounts.find(ca => ca.platform === 'facebook');
-                              if (fbAccount) {
-                                await handleDisconnect(fbAccount.id);
-                                // Wait a moment for disconnect to complete
-                                await new Promise(resolve => setTimeout(resolve, 500));
-                              }
-                              
-                              // Reconnect with Page permissions
-                              await handleConnectFacebook();
-                            }}
-                            className="text-[10px] font-bold text-blue-600 hover:text-blue-700 underline"
-                          >
-                            Reconnect Facebook with Page Access →
-                          </button>
-                        </div>
-                      )}
                     </div>
                   </div>
                   <div className="flex flex-col items-end gap-2 shrink-0">

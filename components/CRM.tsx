@@ -1,18 +1,18 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { 
-  Users, 
-  Building2, 
-  Target, 
-  Trello, 
-  FileText, 
-  History, 
-  Plus, 
-  Search, 
-  MoreVertical, 
-  Mail, 
-  Phone, 
-  Tag, 
+import {
+  Users,
+  Building2,
+  Target,
+  Trello,
+  FileText,
+  History,
+  Plus,
+  Search,
+  MoreVertical,
+  Mail,
+  Phone,
+  Tag,
   ChevronRight,
   Filter,
   ArrowUpRight,
@@ -142,7 +142,7 @@ const CRM: React.FC = () => {
   const { notes, isLoading: isLoadingNotes, createNote, updateNote, deleteNote } = useNotes();
   const queryClient = useQueryClient();
   const { events: timelineEvents, groupedEvents, isLoading: isLoadingTimeline, error: timelineError, refetch: refetchTimeline } = useTimeline();
-  
+
   // Force timeline refresh when contacts change (new customer created)
   useEffect(() => {
     // Refetch timeline immediately when contacts count changes
@@ -153,7 +153,7 @@ const CRM: React.FC = () => {
   const [selectedContactId, setSelectedContactId] = useState<string | null>(null);
   const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null);
   const [timelineFilter, setTimelineFilter] = useState<string>('all');
-  
+
   // Automation form state
   const [isAutomationModalOpen, setIsAutomationModalOpen] = useState(false);
   const [editingAutomation, setEditingAutomation] = useState<any>(null);
@@ -166,7 +166,7 @@ const CRM: React.FC = () => {
     actions: [] as any[],
     is_active: true,
   });
-  
+
   // Format currency using user's preference
   const formatCurrency = (value: number) => formatCurrencyLib(value, symbol);
 
@@ -272,14 +272,14 @@ const CRM: React.FC = () => {
   const filteredGroupedTimelineEvents = useMemo(() => {
     const filtered = filteredTimelineEvents;
     const grouped: Record<string, TimelineEvent[]> = {};
-    
+
     filtered.forEach(event => {
       const eventDate = new Date(event.timestamp);
       const now = new Date();
       const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      
+
       const eventDateOnly = new Date(eventDate.getFullYear(), eventDate.getMonth(), eventDate.getDate());
-      
+
       const yesterday = new Date(today);
       yesterday.setDate(yesterday.getDate() - 1);
       const lastWeek = new Date(today);
@@ -289,7 +289,7 @@ const CRM: React.FC = () => {
       const eventTime = eventDateOnly.getTime();
       const todayTime = today.getTime();
       const yesterdayTime = yesterday.getTime();
-      
+
       if (eventTime === todayTime) {
         dateLabel = 'Today';
       } else if (eventTime === yesterdayTime) {
@@ -305,16 +305,16 @@ const CRM: React.FC = () => {
       }
       grouped[dateLabel].push(event);
     });
-    
+
     // Sort events within each group by timestamp (newest first)
     Object.keys(grouped).forEach(key => {
       grouped[key].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
     });
-    
+
     return grouped;
   }, [filteredTimelineEvents]);
 
-  
+
   // Activity form state
   const [activityNote, setActivityNote] = useState('');
 
@@ -409,12 +409,12 @@ const CRM: React.FC = () => {
   // Filter and sort notes
   const filteredNotes = useMemo(() => {
     let filtered = notes;
-    
+
     // Filter by type
     if (notesFilter !== 'all') {
       filtered = filtered.filter(note => note.note_type === notesFilter);
     }
-    
+
     // Sort: pinned first, then by date (newest first)
     return filtered.sort((a, b) => {
       if (a.is_pinned && !b.is_pinned) return -1;
@@ -637,7 +637,7 @@ const CRM: React.FC = () => {
     if (!selectedDealId) return [];
     return notes.filter(note => (note as any).deal_id === selectedDealId);
   }, [notes, selectedDealId]);
-  
+
   // Handle activity submission
   const handleLogActivity = async () => {
     if (!activityNote.trim()) {
@@ -669,7 +669,7 @@ const CRM: React.FC = () => {
     status: 'new' as Contact['status'],
     company_name: ''
   });
-  
+
   // Modal & Form States for Companies
   const [isCompanyModalOpen, setIsCompanyModalOpen] = useState(false);
   const [editingCompany, setEditingCompany] = useState<Company | null>(null);
@@ -684,7 +684,7 @@ const CRM: React.FC = () => {
     description: '',
     lifecycle_stage: 'lead' as Company['lifecycle_stage'],
   });
-  
+
   // Transform database contacts to UI format
   const contacts = useMemo(() => {
     return dbContacts.map(contact => ({
@@ -712,7 +712,7 @@ const CRM: React.FC = () => {
   ];
 
   const filteredContacts = useMemo(() => {
-    return contacts.filter(contact => 
+    return contacts.filter(contact =>
       contact.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       contact.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
       contact.company.toLowerCase().includes(searchQuery.toLowerCase())
@@ -864,7 +864,7 @@ const CRM: React.FC = () => {
           default: return <FileText size={14} />;
         }
       };
-      
+
       const getColor = (type: string) => {
         switch (type) {
           case 'call': return 'green';
@@ -879,7 +879,7 @@ const CRM: React.FC = () => {
           default: return 'gray';
         }
       };
-      
+
       activities.push({
         id: activity.id,
         type: activity.activity_type as 'note' | 'deal' | 'task' | 'campaign' | 'call' | 'email',
@@ -927,7 +927,7 @@ const CRM: React.FC = () => {
     // Sort by timestamp (newest first)
     return activities.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
   }, [deals, tasks, campaigns, savedActivities]);
-  
+
   // Pipeline-filtered deals (search + pipeline filters)
   const pipelineFilteredDeals = useMemo(() => {
     let list = deals ?? [];
@@ -963,7 +963,7 @@ const CRM: React.FC = () => {
       else if (pipelineFilterValue === '10k_plus') list = list.filter((d) => (Number(d.amount) || 0) >= 10000);
     }
     if (pipelineFilterSource !== 'all') {
-      list = list.filter((d) => (d.lead_source || '') === pipelineFilterSource);
+      list = list.filter((d) => ((d as any).lead_source || '') === pipelineFilterSource);
     }
     if (pipelineFilterStatus !== 'all') {
       list = list.filter((d) => (d.status || 'open') === pipelineFilterStatus);
@@ -1010,7 +1010,7 @@ const CRM: React.FC = () => {
   }, [pipelineFilteredDeals, wonDeals]);
 
   const filteredCompanies = useMemo(() => {
-    return dbCompanies.filter(company => 
+    return dbCompanies.filter(company =>
       company.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (company.email && company.email.toLowerCase().includes(searchQuery.toLowerCase())) ||
       (company.industry && company.industry.toLowerCase().includes(searchQuery.toLowerCase()))
@@ -1026,16 +1026,16 @@ const CRM: React.FC = () => {
   const openEditModal = (contact: typeof contacts[0]) => {
     const dbContact = contact.dbContact;
     setEditingContact(dbContact);
-    setFormData({ 
-      first_name: dbContact.first_name || '', 
+    setFormData({
+      first_name: dbContact.first_name || '',
       last_name: dbContact.last_name || '',
-      email: dbContact.email || '', 
-      status: dbContact.status, 
-      company_name: dbContact.company_name || '' 
+      email: dbContact.email || '',
+      status: dbContact.status,
+      company_name: dbContact.company_name || ''
     });
     setIsModalOpen(true);
   };
-  
+
   // Company handlers
   const openAddCompanyModal = () => {
     setEditingCompany(null);
@@ -1294,9 +1294,9 @@ const CRM: React.FC = () => {
             <div className="p-4 border-b border-gray-100 dark:border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-4 bg-gray-50/30 dark:bg-slate-800/20">
               <div className="relative flex-1 max-w-md">
                 <Search className="absolute left-3 top-2.5 text-gray-400" size={16} />
-                <input 
-                  type="text" 
-                  placeholder="Search contacts..." 
+                <input
+                  type="text"
+                  placeholder="Search contacts..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="w-full pl-10 pr-4 py-2 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl text-sm focus:ring-4 focus:ring-brand-500/20 transition-all outline-none dark:text-slate-100"
@@ -1306,7 +1306,7 @@ const CRM: React.FC = () => {
                 <button className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-gray-600 dark:text-slate-300 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl hover:bg-gray-50 dark:hover:bg-slate-700 transition-all">
                   <Filter size={16} /> Filter
                 </button>
-                <button 
+                <button
                   onClick={openAddModal}
                   className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-white bg-brand-600 rounded-xl hover:bg-brand-700 shadow-lg shadow-brand-500/20 transition-all"
                 >
@@ -1360,10 +1360,9 @@ const CRM: React.FC = () => {
                           </div>
                         </td>
                         <td className="px-6 py-4">
-                          <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full ${
-                            contact.status === 'Customer' ? 'text-green-600 bg-green-50 dark:bg-green-900/20' : 
-                            contact.status === 'Lead' ? 'text-orange-600 bg-orange-50 dark:bg-orange-900/20' : 'text-blue-600 bg-blue-50 dark:bg-blue-900/20'
-                          }`}>
+                          <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full ${contact.status === 'Customer' ? 'text-green-600 bg-green-50 dark:bg-green-900/20' :
+                              contact.status === 'Lead' ? 'text-orange-600 bg-orange-50 dark:bg-orange-900/20' : 'text-blue-600 bg-blue-50 dark:bg-blue-900/20'
+                            }`}>
                             {contact.status}
                           </span>
                         </td>
@@ -1371,14 +1370,14 @@ const CRM: React.FC = () => {
                         <td className="px-6 py-4 text-xs text-gray-400 font-bold uppercase">{contact.lastContact}</td>
                         <td className="px-6 py-4 text-right">
                           <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-all">
-                            <button 
+                            <button
                               onClick={(e) => { e.stopPropagation(); openEditModal(contact); }}
                               className="p-2 text-gray-400 hover:text-brand-600 hover:bg-white dark:hover:bg-slate-800 rounded-lg"
                               title="Edit"
                             >
                               <Edit2 size={14} />
                             </button>
-                            <button 
+                            <button
                               onClick={(e) => { e.stopPropagation(); handleDelete(contact.id); }}
                               className="p-2 text-gray-400 hover:text-red-500 hover:bg-white dark:hover:bg-slate-800 rounded-lg"
                               title="Delete"
@@ -1438,7 +1437,7 @@ const CRM: React.FC = () => {
                   </button>
                 </div>
               </div>
-              
+
               {/* Pipeline Summary Metrics */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-4 border-t border-gray-100 dark:border-slate-800">
                 <div>
@@ -1564,7 +1563,7 @@ const CRM: React.FC = () => {
                         <Plus size={14} />
                       </button>
                     </div>
-                    
+
                     {/* Column Content */}
                     <div className="bg-gray-50 dark:bg-slate-800/30 rounded-b-xl p-2 min-h-[500px] flex flex-col gap-2 border border-gray-100 dark:border-slate-800 border-t-0">
                       {col.deals.length === 0 ? (
@@ -1579,15 +1578,15 @@ const CRM: React.FC = () => {
                             low: 'bg-gray-50 text-gray-600 dark:bg-gray-800'
                           };
                           const priorityColor = priorityColors[deal.priority || 'medium'] || priorityColors.medium;
-                          
+
                           const hasOverdueTask = false;
                           const hasNotes = false;
                           const hasMessages = false;
                           const hasCampaign = false;
-                          
+
                           return (
-                            <div 
-                              key={deal.id} 
+                            <div
+                              key={deal.id}
                               className="bg-white dark:bg-slate-900 p-3 rounded-lg border border-gray-200 dark:border-slate-700 shadow-sm hover:border-brand-300 dark:hover:border-brand-700 hover:shadow-md transition-all group cursor-pointer"
                               onClick={() => setSelectedDealId(deal.id)}
                             >
@@ -1597,7 +1596,7 @@ const CRM: React.FC = () => {
                                 <p className="text-sm font-bold text-gray-900 dark:text-slate-100">{formatCurrency(Number(deal.amount) || 0)}</p>
                                 <p className="text-[10px] text-gray-500 dark:text-slate-400 font-medium mt-0.5 line-clamp-1">{contactName}</p>
                               </div>
-                              
+
                               {/* Priority Badge */}
                               <div className="flex items-center justify-between mb-2">
                                 <span className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded-full ${priorityColor}`}>
@@ -1610,7 +1609,7 @@ const CRM: React.FC = () => {
                                   {hasCampaign && <Megaphone size={10} className="text-purple-500" />}
                                 </div>
                               </div>
-                              
+
                               {/* Close Date */}
                               <div className="flex items-center gap-1 text-[10px] text-gray-500 dark:text-slate-400">
                                 <Calendar size={10} />
@@ -1961,7 +1960,7 @@ const CRM: React.FC = () => {
           }
         };
 
-        const selectedActivity = selectedActivityId 
+        const selectedActivity = selectedActivityId
           ? savedActivities.find(a => a.id === selectedActivityId)
           : null;
 
@@ -2062,12 +2061,12 @@ const CRM: React.FC = () => {
                       </tr>
                     ) : (
                       filteredActivities.map((activity) => {
-                        const customerName = activity.contact_id 
+                        const customerName = activity.contact_id
                           ? contactNameById.get(activity.contact_id) || 'Unknown'
                           : activity.company_id
-                          ? companyNameById.get(activity.company_id) || 'Unknown'
-                          : '-';
-                        const dealTitle = activity.deal_id 
+                            ? companyNameById.get(activity.company_id) || 'Unknown'
+                            : '-';
+                        const dealTitle = activity.deal_id
                           ? dealTitleById.get(activity.deal_id) || 'Unknown'
                           : '-';
                         const ownerName = user?.email?.split('@')[0] || 'You';
@@ -2096,13 +2095,12 @@ const CRM: React.FC = () => {
                               {formatTimeAgo(activity.activity_date)}
                             </td>
                             <td className="px-6 py-4">
-                              <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded ${
-                                activity.status === 'completed' 
-                                  ? 'bg-green-100 text-green-600 dark:bg-green-900/20' 
+                              <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded ${activity.status === 'completed'
+                                  ? 'bg-green-100 text-green-600 dark:bg-green-900/20'
                                   : activity.status === 'scheduled'
-                                  ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/20'
-                                  : 'bg-gray-100 text-gray-600 dark:bg-gray-900/20'
-                              }`}>
+                                    ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/20'
+                                    : 'bg-gray-100 text-gray-600 dark:bg-gray-900/20'
+                                }`}>
                                 {activity.status || 'scheduled'}
                               </span>
                             </td>
@@ -2172,17 +2170,17 @@ const CRM: React.FC = () => {
                       <div>
                         <p className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase mb-1">Customer</p>
                         <p className="text-sm font-medium text-gray-700 dark:text-slate-300">
-                          {selectedActivity.contact_id 
+                          {selectedActivity.contact_id
                             ? contactNameById.get(selectedActivity.contact_id) || 'Unknown'
                             : selectedActivity.company_id
-                            ? companyNameById.get(selectedActivity.company_id) || 'Unknown'
-                            : '-'}
+                              ? companyNameById.get(selectedActivity.company_id) || 'Unknown'
+                              : '-'}
                         </p>
                       </div>
                       <div>
                         <p className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase mb-1">Deal</p>
                         <p className="text-sm font-medium text-gray-700 dark:text-slate-300">
-                          {selectedActivity.deal_id 
+                          {selectedActivity.deal_id
                             ? dealTitleById.get(selectedActivity.deal_id) || 'Unknown'
                             : '-'}
                         </p>
@@ -2547,8 +2545,8 @@ const CRM: React.FC = () => {
             const dueDateTime = taskFormData.due_date && taskFormData.due_time
               ? new Date(`${taskFormData.due_date}T${taskFormData.due_time}`).toISOString()
               : taskFormData.due_date
-              ? new Date(`${taskFormData.due_date}T12:00`).toISOString()
-              : null;
+                ? new Date(`${taskFormData.due_date}T12:00`).toISOString()
+                : null;
 
             const taskData: any = {
               title: taskFormData.title,
@@ -2774,12 +2772,11 @@ const CRM: React.FC = () => {
                           >
                             <td className="px-6 py-4">
                               <div className="flex items-center gap-3">
-                                <div className={`w-2 h-2 rounded-full ${
-                                  task.priority === 'urgent' ? 'bg-red-500' :
-                                  task.priority === 'high' ? 'bg-orange-500' :
-                                  task.priority === 'medium' ? 'bg-yellow-500' :
-                                  'bg-gray-400'
-                                }`}></div>
+                                <div className={`w-2 h-2 rounded-full ${task.priority === 'urgent' ? 'bg-red-500' :
+                                    task.priority === 'high' ? 'bg-orange-500' :
+                                      task.priority === 'medium' ? 'bg-yellow-500' :
+                                        'bg-gray-400'
+                                  }`}></div>
                                 <div>
                                   <p className="text-sm font-bold text-gray-900 dark:text-slate-100">{task.title}</p>
                                   {task.description && (
@@ -3093,13 +3090,13 @@ const CRM: React.FC = () => {
             <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-200 dark:border-slate-800 shadow-sm p-6">
               <h3 className="text-lg font-black text-gray-900 dark:text-slate-100 mb-4">📝 Add Internal Note</h3>
               <div className="space-y-4">
-                <textarea 
+                <textarea
                   value={noteContent}
                   onChange={(e) => setNoteContent(e.target.value)}
-                  placeholder="Write your note here..." 
+                  placeholder="Write your note here..."
                   className="w-full h-32 p-4 bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl text-sm font-medium outline-none resize-none dark:text-slate-200 focus:ring-4 focus:ring-brand-500/20 transition-all"
                 />
-                
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {/* Note Type */}
                   <div>
@@ -3225,7 +3222,7 @@ const CRM: React.FC = () => {
                   </button>
                 )}
 
-                <button 
+                <button
                   onClick={handleSaveNote}
                   disabled={!noteContent.trim() || createNote.isPending}
                   className="w-full px-6 py-3 bg-brand-600 text-white text-sm font-bold rounded-xl shadow-lg shadow-brand-500/20 hover:bg-brand-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
@@ -3267,24 +3264,23 @@ const CRM: React.FC = () => {
                 ) : (
                   <div className="space-y-4">
                     {filteredNotes.map((note) => {
-                      const attachedTo = note.contact_id 
+                      const attachedTo = note.contact_id
                         ? `Customer: ${dbContacts.find(c => c.id === note.contact_id)?.full_name || 'Unknown'}`
                         : note.deal_id
-                        ? `Deal: ${deals?.find(d => d.id === note.deal_id)?.title || 'Unknown'}`
-                        : note.activity_id
-                        ? 'Activity'
-                        : note.task_id
-                        ? `Task: ${tasks?.find(t => t.id === note.task_id)?.title || 'Unknown'}`
-                        : null;
+                          ? `Deal: ${deals?.find(d => d.id === note.deal_id)?.title || 'Unknown'}`
+                          : note.activity_id
+                            ? 'Activity'
+                            : note.task_id
+                              ? `Task: ${tasks?.find(t => t.id === note.task_id)?.title || 'Unknown'}`
+                              : null;
 
                       return (
                         <div
                           key={note.id}
-                          className={`bg-gray-50 dark:bg-slate-800/50 rounded-xl border p-4 transition-all ${
-                            note.is_pinned 
-                              ? 'border-brand-300 dark:border-brand-700 bg-brand-50/30 dark:bg-brand-900/10' 
+                          className={`bg-gray-50 dark:bg-slate-800/50 rounded-xl border p-4 transition-all ${note.is_pinned
+                              ? 'border-brand-300 dark:border-brand-700 bg-brand-50/30 dark:bg-brand-900/10'
                               : 'border-gray-200 dark:border-slate-700'
-                          } ${note.is_important ? 'ring-2 ring-yellow-300 dark:ring-yellow-700' : ''}`}
+                            } ${note.is_important ? 'ring-2 ring-yellow-300 dark:ring-yellow-700' : ''}`}
                         >
                           <div className="flex items-start justify-between mb-2">
                             <div className="flex items-center gap-2 flex-1">
@@ -3355,9 +3351,9 @@ const CRM: React.FC = () => {
             <div className="p-4 border-b border-gray-100 dark:border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-4 bg-gray-50/30 dark:bg-slate-800/20">
               <div className="relative flex-1 max-w-md">
                 <Search className="absolute left-3 top-2.5 text-gray-400" size={16} />
-                <input 
-                  type="text" 
-                  placeholder="Search companies..." 
+                <input
+                  type="text"
+                  placeholder="Search companies..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="w-full pl-10 pr-4 py-2 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl text-sm focus:ring-4 focus:ring-brand-500/20 transition-all outline-none dark:text-slate-100"
@@ -3367,7 +3363,7 @@ const CRM: React.FC = () => {
                 <button className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-gray-600 dark:text-slate-300 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl hover:bg-gray-50 dark:hover:bg-slate-700 transition-all">
                   <Filter size={16} /> Filter
                 </button>
-                <button 
+                <button
                   onClick={openAddCompanyModal}
                   className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-white bg-brand-600 rounded-xl hover:bg-brand-700 shadow-lg shadow-brand-500/20 transition-all"
                 >
@@ -3405,8 +3401,8 @@ const CRM: React.FC = () => {
                     </tr>
                   ) : filteredCompanies.length > 0 ? (
                     filteredCompanies.map((company) => (
-                      <tr 
-                        key={company.id} 
+                      <tr
+                        key={company.id}
                         onClick={() => setSelectedCompanyId(company.id)}
                         className="hover:bg-gray-50/50 dark:hover:bg-slate-800/50 transition-all group cursor-pointer"
                       >
@@ -3430,11 +3426,10 @@ const CRM: React.FC = () => {
                           {company.company_size || '-'}
                         </td>
                         <td className="px-6 py-4">
-                          <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full ${
-                            company.lifecycle_stage === 'customer' ? 'text-green-600 bg-green-50 dark:bg-green-900/20' : 
-                            company.lifecycle_stage === 'opportunity' ? 'text-orange-600 bg-orange-50 dark:bg-orange-900/20' : 
-                            'text-blue-600 bg-blue-50 dark:bg-blue-900/20'
-                          }`}>
+                          <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full ${company.lifecycle_stage === 'customer' ? 'text-green-600 bg-green-50 dark:bg-green-900/20' :
+                              company.lifecycle_stage === 'opportunity' ? 'text-orange-600 bg-orange-50 dark:bg-orange-900/20' :
+                                'text-blue-600 bg-blue-50 dark:bg-blue-900/20'
+                            }`}>
                             {company.lifecycle_stage || 'lead'}
                           </span>
                         </td>
@@ -3443,14 +3438,14 @@ const CRM: React.FC = () => {
                         </td>
                         <td className="px-6 py-4 text-right">
                           <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-all">
-                            <button 
+                            <button
                               onClick={(e) => { e.stopPropagation(); openEditCompanyModal(company); }}
                               className="p-2 text-gray-400 hover:text-brand-600 hover:bg-white dark:hover:bg-slate-800 rounded-lg"
                               title="Edit"
                             >
                               <Edit2 size={14} />
                             </button>
-                            <button 
+                            <button
                               onClick={(e) => { e.stopPropagation(); handleDeleteCompany(company.id); }}
                               className="p-2 text-gray-400 hover:text-red-500 hover:bg-white dark:hover:bg-slate-800 rounded-lg"
                               title="Delete"
@@ -3505,7 +3500,7 @@ const CRM: React.FC = () => {
                     };
                     return colors[color] || 'bg-gray-500 border-gray-500 text-gray-600';
                   };
-                  
+
                   return (
                     <div key={interaction.id} className="relative pl-10">
                       <div className={`absolute left-2.5 top-1.5 w-3 h-3 rounded-full bg-white dark:bg-slate-900 border-2 ${getColorClasses(interaction.color)} z-10`}></div>
@@ -3633,11 +3628,10 @@ const CRM: React.FC = () => {
                   <button
                     key={filter}
                     onClick={() => setTimelineFilter(filter)}
-                    className={`px-4 py-2 text-xs font-bold rounded-xl transition-all ${
-                      timelineFilter === filter
+                    className={`px-4 py-2 text-xs font-bold rounded-xl transition-all ${timelineFilter === filter
                         ? 'bg-brand-600 text-white shadow-lg shadow-brand-500/20'
                         : 'bg-gray-50 dark:bg-slate-800 text-gray-600 dark:text-slate-300 border border-gray-200 dark:border-slate-700 hover:bg-gray-100 dark:hover:bg-slate-700'
-                    }`}
+                      }`}
                   >
                     {filter.charAt(0).toUpperCase() + filter.slice(1)}
                   </button>
@@ -3679,12 +3673,11 @@ const CRM: React.FC = () => {
                     {/* Date Header */}
                     <div className={`px-6 py-4 border-b border-gray-100 dark:border-slate-800 bg-gray-50 dark:bg-slate-800/50`}>
                       <div className="flex items-center gap-2">
-                        <div className={`w-2 h-2 rounded-full ${
-                          dateLabel === 'Today' ? 'bg-green-500' :
-                          dateLabel === 'Yesterday' ? 'bg-yellow-500' :
-                          dateLabel === 'Last Week' ? 'bg-blue-500' :
-                          'bg-gray-400'
-                        }`}></div>
+                        <div className={`w-2 h-2 rounded-full ${dateLabel === 'Today' ? 'bg-green-500' :
+                            dateLabel === 'Yesterday' ? 'bg-yellow-500' :
+                              dateLabel === 'Last Week' ? 'bg-blue-500' :
+                                'bg-gray-400'
+                          }`}></div>
                         <h3 className={`text-sm font-black uppercase tracking-widest ${getDateLabelColor(dateLabel)}`}>
                           {dateLabel}
                         </h3>
@@ -3699,12 +3692,11 @@ const CRM: React.FC = () => {
                         {events.map((event, index) => (
                           <div key={event.id} className="relative pl-10">
                             {/* Timeline Dot */}
-                            <div className={`absolute left-2 top-1.5 w-4 h-4 rounded-full border-2 bg-white dark:bg-slate-900 z-10 ${
-                              event.event_type.includes('won') ? 'border-green-500' :
-                              event.event_type.includes('lost') ? 'border-red-500' :
-                              event.event_type.includes('completed') ? 'border-green-500' :
-                              'border-blue-500'
-                            }`}>
+                            <div className={`absolute left-2 top-1.5 w-4 h-4 rounded-full border-2 bg-white dark:bg-slate-900 z-10 ${event.event_type.includes('won') ? 'border-green-500' :
+                                event.event_type.includes('lost') ? 'border-red-500' :
+                                  event.event_type.includes('completed') ? 'border-green-500' :
+                                    'border-blue-500'
+                              }`}>
                               <div className="absolute inset-0 flex items-center justify-center">
                                 {getEventIcon(event.event_type)}
                               </div>
@@ -3920,10 +3912,10 @@ const CRM: React.FC = () => {
                   <p className="text-2xl font-black text-orange-900 dark:text-orange-100">
                     {automations.length > 0
                       ? Math.round(
-                          (automations.reduce((sum, a) => sum + (a.successful_runs || 0), 0) /
-                            automations.reduce((sum, a) => sum + (a.total_runs || 0), 1)) *
-                            100
-                        )
+                        (automations.reduce((sum, a) => sum + (a.successful_runs || 0), 0) /
+                          automations.reduce((sum, a) => sum + (a.total_runs || 0), 1)) *
+                        100
+                      )
                       : 0}
                     %
                   </p>
@@ -3965,11 +3957,10 @@ const CRM: React.FC = () => {
                             <div className="flex items-center gap-3 mb-2">
                               <h4 className="text-base font-black text-gray-900 dark:text-slate-100">{automation.name}</h4>
                               <span
-                                className={`text-[10px] font-black uppercase px-2 py-0.5 rounded ${
-                                  automation.is_active
+                                className={`text-[10px] font-black uppercase px-2 py-0.5 rounded ${automation.is_active
                                     ? 'bg-green-100 text-green-600 dark:bg-green-900/20'
                                     : 'bg-gray-100 text-gray-600 dark:bg-gray-900/20'
-                                }`}
+                                  }`}
                               >
                                 {automation.is_active ? 'Active' : 'Paused'}
                               </span>
@@ -4033,11 +4024,10 @@ const CRM: React.FC = () => {
                           <div className="flex items-center gap-2 ml-4">
                             <button
                               onClick={() => handleToggleAutomation(automation.id, !automation.is_active)}
-                              className={`p-2 rounded-lg transition-all ${
-                                automation.is_active
+                              className={`p-2 rounded-lg transition-all ${automation.is_active
                                   ? 'text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-900/20'
                                   : 'text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20'
-                              }`}
+                                }`}
                               title={automation.is_active ? 'Pause' : 'Activate'}
                             >
                               {automation.is_active ? <Pause size={16} /> : <Play size={16} />}
@@ -4263,14 +4253,12 @@ const CRM: React.FC = () => {
                         onClick={() =>
                           setAutomationFormData({ ...automationFormData, is_active: !automationFormData.is_active })
                         }
-                        className={`relative w-12 h-6 rounded-full transition-all ${
-                          automationFormData.is_active ? 'bg-brand-600' : 'bg-gray-300 dark:bg-slate-600'
-                        }`}
+                        className={`relative w-12 h-6 rounded-full transition-all ${automationFormData.is_active ? 'bg-brand-600' : 'bg-gray-300 dark:bg-slate-600'
+                          }`}
                       >
                         <div
-                          className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-all ${
-                            automationFormData.is_active ? 'translate-x-6' : 'translate-x-0'
-                          }`}
+                          className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-all ${automationFormData.is_active ? 'translate-x-6' : 'translate-x-0'
+                            }`}
                         />
                       </button>
                     </div>
@@ -4325,11 +4313,10 @@ const CRM: React.FC = () => {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-2 px-6 py-5 text-sm font-bold transition-all border-b-2 -mb-[2px] ${
-                activeTab === tab.id 
-                  ? 'border-brand-600 text-brand-600' 
+              className={`flex items-center gap-2 px-6 py-5 text-sm font-bold transition-all border-b-2 -mb-[2px] ${activeTab === tab.id
+                  ? 'border-brand-600 text-brand-600'
                   : 'border-transparent text-gray-400 hover:text-gray-600 hover:border-gray-300'
-              }`}
+                }`}
             >
               <span className={activeTab === tab.id ? 'text-brand-600' : 'text-gray-300'}>{tab.icon}</span>
               {tab.label}
@@ -4384,9 +4371,8 @@ const CRM: React.FC = () => {
                 <button
                   key={tab}
                   onClick={() => setDealDetailTab(tab)}
-                  className={`px-4 py-3 text-sm font-bold border-b-2 transition-all ${
-                    dealDetailTab === tab ? 'border-brand-600 text-brand-600 dark:text-brand-400' : 'border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-300'
-                  }`}
+                  className={`px-4 py-3 text-sm font-bold border-b-2 transition-all ${dealDetailTab === tab ? 'border-brand-600 text-brand-600 dark:text-brand-400' : 'border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-300'
+                    }`}
                 >
                   {tab.charAt(0).toUpperCase() + tab.slice(1)}
                 </button>
@@ -4641,20 +4627,20 @@ const CRM: React.FC = () => {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">First Name</label>
-                  <input 
-                    type="text" 
+                  <input
+                    type="text"
                     value={formData.first_name}
-                    onChange={e => setFormData({...formData, first_name: e.target.value})}
+                    onChange={e => setFormData({ ...formData, first_name: e.target.value })}
                     className="w-full px-4 py-3 bg-gray-50 dark:bg-slate-800 border border-transparent rounded-2xl focus:bg-white dark:focus:bg-slate-700 focus:ring-4 focus:ring-brand-500/20 transition-all outline-none text-sm font-medium dark:text-slate-100"
                     placeholder="John"
                   />
                 </div>
                 <div className="space-y-2">
                   <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Last Name</label>
-                  <input 
-                    type="text" 
+                  <input
+                    type="text"
                     value={formData.last_name}
-                    onChange={e => setFormData({...formData, last_name: e.target.value})}
+                    onChange={e => setFormData({ ...formData, last_name: e.target.value })}
                     className="w-full px-4 py-3 bg-gray-50 dark:bg-slate-800 border border-transparent rounded-2xl focus:bg-white dark:focus:bg-slate-700 focus:ring-4 focus:ring-brand-500/20 transition-all outline-none text-sm font-medium dark:text-slate-100"
                     placeholder="Doe"
                   />
@@ -4662,11 +4648,11 @@ const CRM: React.FC = () => {
               </div>
               <div className="space-y-2">
                 <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Email Address</label>
-                <input 
+                <input
                   required
-                  type="email" 
+                  type="email"
                   value={formData.email}
-                  onChange={e => setFormData({...formData, email: e.target.value})}
+                  onChange={e => setFormData({ ...formData, email: e.target.value })}
                   className="w-full px-4 py-3 bg-gray-50 dark:bg-slate-800 border border-transparent rounded-2xl focus:bg-white dark:focus:bg-slate-700 focus:ring-4 focus:ring-brand-500/20 transition-all outline-none text-sm font-medium dark:text-slate-100"
                   placeholder="john@example.com"
                 />
@@ -4674,9 +4660,9 @@ const CRM: React.FC = () => {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Status</label>
-                  <select 
+                  <select
                     value={formData.status}
-                    onChange={e => setFormData({...formData, status: e.target.value as any})}
+                    onChange={e => setFormData({ ...formData, status: e.target.value as any })}
                     className="w-full px-4 py-3 bg-gray-50 dark:bg-slate-800 border border-transparent rounded-2xl focus:bg-white dark:focus:bg-slate-700 focus:ring-4 focus:ring-brand-500/20 transition-all outline-none text-sm font-medium dark:text-slate-100 appearance-none"
                   >
                     <option value="new">New</option>
@@ -4689,33 +4675,33 @@ const CRM: React.FC = () => {
                 </div>
                 <div className="space-y-2">
                   <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Company</label>
-                  <input 
-                    type="text" 
+                  <input
+                    type="text"
                     value={formData.company_name}
-                    onChange={e => setFormData({...formData, company_name: e.target.value})}
+                    onChange={e => setFormData({ ...formData, company_name: e.target.value })}
                     className="w-full px-4 py-3 bg-gray-50 dark:bg-slate-800 border border-transparent rounded-2xl focus:bg-white dark:focus:bg-slate-700 focus:ring-4 focus:ring-brand-500/20 transition-all outline-none text-sm font-medium dark:text-slate-100"
                     placeholder="Company Name"
                   />
                 </div>
               </div>
               <div className="pt-4 flex gap-3">
-                <button 
+                <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
                   className="flex-1 py-3 border border-gray-200 dark:border-slate-800 text-gray-500 dark:text-slate-400 font-bold rounded-2xl hover:bg-gray-50 dark:hover:bg-slate-800 transition-all text-xs uppercase tracking-widest"
                 >
                   Cancel
                 </button>
-                <button 
+                <button
                   type="submit"
                   disabled={createContact.isPending || updateContact.isPending}
                   className="flex-[2] py-3 bg-brand-600 text-white font-black rounded-2xl hover:bg-brand-700 shadow-xl shadow-brand-500/20 transition-all text-xs uppercase tracking-widest flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <Check size={18} /> 
-                  {createContact.isPending || updateContact.isPending 
-                    ? 'Saving...' 
-                    : editingContact 
-                      ? 'Update Contact' 
+                  <Check size={18} />
+                  {createContact.isPending || updateContact.isPending
+                    ? 'Saving...'
+                    : editingContact
+                      ? 'Update Contact'
                       : 'Create Contact'}
                 </button>
               </div>
@@ -4739,11 +4725,11 @@ const CRM: React.FC = () => {
             <form onSubmit={handleCompanySubmit} className="p-8 space-y-6">
               <div className="space-y-2">
                 <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Company Name *</label>
-                <input 
+                <input
                   required
-                  type="text" 
+                  type="text"
                   value={companyFormData.name}
-                  onChange={e => setCompanyFormData({...companyFormData, name: e.target.value})}
+                  onChange={e => setCompanyFormData({ ...companyFormData, name: e.target.value })}
                   className="w-full px-4 py-3 bg-gray-50 dark:bg-slate-800 border border-transparent rounded-2xl focus:bg-white dark:focus:bg-slate-700 focus:ring-4 focus:ring-brand-500/20 transition-all outline-none text-sm font-medium dark:text-slate-100"
                   placeholder="e.g. Acme Corporation"
                 />
@@ -4751,20 +4737,20 @@ const CRM: React.FC = () => {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Legal Name</label>
-                  <input 
-                    type="text" 
+                  <input
+                    type="text"
                     value={companyFormData.legal_name}
-                    onChange={e => setCompanyFormData({...companyFormData, legal_name: e.target.value})}
+                    onChange={e => setCompanyFormData({ ...companyFormData, legal_name: e.target.value })}
                     className="w-full px-4 py-3 bg-gray-50 dark:bg-slate-800 border border-transparent rounded-2xl focus:bg-white dark:focus:bg-slate-700 focus:ring-4 focus:ring-brand-500/20 transition-all outline-none text-sm font-medium dark:text-slate-100"
                     placeholder="Legal entity name"
                   />
                 </div>
                 <div className="space-y-2">
                   <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Website</label>
-                  <input 
-                    type="url" 
+                  <input
+                    type="url"
                     value={companyFormData.website}
-                    onChange={e => setCompanyFormData({...companyFormData, website: e.target.value})}
+                    onChange={e => setCompanyFormData({ ...companyFormData, website: e.target.value })}
                     className="w-full px-4 py-3 bg-gray-50 dark:bg-slate-800 border border-transparent rounded-2xl focus:bg-white dark:focus:bg-slate-700 focus:ring-4 focus:ring-brand-500/20 transition-all outline-none text-sm font-medium dark:text-slate-100"
                     placeholder="https://example.com"
                   />
@@ -4773,20 +4759,20 @@ const CRM: React.FC = () => {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Email</label>
-                  <input 
-                    type="email" 
+                  <input
+                    type="email"
                     value={companyFormData.email}
-                    onChange={e => setCompanyFormData({...companyFormData, email: e.target.value})}
+                    onChange={e => setCompanyFormData({ ...companyFormData, email: e.target.value })}
                     className="w-full px-4 py-3 bg-gray-50 dark:bg-slate-800 border border-transparent rounded-2xl focus:bg-white dark:focus:bg-slate-700 focus:ring-4 focus:ring-brand-500/20 transition-all outline-none text-sm font-medium dark:text-slate-100"
                     placeholder="contact@company.com"
                   />
                 </div>
                 <div className="space-y-2">
                   <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Phone</label>
-                  <input 
-                    type="tel" 
+                  <input
+                    type="tel"
                     value={companyFormData.phone}
-                    onChange={e => setCompanyFormData({...companyFormData, phone: e.target.value})}
+                    onChange={e => setCompanyFormData({ ...companyFormData, phone: e.target.value })}
                     className="w-full px-4 py-3 bg-gray-50 dark:bg-slate-800 border border-transparent rounded-2xl focus:bg-white dark:focus:bg-slate-700 focus:ring-4 focus:ring-brand-500/20 transition-all outline-none text-sm font-medium dark:text-slate-100"
                     placeholder="+1 (555) 123-4567"
                   />
@@ -4795,19 +4781,19 @@ const CRM: React.FC = () => {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Industry</label>
-                  <input 
-                    type="text" 
+                  <input
+                    type="text"
                     value={companyFormData.industry}
-                    onChange={e => setCompanyFormData({...companyFormData, industry: e.target.value})}
+                    onChange={e => setCompanyFormData({ ...companyFormData, industry: e.target.value })}
                     className="w-full px-4 py-3 bg-gray-50 dark:bg-slate-800 border border-transparent rounded-2xl focus:bg-white dark:focus:bg-slate-700 focus:ring-4 focus:ring-brand-500/20 transition-all outline-none text-sm font-medium dark:text-slate-100"
                     placeholder="e.g. Technology, Healthcare"
                   />
                 </div>
                 <div className="space-y-2">
                   <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Company Size</label>
-                  <select 
+                  <select
                     value={companyFormData.company_size}
-                    onChange={e => setCompanyFormData({...companyFormData, company_size: e.target.value})}
+                    onChange={e => setCompanyFormData({ ...companyFormData, company_size: e.target.value })}
                     className="w-full px-4 py-3 bg-gray-50 dark:bg-slate-800 border border-transparent rounded-2xl focus:bg-white dark:focus:bg-slate-700 focus:ring-4 focus:ring-brand-500/20 transition-all outline-none text-sm font-medium dark:text-slate-100 appearance-none"
                   >
                     <option value="">Select size</option>
@@ -4822,9 +4808,9 @@ const CRM: React.FC = () => {
               </div>
               <div className="space-y-2">
                 <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Status</label>
-                <select 
+                <select
                   value={companyFormData.lifecycle_stage}
-                  onChange={e => setCompanyFormData({...companyFormData, lifecycle_stage: e.target.value as any})}
+                  onChange={e => setCompanyFormData({ ...companyFormData, lifecycle_stage: e.target.value as any })}
                   className="w-full px-4 py-3 bg-gray-50 dark:bg-slate-800 border border-transparent rounded-2xl focus:bg-white dark:focus:bg-slate-700 focus:ring-4 focus:ring-brand-500/20 transition-all outline-none text-sm font-medium dark:text-slate-100 appearance-none"
                 >
                   <option value="lead">Lead</option>
@@ -4836,32 +4822,32 @@ const CRM: React.FC = () => {
               </div>
               <div className="space-y-2">
                 <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Description</label>
-                <textarea 
+                <textarea
                   value={companyFormData.description}
-                  onChange={e => setCompanyFormData({...companyFormData, description: e.target.value})}
+                  onChange={e => setCompanyFormData({ ...companyFormData, description: e.target.value })}
                   rows={3}
                   className="w-full px-4 py-3 bg-gray-50 dark:bg-slate-800 border border-transparent rounded-2xl focus:bg-white dark:focus:bg-slate-700 focus:ring-4 focus:ring-brand-500/20 transition-all outline-none text-sm font-medium dark:text-slate-100 resize-none"
                   placeholder="Company description..."
                 />
               </div>
               <div className="pt-4 flex gap-3">
-                <button 
+                <button
                   type="button"
                   onClick={() => setIsCompanyModalOpen(false)}
                   className="flex-1 py-3 border border-gray-200 dark:border-slate-800 text-gray-500 dark:text-slate-400 font-bold rounded-2xl hover:bg-gray-50 dark:hover:bg-slate-800 transition-all text-xs uppercase tracking-widest"
                 >
                   Cancel
                 </button>
-                <button 
+                <button
                   type="submit"
                   disabled={createCompany.isPending || updateCompany.isPending}
                   className="flex-[2] py-3 bg-brand-600 text-white font-black rounded-2xl hover:bg-brand-700 shadow-xl shadow-brand-500/20 transition-all text-xs uppercase tracking-widest flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <Check size={18} /> 
-                  {createCompany.isPending || updateCompany.isPending 
-                    ? 'Saving...' 
-                    : editingCompany 
-                      ? 'Update Company' 
+                  <Check size={18} />
+                  {createCompany.isPending || updateCompany.isPending
+                    ? 'Saving...'
+                    : editingCompany
+                      ? 'Update Company'
                       : 'Create Company'}
                 </button>
               </div>
