@@ -309,39 +309,53 @@ export const PaymentCheckout: React.FC<PaymentCheckoutProps> = ({
 
         {/* Gateway selection + Payment Info */}
         <div className="space-y-4 mb-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <button
-              type="button"
-              onClick={() => setGateway('payfast')}
-              className={`p-4 rounded-xl border-2 text-left transition-all ${
-                gateway === 'payfast'
-                  ? 'border-purple-600 bg-purple-50'
-                  : 'border-gray-200 hover:border-gray-300 bg-white'
-              }`}
-            >
-              <p className="text-xs font-bold text-gray-500 uppercase mb-1">Gateway</p>
-              <p className="text-sm font-black text-gray-900 mb-1">PayFast (ZAR)</p>
-              <p className="text-xs text-gray-600">
-                Ideal for South African merchants with local payment methods.
-              </p>
-            </button>
-            {isStripeEnabled && (
+          <div>
+            <p className="text-sm font-bold text-gray-900 mb-3">Select Payment Gateway</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => setGateway('payfast')}
+                className={`p-4 rounded-xl border-2 text-left transition-all ${gateway === 'payfast'
+                    ? 'border-purple-600 bg-purple-50 ring-2 ring-purple-200'
+                    : 'border-gray-200 hover:border-gray-300 bg-white'
+                  }`}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-xs font-bold text-gray-500 uppercase">Gateway</p>
+                  {gateway === 'payfast' && (
+                    <div className="w-5 h-5 bg-purple-600 rounded-full flex items-center justify-center">
+                      <CheckCircle2 className="w-3 h-3 text-white" />
+                    </div>
+                  )}
+                </div>
+                <p className="text-sm font-black text-gray-900 mb-1">PayFast (ZAR)</p>
+                <p className="text-xs text-gray-600">
+                  Ideal for South African merchants with local payment methods.
+                </p>
+              </button>
+
               <button
                 type="button"
                 onClick={() => setGateway('stripe')}
-                className={`p-4 rounded-xl border-2 text-left transition-all ${
-                  gateway === 'stripe'
-                    ? 'border-purple-600 bg-purple-50'
+                className={`p-4 rounded-xl border-2 text-left transition-all ${gateway === 'stripe'
+                    ? 'border-purple-600 bg-purple-50 ring-2 ring-purple-200'
                     : 'border-gray-200 hover:border-gray-300 bg-white'
-                }`}
+                  }`}
               >
-                <p className="text-xs font-bold text-gray-500 uppercase mb-1">Gateway</p>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-xs font-bold text-gray-500 uppercase">Gateway</p>
+                  {gateway === 'stripe' && (
+                    <div className="w-5 h-5 bg-purple-600 rounded-full flex items-center justify-center">
+                      <CheckCircle2 className="w-3 h-3 text-white" />
+                    </div>
+                  )}
+                </div>
                 <p className="text-sm font-black text-gray-900 mb-1">Stripe (Cards)</p>
                 <p className="text-xs text-gray-600">
                   Global card payments powered by Stripe Checkout.
                 </p>
               </button>
-            )}
+            </div>
           </div>
 
           <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-xl">
@@ -398,7 +412,7 @@ export const PaymentCheckout: React.FC<PaymentCheckoutProps> = ({
 
         {/* Footer Note */}
         <p className="text-xs text-gray-500 text-center mt-6">
-          By proceeding, you agree to our Terms of Service and Privacy Policy. 
+          By proceeding, you agree to our Terms of Service and Privacy Policy.
           You can cancel your subscription anytime.
         </p>
       </div>
