@@ -742,6 +742,21 @@ const Content: React.FC = () => {
       if (scheduleMode === 'now') {
         const mediaUrls = [...uploadedImages, ...uploadedVideos];
         try {
+          // Fetch tokens client-side (user session allows RLS) so the API can publish when server has no service-role key
+          const { data: accountRows } = await supabase
+            .from('social_accounts')
+            .select('platform, account_id, access_token')
+            .eq('workspace_id', workspaceId)
+            .eq('is_active', true)
+            .in('platform', selectedPlatforms.map((p) => (p || '').toLowerCase()));
+          const accountTokens: Record<string, { account_id: string; access_token: string }> = {};
+          (accountRows || []).forEach((row: any) => {
+            const platform = (row.platform || '').toLowerCase();
+            if (platform && row.access_token) {
+              accountTokens[platform] = { account_id: row.account_id || '', access_token: row.access_token };
+            }
+          });
+
           const origin = window.location.origin;
           const r = await fetch(`${origin}/api/publish-post`, {
             method: 'POST',
@@ -751,6 +766,7 @@ const Content: React.FC = () => {
               platforms: selectedPlatforms,
               mediaUrls,
               workspaceId,
+              accountTokens: Object.keys(accountTokens).length ? accountTokens : undefined,
             }),
           });
           const payload = await r.json().catch(() => ({}));

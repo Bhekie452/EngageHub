@@ -64,17 +64,29 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
 // --- Facebook Handler ---
 async function handleFacebook(req: VercelRequest, res: VercelResponse, action: string) {
-    const { code, redirectUri } = req.body;
+    const body = typeof req.body === 'object' && req.body ? req.body : {};
+    const { code, redirectUri } = body;
+
+    if (!code || typeof code !== 'string' || !redirectUri || typeof redirectUri !== 'string') {
+        return res.status(400).json({
+            error: 'Missing code or redirect_uri',
+            message: 'Request body must include code and redirectUri (same redirect_uri used in the OAuth authorization request).',
+        });
+    }
+
     const APP_ID = process.env.VITE_FACEBOOK_APP_ID || '1621732999001688';
     const APP_SECRET = process.env.FACEBOOK_APP_SECRET;
 
     if (!APP_SECRET) return res.status(500).json({ error: 'Facebook Secret not configured' });
 
     const response = await fetch(
-        `https://graph.facebook.com/v21.0/oauth/access_token?client_id=${APP_ID}&client_secret=${APP_SECRET}&redirect_uri=${encodeURIComponent(redirectUri)}&code=${code}`
+        `https://graph.facebook.com/v21.0/oauth/access_token?client_id=${APP_ID}&client_secret=${APP_SECRET}&redirect_uri=${encodeURIComponent(redirectUri)}&code=${encodeURIComponent(code)}`
     );
     const data = await response.json();
-    if (!response.ok) return res.status(response.status).json(data);
+    if (!response.ok) {
+        const message = (data?.error?.message ?? data?.message ?? 'Token exchange failed') as string;
+        return res.status(response.status).json({ ...data, message });
+    }
     return res.status(200).json(data);
 }
 

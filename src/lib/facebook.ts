@@ -206,6 +206,7 @@ export const loginWithFacebook = () => {
         const authUrl = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${FB_APP_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}&state=${oauthState}&response_type=code`;
 
         sessionStorage.setItem('facebook_oauth_return', window.location.href);
+        sessionStorage.setItem('facebook_oauth_redirect_uri', redirectUri);
         window.location.href = authUrl;
     });
 };
@@ -217,29 +218,36 @@ export const loginWithFacebook = () => {
  */
 export const exchangeCodeForToken = async (code: string): Promise<any> => {
     try {
+        const redirectUri = typeof window !== 'undefined'
+            ? (sessionStorage.getItem('facebook_oauth_redirect_uri') || getRedirectURI())
+            : getRedirectURI();
+        if (typeof window !== 'undefined') sessionStorage.removeItem('facebook_oauth_redirect_uri');
+
         const response = await fetch(`/api/auth?provider=facebook&action=token`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ code, redirectUri: getRedirectURI() })
+            body: JSON.stringify({ code, redirectUri })
         });
 
+        const data = await response.json().catch(() => ({}));
+
         if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.message || 'Token exchange failed');
+            const msg = data?.error?.message ?? data?.message ?? data?.error ?? (typeof data === 'string' ? data : 'Token exchange failed');
+            throw new Error(typeof msg === 'string' ? msg : 'Token exchange failed');
         }
 
-        const data = await response.json();
-
-        const returnUrl = sessionStorage.getItem('facebook_oauth_return') || window.location.pathname;
-        window.history.replaceState({}, '', returnUrl);
-        sessionStorage.removeItem('facebook_oauth_return');
+        const returnUrl = typeof window !== 'undefined' ? (sessionStorage.getItem('facebook_oauth_return') || window.location.pathname) : '';
+        if (typeof window !== 'undefined') {
+            window.history.replaceState({}, '', returnUrl);
+            sessionStorage.removeItem('facebook_oauth_return');
+        }
 
         return {
             accessToken: data.access_token,
             expiresIn: data.expires_in
         };
     } catch (error: any) {
-        throw new Error(`Token exchange failed: ${error.message}`);
+        throw new Error(error?.message || 'Token exchange failed');
     }
 };
 

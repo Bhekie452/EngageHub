@@ -95,11 +95,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   if (!supabaseUrl || !supabaseServiceKey) return res.status(500).json({ error: 'Supabase not configured' });
 
-  const { content, platforms, mediaUrls, workspaceId } = (req.body || {}) as {
+  const { content, platforms, mediaUrls, workspaceId, accountTokens } = (req.body || {}) as {
     content?: string;
     platforms?: string[];
     mediaUrls?: string[];
     workspaceId?: string;
+    accountTokens?: Record<string, { account_id: string; access_token: string }>;
   };
   if (!content?.trim() || !Array.isArray(platforms) || !platforms.length || !workspaceId) {
     return res.status(400).json({ error: 'Missing content, platforms, or workspaceId' });
@@ -108,16 +109,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
   const urls = Array.isArray(mediaUrls) ? mediaUrls : [];
 
-  const { data: accounts } = await supabase
-    .from('social_accounts')
-    .select('platform, account_id, access_token')
-    .eq('workspace_id', workspaceId)
-    .eq('is_active', true)
-    .in('platform', platforms.map((x) => (x || '').toLowerCase()));
+  let accounts: { platform: string; account_id: string; access_token: string }[] = [];
+  if (accountTokens && typeof accountTokens === 'object' && Object.keys(accountTokens).length > 0) {
+    // Use tokens passed from client (works when server has no service-role key / RLS blocks server read)
+    accounts = Object.entries(accountTokens).map(([platform, t]) => ({
+      platform: platform.toLowerCase(),
+      account_id: t?.account_id || '',
+      access_token: t?.access_token || '',
+    }));
+  } else {
+    const { data } = await supabase
+      .from('social_accounts')
+      .select('platform, account_id, access_token')
+      .eq('workspace_id', workspaceId)
+      .eq('is_active', true)
+      .in('platform', platforms.map((x) => (x || '').toLowerCase()));
+    accounts = data || [];
+  }
 
   const results = await Promise.all(
     (platforms || []).map((platform) => {
-      const account = (accounts || []).find((a: any) => (a.platform || '').toLowerCase() === (platform || '').toLowerCase());
+      const account = accounts.find((a: any) => (a.platform || '').toLowerCase() === (platform || '').toLowerCase());
       return publishOne(platform, account || { account_id: '', access_token: '' }, content, urls);
     })
   );
