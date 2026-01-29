@@ -201,9 +201,9 @@ export const loginWithFacebook = () => {
         }
 
         const scope = getLoginScope();
-        const state = 'facebook_oauth';
+        const oauthState = 'facebook_oauth';
         const redirectUri = getRedirectURI();
-        const authUrl = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${FB_APP_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}&state=${state}&response_type=code`;
+        const authUrl = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${FB_APP_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}&state=${oauthState}&response_type=code`;
 
         sessionStorage.setItem('facebook_oauth_return', window.location.href);
         window.location.href = authUrl;
