@@ -117,52 +117,6 @@ const App: React.FC = () => {
     };
   }, []);
 
-  // Listen for navigation events from child components
-  useEffect(() => {
-    const handleNavigate = (event: CustomEvent) => {
-      const section = event.detail?.section;
-      if (section) {
-        // Map section names to MenuSection enum
-        const sectionMap: Record<string, MenuSection> = {
-          'Social Media': MenuSection.SocialMedia,
-          'social-media': MenuSection.SocialMedia,
-          'SocialMedia': MenuSection.SocialMedia,
-        };
-        if (sectionMap[section]) {
-          setCurrentSection(sectionMap[section]);
-        }
-      }
-    };
-
-    window.addEventListener('navigate', handleNavigate as EventListener);
-    return () => {
-      window.removeEventListener('navigate', handleNavigate as EventListener);
-    };
-  }, []);
-
-  // Listen for navigation events from child components
-  useEffect(() => {
-    const handleNavigate = (event: CustomEvent) => {
-      const section = event.detail?.section;
-      if (section) {
-        // Map section names to MenuSection enum
-        const sectionMap: Record<string, MenuSection> = {
-          'Social Media': MenuSection.SocialMedia,
-          'social-media': MenuSection.SocialMedia,
-          'SocialMedia': MenuSection.SocialMedia,
-        };
-        if (sectionMap[section]) {
-          setCurrentSection(sectionMap[section]);
-        }
-      }
-    };
-
-    window.addEventListener('navigate', handleNavigate as EventListener);
-    return () => {
-      window.removeEventListener('navigate', handleNavigate as EventListener);
-    };
-  }, []);
-
   const renderContent = () => {
     switch (currentSection) {
       case MenuSection.Dashboard:

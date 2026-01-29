@@ -41,9 +41,12 @@ interface ErrorBoundaryState {
   error: Error | null;
 }
 
-class ErrorBoundary extends Component<{ children: ReactNode }, ErrorBoundaryState> {
-  public state: ErrorBoundaryState = { hasError: false, error: null };
+interface ErrorBoundaryProps {
+  children: ReactNode;
+}
 
+class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  public state: ErrorBoundaryState = { hasError: false, error: null };
 
   static getDerivedStateFromError(error: Error): ErrorBoundaryState {
     return { hasError: true, error };
@@ -97,12 +100,8 @@ const Router: React.FC = () => {
   React.useEffect(() => {
     const onPop = () => setPathname(getPathname());
     window.addEventListener('popstate', onPop);
-    return () => window.removeEventListener('popstate', onPop);
-  }, []);
 
-  // Listen for auth navigation events from components (e.g., PaymentCheckout)
-  React.useEffect(() => {
-    const handler = (event: Event) => {
+    const handleAuthNavigate = (event: Event) => {
       const detail = (event as CustomEvent)?.detail || {};
       const view = detail.view as View | undefined;
       if (view === 'login' || view === 'register') {
@@ -110,20 +109,21 @@ const Router: React.FC = () => {
       }
     };
 
-    window.addEventListener('auth:navigate', handler as EventListener);
-    return () => window.removeEventListener('auth:navigate', handler as EventListener);
-  }, []);
-
-  // Listen for subscription intent events (user clicked Start Free Trial while logged out)
-  React.useEffect(() => {
-    const handler = (event: Event) => {
+    const handleSubscriptionIntent = (event: Event) => {
       const detail = (event as CustomEvent)?.detail || {};
       if (detail.planTier) {
         setPendingPlan(String(detail.planTier));
       }
     };
-    window.addEventListener('subscription:intent', handler as EventListener);
-    return () => window.removeEventListener('subscription:intent', handler as EventListener);
+
+    window.addEventListener('auth:navigate', handleAuthNavigate as EventListener);
+    window.addEventListener('subscription:intent', handleSubscriptionIntent as EventListener);
+
+    return () => {
+      window.removeEventListener('popstate', onPop);
+      window.removeEventListener('auth:navigate', handleAuthNavigate as EventListener);
+      window.removeEventListener('subscription:intent', handleSubscriptionIntent as EventListener);
+    };
   }, []);
 
   // Show loading state
