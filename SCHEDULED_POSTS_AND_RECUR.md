@@ -22,12 +22,6 @@
 
 ## Vercel Cron
 
-In `vercel.json`, a cron runs every 5 minutes:
+In `vercel.json`, a cron runs **once per day** at midnight UTC (`0 0 * * *`). This is required on **Vercel Hobby** (Hobby allows only daily cron jobs; more frequent expressions fail deployment). On **Pro**, you can change the schedule to e.g. `*/5 * * * *` for every 5 minutes.
 
-```json
-"crons": [
-  { "path": "/api/process-scheduled-posts", "schedule": "*/5 * * * *" }
-]
-```
-
-Cron is only active on **Vercel Pro** (or team). On Hobby, scheduled posts still run when someone opens Content and the list tabs (the app calls the API on load).
+Scheduled posts also run when someone opens Content and views All / Drafts / Scheduled / Published (the app calls the API on load), so due posts get published even between daily cron runs.
