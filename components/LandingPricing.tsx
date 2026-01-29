@@ -1,5 +1,6 @@
-import React from 'react';
-import { Check, Sparkles, ArrowRight } from 'lucide-react';
+import React, { useState } from 'react';
+import { Check, Sparkles, ArrowRight, Calculator } from 'lucide-react';
+import { PaymentCheckout } from './PaymentCheckout';
 
 interface PricingTier {
     name: string;
@@ -10,6 +11,7 @@ interface PricingTier {
     popular?: boolean;
     gradient: string;
     ctaText: string;
+    tier: 'starter' | 'professional' | 'business';
 }
 
 const pricingTiers: PricingTier[] = [
@@ -17,13 +19,16 @@ const pricingTiers: PricingTier[] = [
         name: 'Starter',
         price: 'R549',
         period: '/month',
-        description: 'Perfect for getting started',
+        description: 'Perfect for Solopreneurs',
         gradient: 'from-blue-500 to-cyan-500',
         ctaText: 'Start Free Trial',
+        tier: 'starter',
         features: [
-            '1 User',
-            '3 Social Media Accounts',
-            '50 Scheduled Posts/month',
+            'Unlimited Users',
+            'Unlimited Social Accounts',
+            '50 AI-Enhanced Posts/mo',
+            '1,000 CRM Contacts',
+            'Unified Inbox Access',
             'Basic Analytics',
             'Email Support',
         ]
@@ -32,37 +37,40 @@ const pricingTiers: PricingTier[] = [
         name: 'Professional',
         price: 'R1,499',
         period: '/month',
-        description: 'For growing businesses',
+        description: 'For Scaling Businesses',
         popular: true,
         gradient: 'from-purple-500 to-pink-500',
         ctaText: 'Start Free Trial',
+        tier: 'professional',
         features: [
-            '3 Users',
-            '10 Social Media Accounts',
-            'Unlimited Scheduled Posts',
-            'Advanced Analytics & Reports',
+            'Unlimited Users',
+            'Unlimited Social Accounts',
+            '250 AI-Enhanced Posts/mo',
+            '10,000 CRM Contacts',
+            'Unified Inbox Access',
+            'Priority Support & Reports',
+            'Advanced Analytics',
             'AI Content Assistant',
-            'CRM with 1,000 Contacts',
-            'Priority Support',
         ]
     },
     {
         name: 'Business',
         price: 'R2,849',
         period: '/month',
-        description: 'For established enterprises',
+        description: 'For Established Enterprises',
         gradient: 'from-orange-500 to-red-500',
-        ctaText: 'Contact Sales',
+        ctaText: 'Start Free Trial',
+        tier: 'business',
         features: [
             'Unlimited Users',
             'Unlimited Social Accounts',
-            'Unlimited Posts',
+            '1,000 AI-Enhanced Posts/mo',
+            '100,000 CRM Contacts',
+            'Unified Inbox Access',
+            'White-label & Dedicated Manager',
             'Custom Analytics & Dashboards',
             'Advanced AI Features',
-            'CRM with Unlimited Contacts',
             'Marketing Automation',
-            'White-label Options',
-            'Dedicated Account Manager',
         ]
     }
 ];
@@ -72,6 +80,24 @@ interface LandingPricingProps {
 }
 
 export const LandingPricing: React.FC<LandingPricingProps> = ({ onSelectPlan }) => {
+    const [showCalculator, setShowCalculator] = useState(false);
+    const [monthlyPosts, setMonthlyPosts] = useState(100);
+    const [crmContacts, setCrmContacts] = useState(1000);
+    const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
+
+    // Calculate recommended plan based on usage
+    const calculateRecommendedPlan = () => {
+        if (monthlyPosts <= 50 && crmContacts <= 1000) {
+            return 'Starter';
+        } else if (monthlyPosts <= 250 && crmContacts <= 10000) {
+            return 'Professional';
+        } else {
+            return 'Business';
+        }
+    };
+
+    const recommendedPlan = calculateRecommendedPlan();
+
     return (
         <section className="py-24 bg-gradient-to-br from-gray-50 to-blue-50 relative overflow-hidden">
             {/* Background decorations */}
@@ -131,7 +157,14 @@ export const LandingPricing: React.FC<LandingPricingProps> = ({ onSelectPlan }) 
 
                             {/* CTA button */}
                             <button
-                                onClick={() => onSelectPlan(tier.name)}
+                                onClick={() => {
+                                    if (tier.ctaText === 'Contact Sales') {
+                                        // For Business plan, could open contact form or email
+                                        window.location.href = 'mailto:sales@engagehub.com?subject=Business Plan Inquiry';
+                                    } else {
+                                        setSelectedPlan(tier.tier);
+                                    }
+                                }}
                                 className={`w-full py-4 rounded-xl font-bold text-white mb-6 transition-all duration-300 flex items-center justify-center gap-2 group ${tier.popular
                                         ? `bg-gradient-to-r ${tier.gradient} shadow-lg hover:shadow-xl hover:scale-105`
                                         : 'bg-gray-800 hover:bg-gray-900 hover:scale-105'
@@ -156,12 +189,115 @@ export const LandingPricing: React.FC<LandingPricingProps> = ({ onSelectPlan }) 
                     ))}
                 </div>
 
+                {/* Interactive Usage Calculator */}
+                <div className="mt-16 max-w-3xl mx-auto">
+                    <button
+                        onClick={() => setShowCalculator(!showCalculator)}
+                        className="w-full flex items-center justify-center gap-2 px-6 py-4 bg-white rounded-xl border-2 border-gray-200 hover:border-purple-500 transition-all duration-300 group"
+                    >
+                        <Calculator className="w-5 h-5 text-purple-600 group-hover:scale-110 transition-transform" />
+                        <span className="font-bold text-gray-900">Estimate Your Cost</span>
+                        <span className="text-sm text-gray-500">(Based on usage)</span>
+                    </button>
+
+                    {showCalculator && (
+                        <div className="mt-6 bg-white rounded-2xl p-8 border-2 border-purple-200 shadow-xl">
+                            <h3 className="text-2xl font-black text-gray-900 mb-6 text-center">
+                                Usage Calculator
+                            </h3>
+
+                            <div className="space-y-6">
+                                {/* Monthly Posts Slider */}
+                                <div>
+                                    <div className="flex items-center justify-between mb-3">
+                                        <label className="text-sm font-bold text-gray-700">
+                                            Monthly AI-Enhanced Posts
+                                        </label>
+                                        <span className="text-lg font-black text-purple-600">
+                                            {monthlyPosts}
+                                        </span>
+                                    </div>
+                                    <input
+                                        type="range"
+                                        min="10"
+                                        max="2000"
+                                        step="10"
+                                        value={monthlyPosts}
+                                        onChange={(e) => setMonthlyPosts(Number(e.target.value))}
+                                        className="w-full h-3 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-purple-600"
+                                    />
+                                    <div className="flex justify-between text-xs text-gray-500 mt-1">
+                                        <span>10</span>
+                                        <span>2000+</span>
+                                    </div>
+                                </div>
+
+                                {/* CRM Contacts Slider */}
+                                <div>
+                                    <div className="flex items-center justify-between mb-3">
+                                        <label className="text-sm font-bold text-gray-700">
+                                            CRM Contacts
+                                        </label>
+                                        <span className="text-lg font-black text-purple-600">
+                                            {crmContacts.toLocaleString()}
+                                        </span>
+                                    </div>
+                                    <input
+                                        type="range"
+                                        min="100"
+                                        max="200000"
+                                        step="100"
+                                        value={crmContacts}
+                                        onChange={(e) => setCrmContacts(Number(e.target.value))}
+                                        className="w-full h-3 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-purple-600"
+                                    />
+                                    <div className="flex justify-between text-xs text-gray-500 mt-1">
+                                        <span>100</span>
+                                        <span>200,000+</span>
+                                    </div>
+                                </div>
+
+                                {/* Recommended Plan */}
+                                <div className="pt-6 border-t border-gray-200">
+                                    <div className="text-center">
+                                        <p className="text-sm text-gray-600 mb-2">Recommended Plan:</p>
+                                        <div className={`inline-flex items-center gap-2 px-6 py-3 rounded-xl font-black text-lg ${
+                                            recommendedPlan === 'Starter' ? 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white' :
+                                            recommendedPlan === 'Professional' ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white' :
+                                            'bg-gradient-to-r from-orange-500 to-red-500 text-white'
+                                        }`}>
+                                            <Sparkles className="w-5 h-5" />
+                                            {recommendedPlan}
+                                        </div>
+                                        <p className="text-xs text-gray-500 mt-3">
+                                            Based on your usage, the {recommendedPlan} plan is the best fit for your needs.
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+
                 {/* Bottom note */}
-                <div className="mt-16 text-center">
+                <div className="mt-16 text-center space-y-2">
                     <p className="text-gray-600 mb-2">All plans include a 14-day free trial. No credit card required.</p>
-                    <p className="text-sm text-gray-500">Cancel anytime. Prices in South African Rand (ZAR).</p>
+                    <p className="text-sm text-gray-500">Need more volume? Custom usage credits available. Cancel anytime.</p>
+                    <p className="text-xs text-gray-400">Prices in South African Rand (ZAR).</p>
                 </div>
             </div>
+
+            {/* Payment Checkout Modal */}
+            {selectedPlan && (
+                <PaymentCheckout
+                    planTier={selectedPlan}
+                    onClose={() => setSelectedPlan(null)}
+                    onSuccess={() => {
+                        setSelectedPlan(null);
+                        onSelectPlan(selectedPlan);
+                    }}
+                />
+            )}
         </section>
     );
 };

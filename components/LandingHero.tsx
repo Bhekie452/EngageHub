@@ -21,12 +21,12 @@ export const LandingHero: React.FC<LandingHeroProps> = ({ onGetStarted }) => {
                     {/* Badge */}
                     <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/80 backdrop-blur-sm rounded-full border border-blue-200 shadow-lg">
                         <Sparkles className="w-4 h-4 text-blue-600" />
-                        <span className="text-sm font-semibold text-gray-700">AI-Powered Business Command Center</span>
+                        <span className="text-sm font-semibold text-gray-700">Consumption-Based Growth Engine</span>
                     </div>
 
                     {/* Main heading */}
                     <h1 className="text-5xl md:text-6xl lg:text-7xl font-black text-gray-900 leading-tight">
-                        Grow Your Business
+                        Automate Your Business Growth
                         <span className="block bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 bg-clip-text text-transparent">
                             On Autopilot
                         </span>
@@ -34,7 +34,7 @@ export const LandingHero: React.FC<LandingHeroProps> = ({ onGetStarted }) => {
 
                     {/* Subheading */}
                     <p className="text-xl md:text-2xl text-gray-600 leading-relaxed max-w-2xl">
-                        Manage social media, engage customers, and drive sales—all from one powerful platform designed for solo entrepreneurs.
+                        Manage every social account, engage every customer, and close more deals from one AI-powered command center. No account limits. No feature paywalls. Just results.
                     </p>
 
                     {/* CTA buttons */}
@@ -43,33 +43,24 @@ export const LandingHero: React.FC<LandingHeroProps> = ({ onGetStarted }) => {
                             onClick={onGetStarted}
                             className="group px-8 py-4 bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold rounded-xl shadow-xl hover:shadow-2xl hover:scale-105 transition-all duration-300 flex items-center justify-center gap-2"
                         >
-                            Start Free Trial
+                            Start Your 14-Day Free Trial
                             <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
                         </button>
 
                         <button className="group px-8 py-4 bg-white/80 backdrop-blur-sm text-gray-700 font-semibold rounded-xl border-2 border-gray-200 hover:border-blue-600 hover:shadow-xl transition-all duration-300 flex items-center justify-center gap-2">
                             <Play className="w-5 h-5 text-blue-600" />
-                            Watch Demo
+                            Watch the 2-Minute Tour
                         </button>
                     </div>
 
-                    {/* Social proof */}
-                    <div className="flex items-center gap-6 justify-center md:justify-start pt-4">
-                        <div className="flex -space-x-2">
-                            {[1, 2, 3, 4].map((i) => (
-                                <div key={i} className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 border-2 border-white"></div>
-                            ))}
-                        </div>
-                        <div className="text-left">
-                            <div className="flex gap-1">
-                                {[1, 2, 3, 4, 5].map((i) => (
-                                    <svg key={i} className="w-4 h-4 text-yellow-400 fill-current" viewBox="0 0 20 20">
-                                        <path d="M10 15l-5.878 3.09 1.123-6.545L.489 6.91l6.572-.955L10 0l2.939 5.955 6.572.955-4.756 4.635 1.123 6.545z" />
-                                    </svg>
-                                ))}
-                            </div>
-                            <p className="text-sm text-gray-600 font-medium">Trusted by 500+ entrepreneurs</p>
-                        </div>
+                    {/* Trust signal */}
+                    <div className="pt-4">
+                        <p className="text-sm text-gray-600 font-medium">
+                            <span className="font-bold text-gray-900">Trusted by 1,000+ SMMEs.</span> Saving entrepreneurs an average of 20+ hours weekly.
+                        </p>
+                        <p className="text-xs text-gray-500 mt-2">
+                            14-day free trial. No credit card required. Cancel anytime.
+                        </p>
                     </div>
                 </div>
 

@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useMemo } from 'react';
 import {
   PenTool,
@@ -673,7 +672,7 @@ const Content: React.FC = () => {
       case 'templates':
         return <ContentTemplates />;
 
-      case 'create':
+      case 'create': {
         const hasNoAccounts = Object.keys(socialAccounts).length === 0;
 
         return (
@@ -1486,746 +1485,749 @@ const Content: React.FC = () => {
                 </div>
               </div>
             </div>
-            );
+          </div>
+        );
+      }
 
-            case 'drafts':
-            case 'scheduled':
-            case 'published':
-            case 'all':
-            return (
-            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-              <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
-                <h3 className="font-black text-xs uppercase tracking-widest text-gray-500">
-                  {activeTab === 'all' ? 'All' : activeTab} Content
-                </h3>
-                <div className="flex gap-2">
-                  <button className="px-3 py-1.5 text-xs font-bold text-gray-600 bg-white border border-gray-200 rounded-lg shadow-sm">Bulk Action</button>
-                  <button onClick={() => setActiveTab('create')} className="px-3 py-1.5 text-xs font-bold text-white bg-blue-600 rounded-lg shadow-md shadow-blue-100">+ New</button>
-                </div>
-              </div>
-              <div className="divide-y divide-gray-50">
-                {isLoadingPosts ? (
-                  <div className="p-10 text-center text-gray-400">Loading posts...</div>
-                ) : posts.length === 0 ? (
-                  <div className="p-10 text-center text-gray-400">No posts found.</div>
-                ) : (
-                  posts.map((post) => (
-                    <div key={post.id} className="p-5 flex items-start gap-4 hover:bg-gray-50 transition-all group">
-                      <div className="w-20 h-20 rounded-xl bg-gray-100 flex items-center justify-center text-gray-300 shrink-0 border border-gray-100 overflow-hidden">
-                        {post.media_urls && post.media_urls.length > 0 ? (
-                          <img src={post.media_urls[0]} alt="Post media" className="w-full h-full object-cover" />
-                        ) : (
-                          <FileText size={24} />
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1 flex-wrap">
-                          {post.platforms && post.platforms.map((platform: string, idx: number) => (
-                            <React.Fragment key={idx}>
-                              <button
-                                onClick={() => setViewingMetrics({ post, platform })}
-                                className="text-[10px] font-black text-blue-600 hover:text-blue-700 uppercase tracking-widest cursor-pointer hover:underline transition-all"
-                              >
-                                {platform}
-                              </button>
-                              {idx < post.platforms.length - 1 && (
-                                <span className="text-[10px] text-blue-600">+</span>
-                              )}
-                            </React.Fragment>
-                          ))}
-                          <span className="w-1 h-1 bg-gray-300 rounded-full"></span>
-                          <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">
-                            {new Date(post.created_at).toLocaleDateString()}
-                          </span>
-                          {postCampaignMap[post.id] && (
-                            <span className="text-[10px] font-black uppercase tracking-widest bg-green-50 text-green-700 px-2 py-0.5 rounded">
-                              {postCampaignMap[post.id].name}
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-sm font-bold text-gray-800 line-clamp-2 leading-relaxed">
-                          {post.content || '(No text content)'}
-                        </p>
-                        <div className="flex gap-3 mt-3">
-                          <button
-                            onClick={() => setViewingPost(post)}
-                            className="flex items-center gap-1.5 text-[10px] font-bold text-gray-400 hover:text-purple-600 transition-all uppercase tracking-wider cursor-pointer"
-                          >
-                            <Eye size={12} /> View
-                          </button>
-                          <button
-                            onClick={() => handleEditPost(post)}
-                            className="flex items-center gap-1.5 text-[10px] font-bold text-gray-400 hover:text-blue-600 transition-all uppercase tracking-wider cursor-pointer"
-                          >
-                            <Edit3 size={12} /> Edit
-                          </button>
-                          <button
-                            onClick={() => handleDeletePost(post.id)}
-                            className="flex items-center gap-1.5 text-[10px] font-bold text-gray-400 hover:text-red-500 transition-all uppercase tracking-wider cursor-pointer"
-                          >
-                            <Trash2 size={12} /> Delete
-                          </button>
-                        </div>
-                      </div>
-                      <div className="shrink-0 flex flex-col items-end gap-2">
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-tighter ${post.status === 'published' ? 'bg-green-50 text-green-600' :
-                          post.status === 'scheduled' ? 'bg-blue-50 text-blue-600' : 'bg-gray-100 text-gray-500'
-                          }`}>
-                          {post.status}
-                        </span>
-                        <button className="p-2 text-gray-300 hover:text-gray-600 opacity-0 group-hover:opacity-100 transition-all">
-                          <MoreVertical size={18} />
-                        </button>
-                      </div>
-                    </div>
-                  ))
-                )}
+      case 'drafts':
+      case 'scheduled':
+      case 'published':
+      case 'all':
+        return (
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+            <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
+              <h3 className="font-black text-xs uppercase tracking-widest text-gray-500">
+                {activeTab === 'all' ? 'All' : activeTab} Content
+              </h3>
+              <div className="flex gap-2">
+                <button className="px-3 py-1.5 text-xs font-bold text-gray-600 bg-white border border-gray-200 rounded-lg shadow-sm">Bulk Action</button>
+                <button onClick={() => setActiveTab('create')} className="px-3 py-1.5 text-xs font-bold text-white bg-blue-600 rounded-lg shadow-md shadow-blue-100">+ New</button>
               </div>
             </div>
-            );
-
-            case 'all_list':
-            return (
-            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-              <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
-                <h3 className="font-black text-xs uppercase tracking-widest text-gray-500">ALL CONTENT</h3>
-                <div className="flex gap-2">
-                  <button className="px-3 py-1.5 text-xs font-bold text-gray-600 bg-white border border-gray-200 rounded-lg shadow-sm">Bulk Action</button>
-                  <button onClick={() => setActiveTab('create')} className="px-3 py-1.5 text-xs font-bold text-white bg-blue-600 rounded-lg shadow-md shadow-blue-100">+ New</button>
-                </div>
-              </div>
-              <div className="divide-y divide-gray-100">
-                {isLoadingPosts ? (
-                  <div className="p-10 text-center text-gray-400">Loading posts...</div>
-                ) : posts.length === 0 ? (
-                  <div className="p-10 text-center text-gray-400">No posts found.</div>
-                ) : (
-                  posts.map((post) => (
-                    <div key={post.id} className="p-4 flex items-center gap-4 hover:bg-gray-50 transition-all group">
-                      {/* Thumbnail */}
-                      <div className="w-16 h-16 rounded-lg bg-gray-100 flex items-center justify-center text-gray-300 shrink-0 border border-gray-200 overflow-hidden">
-                        {post.media_urls && post.media_urls.length > 0 ? (
-                          <img src={post.media_urls[0]} alt="Post media" className="w-full h-full object-cover" />
-                        ) : (
-                          <FileText size={20} />
-                        )}
-                      </div>
-
-                      {/* Platforms */}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1 mb-1 flex-wrap">
-                          {post.platforms && post.platforms.map((platform: string, idx: number) => (
-                            <React.Fragment key={idx}>
-                              <span className="text-[10px] font-black text-blue-600 uppercase tracking-widest">
-                                {platform}
-                              </span>
-                              {idx < post.platforms.length - 1 && (
-                                <span className="text-[10px] text-blue-600 font-black">+</span>
-                              )}
-                            </React.Fragment>
-                          ))}
-                        </div>
-
-                        {/* Date */}
-                        <div className="text-[10px] text-gray-500 font-medium mb-1">
+            <div className="divide-y divide-gray-50">
+              {isLoadingPosts ? (
+                <div className="p-10 text-center text-gray-400">Loading posts...</div>
+              ) : posts.length === 0 ? (
+                <div className="p-10 text-center text-gray-400">No posts found.</div>
+              ) : (
+                posts.map((post) => (
+                  <div key={post.id} className="p-5 flex items-start gap-4 hover:bg-gray-50 transition-all group">
+                    <div className="w-20 h-20 rounded-xl bg-gray-100 flex items-center justify-center text-gray-300 shrink-0 border border-gray-100 overflow-hidden">
+                      {post.media_urls && post.media_urls.length > 0 ? (
+                        <img src={post.media_urls[0]} alt="Post media" className="w-full h-full object-cover" />
+                      ) : (
+                        <FileText size={24} />
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1 flex-wrap">
+                        {post.platforms && post.platforms.map((platform: string, idx: number) => (
+                          <React.Fragment key={idx}>
+                            <button
+                              onClick={() => setViewingMetrics({ post, platform })}
+                              className="text-[10px] font-black text-blue-600 hover:text-blue-700 uppercase tracking-widest cursor-pointer hover:underline transition-all"
+                            >
+                              {platform}
+                            </button>
+                            {idx < post.platforms.length - 1 && (
+                              <span className="text-[10px] text-blue-600">+</span>
+                            )}
+                          </React.Fragment>
+                        ))}
+                        <span className="w-1 h-1 bg-gray-300 rounded-full"></span>
+                        <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">
                           {new Date(post.created_at).toLocaleDateString()}
-                        </div>
-
-                        {/* Campaign Tag */}
+                        </span>
                         {postCampaignMap[post.id] && (
-                          <span className="inline-block text-[10px] font-black uppercase tracking-widest bg-green-50 text-green-700 px-2 py-0.5 rounded mb-1">
+                          <span className="text-[10px] font-black uppercase tracking-widest bg-green-50 text-green-700 px-2 py-0.5 rounded">
                             {postCampaignMap[post.id].name}
                           </span>
                         )}
-
-                        {/* Title/Content */}
-                        <p className="text-sm font-semibold text-gray-900 line-clamp-1 mt-1">
-                          {post.content || '(No text content)'}
-                        </p>
                       </div>
-
-                      {/* Actions */}
-                      <div className="flex items-center gap-3 shrink-0">
+                      <p className="text-sm font-bold text-gray-800 line-clamp-2 leading-relaxed">
+                        {post.content || '(No text content)'}
+                      </p>
+                      <div className="flex gap-3 mt-3">
                         <button
                           onClick={() => setViewingPost(post)}
-                          className="flex items-center gap-1 text-[10px] font-bold text-gray-600 hover:text-purple-600 transition-all uppercase tracking-wider"
+                          className="flex items-center gap-1.5 text-[10px] font-bold text-gray-400 hover:text-purple-600 transition-all uppercase tracking-wider cursor-pointer"
                         >
-                          <Eye size={14} /> VIEW
+                          <Eye size={12} /> View
                         </button>
                         <button
                           onClick={() => handleEditPost(post)}
-                          className="flex items-center gap-1 text-[10px] font-bold text-gray-600 hover:text-blue-600 transition-all uppercase tracking-wider"
+                          className="flex items-center gap-1.5 text-[10px] font-bold text-gray-400 hover:text-blue-600 transition-all uppercase tracking-wider cursor-pointer"
                         >
-                          <Edit3 size={14} /> EDIT
+                          <Edit3 size={12} /> Edit
                         </button>
                         <button
                           onClick={() => handleDeletePost(post.id)}
-                          className="flex items-center gap-1 text-[10px] font-bold text-gray-600 hover:text-red-500 transition-all uppercase tracking-wider"
+                          className="flex items-center gap-1.5 text-[10px] font-bold text-gray-400 hover:text-red-500 transition-all uppercase tracking-wider cursor-pointer"
                         >
-                          <Trash2 size={14} /> DELETE
+                          <Trash2 size={12} /> Delete
                         </button>
-
-                        {/* Status */}
-                        <span className={`text-[10px] font-bold px-2 py-1 rounded uppercase tracking-tighter ml-2 ${post.status === 'published' ? 'text-green-600' :
-                          post.status === 'scheduled' ? 'text-blue-600' : 'text-gray-500'
-                          }`}>
-                          {post.status}
-                        </span>
                       </div>
                     </div>
-                  ))
-                )}
+                    <div className="shrink-0 flex flex-col items-end gap-2">
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-tighter ${post.status === 'published' ? 'bg-green-50 text-green-600' :
+                        post.status === 'scheduled' ? 'bg-blue-50 text-blue-600' : 'bg-gray-100 text-gray-500'
+                        }`}>
+                        {post.status}
+                      </span>
+                      <button className="p-2 text-gray-300 hover:text-gray-600 opacity-0 group-hover:opacity-100 transition-all">
+                        <MoreVertical size={18} />
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        );
+
+      case 'all_list':
+        return (
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+            <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
+              <h3 className="font-black text-xs uppercase tracking-widest text-gray-500">ALL CONTENT</h3>
+              <div className="flex gap-2">
+                <button className="px-3 py-1.5 text-xs font-bold text-gray-600 bg-white border border-gray-200 rounded-lg shadow-sm">Bulk Action</button>
+                <button onClick={() => setActiveTab('create')} className="px-3 py-1.5 text-xs font-bold text-white bg-blue-600 rounded-lg shadow-md shadow-blue-100">+ New</button>
               </div>
             </div>
-            );
+            <div className="divide-y divide-gray-100">
+              {isLoadingPosts ? (
+                <div className="p-10 text-center text-gray-400">Loading posts...</div>
+              ) : posts.length === 0 ? (
+                <div className="p-10 text-center text-gray-400">No posts found.</div>
+              ) : (
+                posts.map((post) => (
+                  <div key={post.id} className="p-4 flex items-center gap-4 hover:bg-gray-50 transition-all group">
+                    {/* Thumbnail */}
+                    <div className="w-16 h-16 rounded-lg bg-gray-100 flex items-center justify-center text-gray-300 shrink-0 border border-gray-200 overflow-hidden">
+                      {post.media_urls && post.media_urls.length > 0 ? (
+                        <img src={post.media_urls[0]} alt="Post media" className="w-full h-full object-cover" />
+                      ) : (
+                        <FileText size={20} />
+                      )}
+                    </div>
 
-            case 'hashtags':
-            return (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm space-y-4">
-                <div className="flex items-center justify-between">
-                  <h4 className="text-sm font-black text-gray-800 uppercase tracking-widest">Productivity Pack</h4>
-                  <button className="text-blue-600 hover:bg-blue-50 p-1.5 rounded-lg"><Copy size={16} /></button>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {['#solopreneur', '#productivity', '#techstack', '#workflow', '#automation', '#soloops'].map(tag => (
-                    <span key={tag} className="px-2.5 py-1 bg-blue-50 text-blue-600 text-[10px] font-bold rounded-lg border border-blue-100">{tag}</span>
-                  ))}
-                </div>
-              </div>
-              <button className="border-2 border-dashed border-gray-200 rounded-2xl p-6 flex flex-col items-center justify-center gap-3 hover:border-blue-400 hover:bg-blue-50 transition-all group">
-                <div className="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center text-gray-400 group-hover:bg-blue-100 group-hover:text-blue-600 transition-all">
-                  <Plus size={20} />
-                </div>
-                <span className="text-xs font-black text-gray-400 uppercase tracking-widest group-hover:text-blue-600">Add Collection</span>
-              </button>
+                    {/* Platforms */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1 mb-1 flex-wrap">
+                        {post.platforms && post.platforms.map((platform: string, idx: number) => (
+                          <React.Fragment key={idx}>
+                            <span className="text-[10px] font-black text-blue-600 uppercase tracking-widest">
+                              {platform}
+                            </span>
+                            {idx < post.platforms.length - 1 && (
+                              <span className="text-[10px] text-blue-600 font-black">+</span>
+                            )}
+                          </React.Fragment>
+                        ))}
+                      </div>
+
+                      {/* Date */}
+                      <div className="text-[10px] text-gray-500 font-medium mb-1">
+                        {new Date(post.created_at).toLocaleDateString()}
+                      </div>
+
+                      {/* Campaign Tag */}
+                      {postCampaignMap[post.id] && (
+                        <span className="inline-block text-[10px] font-black uppercase tracking-widest bg-green-50 text-green-700 px-2 py-0.5 rounded mb-1">
+                          {postCampaignMap[post.id].name}
+                        </span>
+                      )}
+
+                      {/* Title/Content */}
+                      <p className="text-sm font-semibold text-gray-900 line-clamp-1 mt-1">
+                        {post.content || '(No text content)'}
+                      </p>
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex items-center gap-3 shrink-0">
+                      <button
+                        onClick={() => setViewingPost(post)}
+                        className="flex items-center gap-1 text-[10px] font-bold text-gray-600 hover:text-purple-600 transition-all uppercase tracking-wider"
+                      >
+                        <Eye size={14} /> VIEW
+                      </button>
+                      <button
+                        onClick={() => handleEditPost(post)}
+                        className="flex items-center gap-1 text-[10px] font-bold text-gray-600 hover:text-blue-600 transition-all uppercase tracking-wider"
+                      >
+                        <Edit3 size={14} /> EDIT
+                      </button>
+                      <button
+                        onClick={() => handleDeletePost(post.id)}
+                        className="flex items-center gap-1 text-[10px] font-bold text-gray-600 hover:text-red-500 transition-all uppercase tracking-wider"
+                      >
+                        <Trash2 size={14} /> DELETE
+                      </button>
+
+                      {/* Status */}
+                      <span className={`text-[10px] font-bold px-2 py-1 rounded uppercase tracking-tighter ml-2 ${post.status === 'published' ? 'text-green-600' :
+                        post.status === 'scheduled' ? 'text-blue-600' : 'text-gray-500'
+                        }`}>
+                        {post.status}
+                      </span>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
-            );
+          </div>
+        );
 
-            case 'ai':
-            return <AIStudio />;
-
-            default:
-            return (
-            <div className="bg-white rounded-2xl border border-gray-200 p-12 text-center space-y-6 shadow-sm">
-              <div className="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center text-blue-600 mx-auto">
-                {tabs.find(t => t.id === activeTab)?.icon}
+      case 'hashtags':
+        return (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm space-y-4">
+              <div className="flex items-center justify-between">
+                <h4 className="text-sm font-black text-gray-800 uppercase tracking-widest">Productivity Pack</h4>
+                <button className="text-blue-600 hover:bg-blue-50 p-1.5 rounded-lg"><Copy size={16} /></button>
               </div>
-              <div className="space-y-2">
-                <h3 className="text-lg font-bold text-gray-800">{tabs.find(t => t.id === activeTab)?.label}</h3>
-                <p className="text-sm text-gray-500 max-w-sm mx-auto leading-relaxed font-medium">
-                  This feature is currently being optimized for your workflow. We'll have it ready in the next update!
-                </p>
+              <div className="flex flex-wrap gap-2">
+                {['#solopreneur', '#productivity', '#techstack', '#workflow', '#automation', '#soloops'].map(tag => (
+                  <span key={tag} className="px-2.5 py-1 bg-blue-50 text-blue-600 text-[10px] font-bold rounded-lg border border-blue-100">{tag}</span>
+                ))}
               </div>
-              <button onClick={() => setActiveTab('create')} className="px-8 py-2.5 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-all text-sm shadow-xl shadow-blue-100">
-                Back to Editor
-              </button>
             </div>
-            );
+            <button className="border-2 border-dashed border-gray-200 rounded-2xl p-6 flex flex-col items-center justify-center gap-3 hover:border-blue-400 hover:bg-blue-50 transition-all group">
+              <div className="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center text-gray-400 group-hover:bg-blue-100 group-hover:text-blue-600 transition-all">
+                <Plus size={20} />
+              </div>
+              <span className="text-xs font-black text-gray-400 uppercase tracking-widest group-hover:text-blue-600">Add Collection</span>
+            </button>
+          </div>
+        );
+
+
+      case 'ai':
+        return <AIStudio />;
+
+      default:
+        return (
+          <div className="bg-white rounded-2xl border border-gray-200 p-12 text-center space-y-6 shadow-sm">
+            <div className="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center text-blue-600 mx-auto">
+              {tabs.find(t => t.id === activeTab)?.icon}
+            </div>
+            <div className="space-y-2">
+              <h3 className="text-lg font-bold text-gray-800">{tabs.find(t => t.id === activeTab)?.label}</h3>
+              <p className="text-sm text-gray-500 max-w-sm mx-auto leading-relaxed font-medium">
+                This feature is currently being optimized for your workflow. We'll have it ready in the next update!
+              </p>
+            </div>
+            <button onClick={() => setActiveTab('create')} className="px-8 py-2.5 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-all text-sm shadow-xl shadow-blue-100">
+              Back to Editor
+            </button>
+          </div>
+        );
     }
   };
 
-            return (
-            <div className="space-y-6 pb-20">
-              {/* Navigation Sticky Bar */}
-              <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-gray-200 sticky top-16 bg-gray-50/90 backdrop-blur-sm z-20 overflow-x-auto no-scrollbar -mx-8 px-8">
-                <div className="flex whitespace-nowrap scroll-smooth">
-                  {tabs.map((tab) => (
-                    <button
-                      key={tab.id}
-                      onClick={() => setActiveTab(tab.id)}
-                      className={`flex items-center gap-2 px-6 py-5 text-sm font-bold transition-all border-b-2 -mb-[2px] ${activeTab === tab.id
-                        ? 'border-blue-600 text-blue-600 bg-blue-50/10'
-                        : 'border-transparent text-gray-400 hover:text-gray-600 hover:border-gray-200'
-                        }`}
-                    >
-                      <span className={activeTab === tab.id ? 'text-blue-600' : 'text-gray-300'}>{tab.icon}</span>
-                      <span className="uppercase tracking-widest text-[11px] font-black">{tab.label}</span>
-                    </button>
-                  ))}
-                </div>
+  return (
+    <div className="space-y-6 pb-20">
+      {/* Navigation Sticky Bar */}
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-gray-200 sticky top-16 bg-gray-50/90 backdrop-blur-sm z-20 overflow-x-auto no-scrollbar -mx-8 px-8">
+        <div className="flex whitespace-nowrap scroll-smooth">
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex items-center gap-2 px-6 py-5 text-sm font-bold transition-all border-b-2 -mb-[2px] ${activeTab === tab.id
+                ? 'border-blue-600 text-blue-600 bg-blue-50/10'
+                : 'border-transparent text-gray-400 hover:text-gray-600 hover:border-gray-200'
+                }`}
+            >
+              <span className={activeTab === tab.id ? 'text-blue-600' : 'text-gray-300'}>{tab.icon}</span>
+              <span className="uppercase tracking-widest text-[11px] font-black">{tab.label}</span>
+            </button>
+          ))}
+        </div>
 
-                {/* Quick Search */}
-                <div className="pb-4 hidden lg:block pr-8">
-                  <div className="relative">
-                    <Search size={14} className="absolute left-3 top-2 text-gray-400" />
-                    <input type="text" placeholder="Quick find..." className="pl-9 pr-4 py-1.5 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none focus:ring-4 focus:ring-blue-50 transition-all shadow-sm" />
+        {/* Quick Search */}
+        <div className="pb-4 hidden lg:block pr-8">
+          <div className="relative">
+            <Search size={14} className="absolute left-3 top-2 text-gray-400" />
+            <input type="text" placeholder="Quick find..." className="pl-9 pr-4 py-1.5 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none focus:ring-4 focus:ring-blue-50 transition-all shadow-sm" />
+          </div>
+        </div>
+      </div>
+
+      <div className="animate-in fade-in slide-in-from-bottom-2 duration-500 fill-mode-both">
+        {renderTabContent()}
+      </div>
+
+      {/* Post Metrics Modal */}
+      {viewingMetrics && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in duration-200" onClick={(e) => {
+          if (e.target === e.currentTarget) {
+            setViewingMetrics(null);
+          }
+        }}>
+          <div className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden shadow-2xl border border-gray-100 dark:border-slate-800 flex flex-col">
+            {/* Header */}
+            <div className="p-6 border-b border-gray-100 dark:border-slate-800 flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-black text-gray-900 dark:text-white flex items-center gap-2">
+                  {viewingMetrics.platform === 'facebook' && <Facebook className="text-[#1877F2]" size={24} />}
+                  {viewingMetrics.platform === 'instagram' && <Instagram className="text-[#E4405F]" size={24} />}
+                  {viewingMetrics.platform === 'twitter' && <Twitter className="text-[#1DA1F2]" size={24} />}
+                  {viewingMetrics.platform === 'linkedin' && <Linkedin className="text-[#0A66C2]" size={24} />}
+                  {viewingMetrics.platform === 'whatsapp' && <MessageCircle className="text-[#25D366]" size={24} />}
+                  <span className="capitalize">{viewingMetrics.platform} Post Metrics</span>
+                </h2>
+                <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">
+                  Engagement analytics for this post on {viewingMetrics.platform}
+                </p>
+              </div>
+              <button onClick={() => setViewingMetrics(null)} className="p-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg transition-colors">
+                <X size={20} className="text-gray-500" />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-6">
+              {/* Post Preview */}
+              <div className="bg-gray-50 dark:bg-slate-800 rounded-xl p-4 border border-gray-200 dark:border-slate-700">
+                <p className="text-xs font-bold text-gray-400 uppercase mb-2">Post Content</p>
+                <p className="text-sm text-gray-900 dark:text-white line-clamp-2">
+                  {viewingMetrics.post.content || '(No text content)'}
+                </p>
+              </div>
+
+              {/* Key Metrics Grid */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 p-6 rounded-xl border border-blue-200 dark:border-blue-800">
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className="p-2 bg-blue-500 rounded-lg">
+                      <CheckCircle2 className="text-white" size={20} />
+                    </div>
+                    <p className="text-xs font-bold text-blue-600 dark:text-blue-400 uppercase">Likes</p>
                   </div>
+                  <p className="text-3xl font-black text-blue-900 dark:text-blue-100">
+                    {getMockMetrics(viewingMetrics.post).likes}
+                  </p>
+                  <p className="text-xs text-blue-600 dark:text-blue-400 mt-1 font-medium">
+                    +{getMockMetrics(viewingMetrics.post).likesGrowth}% from last week
+                  </p>
+                </div>
+
+                <div className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 p-6 rounded-xl border border-green-200 dark:border-green-800">
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className="p-2 bg-green-500 rounded-lg">
+                      <Share2 className="text-white" size={20} />
+                    </div>
+                    <p className="text-xs font-bold text-green-600 dark:text-green-400 uppercase">Shares</p>
+                  </div>
+                  <p className="text-3xl font-black text-green-900 dark:text-green-100">
+                    {getMockMetrics(viewingMetrics.post).shares}
+                  </p>
+                  <p className="text-xs text-green-600 dark:text-green-400 mt-1 font-medium">
+                    +{getMockMetrics(viewingMetrics.post).sharesGrowth}% from last week
+                  </p>
+                </div>
+
+                <div className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 p-6 rounded-xl border border-purple-200 dark:border-purple-800">
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className="p-2 bg-purple-500 rounded-lg">
+                      <MessageCircle className="text-white" size={20} />
+                    </div>
+                    <p className="text-xs font-bold text-purple-600 dark:text-purple-400 uppercase">Comments</p>
+                  </div>
+                  <p className="text-3xl font-black text-purple-900 dark:text-purple-100">
+                    {getMockMetrics(viewingMetrics.post).comments}
+                  </p>
+                  <p className="text-xs text-purple-600 dark:text-purple-400 mt-1 font-medium">
+                    +{getMockMetrics(viewingMetrics.post).commentsGrowth}% from last week
+                  </p>
+                </div>
+
+                <div className="bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-900/20 dark:to-orange-800/20 p-6 rounded-xl border border-orange-200 dark:border-orange-800">
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className="p-2 bg-orange-500 rounded-lg">
+                      <Eye className="text-white" size={20} />
+                    </div>
+                    <p className="text-xs font-bold text-orange-600 dark:text-orange-400 uppercase">Views</p>
+                  </div>
+                  <p className="text-3xl font-black text-orange-900 dark:text-orange-100">
+                    {getMockMetrics(viewingMetrics.post).views}
+                  </p>
+                  <p className="text-xs text-orange-600 dark:text-orange-400 mt-1 font-medium">
+                    +{getMockMetrics(viewingMetrics.post).viewsGrowth}% from last week
+                  </p>
                 </div>
               </div>
 
-              <div className="animate-in fade-in slide-in-from-bottom-2 duration-500 fill-mode-both">
-                {renderTabContent()}
+              {/* Additional Metrics */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="bg-white dark:bg-slate-800 p-5 rounded-xl border border-gray-200 dark:border-slate-700">
+                  <p className="text-xs font-bold text-gray-400 uppercase mb-2">Reach</p>
+                  <p className="text-2xl font-black text-gray-900 dark:text-white">
+                    {getMockMetrics(viewingMetrics.post).reach}
+                  </p>
+                  <p className="text-xs text-gray-500 mt-1">Unique people who saw this post</p>
+                </div>
+
+                <div className="bg-white dark:bg-slate-800 p-5 rounded-xl border border-gray-200 dark:border-slate-700">
+                  <p className="text-xs font-bold text-gray-400 uppercase mb-2">Impressions</p>
+                  <p className="text-2xl font-black text-gray-900 dark:text-white">
+                    {getMockMetrics(viewingMetrics.post).impressions}
+                  </p>
+                  <p className="text-xs text-gray-500 mt-1">Total times post was shown</p>
+                </div>
+
+                <div className="bg-white dark:bg-slate-800 p-5 rounded-xl border border-gray-200 dark:border-slate-700">
+                  <p className="text-xs font-bold text-gray-400 uppercase mb-2">Engagement Rate</p>
+                  <p className="text-2xl font-black text-gray-900 dark:text-white">
+                    {(() => {
+                      const m = getMockMetrics(viewingMetrics.post);
+                      return ((m.likes + m.comments + m.shares) / m.reach * 100).toFixed(1);
+                    })()}%
+                  </p>
+                  <p className="text-xs text-gray-500 mt-1">Likes + Comments + Shares / Reach</p>
+                </div>
               </div>
 
-              {/* Post Metrics Modal */}
-              {viewingMetrics && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in duration-200" onClick={(e) => {
-                  if (e.target === e.currentTarget) {
-                    setViewingMetrics(null);
-                  }
-                }}>
-                  <div className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden shadow-2xl border border-gray-100 dark:border-slate-800 flex flex-col">
-                    {/* Header */}
-                    <div className="p-6 border-b border-gray-100 dark:border-slate-800 flex items-center justify-between">
-                      <div>
-                        <h2 className="text-xl font-black text-gray-900 dark:text-white flex items-center gap-2">
-                          {viewingMetrics.platform === 'facebook' && <Facebook className="text-[#1877F2]" size={24} />}
-                          {viewingMetrics.platform === 'instagram' && <Instagram className="text-[#E4405F]" size={24} />}
-                          {viewingMetrics.platform === 'twitter' && <Twitter className="text-[#1DA1F2]" size={24} />}
-                          {viewingMetrics.platform === 'linkedin' && <Linkedin className="text-[#0A66C2]" size={24} />}
-                          {viewingMetrics.platform === 'whatsapp' && <MessageCircle className="text-[#25D366]" size={24} />}
-                          <span className="capitalize">{viewingMetrics.platform} Post Metrics</span>
-                        </h2>
-                        <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">
-                          Engagement analytics for this post on {viewingMetrics.platform}
-                        </p>
-                      </div>
-                      <button onClick={() => setViewingMetrics(null)} className="p-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg transition-colors">
-                        <X size={20} className="text-gray-500" />
-                      </button>
+              {/* Platform-Specific Metrics */}
+              {viewingMetrics.platform === 'facebook' && (
+                <div className="bg-blue-50 dark:bg-blue-900/20 p-5 rounded-xl border border-blue-200 dark:border-blue-800">
+                  <h3 className="text-sm font-bold text-blue-900 dark:text-blue-100 mb-4 flex items-center gap-2">
+                    <Facebook className="text-[#1877F2]" size={18} />
+                    Facebook-Specific Metrics
+                  </h3>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div>
+                      <p className="text-xs text-blue-600 dark:text-blue-400 font-medium">Reactions</p>
+                      <p className="text-lg font-black text-blue-900 dark:text-blue-100">
+                        {getMockMetrics(viewingMetrics.post).reactions}
+                      </p>
                     </div>
-
-                    {/* Content */}
-                    <div className="flex-1 overflow-y-auto p-6 space-y-6">
-                      {/* Post Preview */}
-                      <div className="bg-gray-50 dark:bg-slate-800 rounded-xl p-4 border border-gray-200 dark:border-slate-700">
-                        <p className="text-xs font-bold text-gray-400 uppercase mb-2">Post Content</p>
-                        <p className="text-sm text-gray-900 dark:text-white line-clamp-2">
-                          {viewingMetrics.post.content || '(No text content)'}
-                        </p>
-                      </div>
-
-                      {/* Key Metrics Grid */}
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        <div className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 p-6 rounded-xl border border-blue-200 dark:border-blue-800">
-                          <div className="flex items-center gap-3 mb-2">
-                            <div className="p-2 bg-blue-500 rounded-lg">
-                              <CheckCircle2 className="text-white" size={20} />
-                            </div>
-                            <p className="text-xs font-bold text-blue-600 dark:text-blue-400 uppercase">Likes</p>
-                          </div>
-                          <p className="text-3xl font-black text-blue-900 dark:text-blue-100">
-                            {getMockMetrics(viewingMetrics.post).likes}
-                          </p>
-                          <p className="text-xs text-blue-600 dark:text-blue-400 mt-1 font-medium">
-                            +{getMockMetrics(viewingMetrics.post).likesGrowth}% from last week
-                          </p>
-                        </div>
-
-                        <div className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 p-6 rounded-xl border border-green-200 dark:border-green-800">
-                          <div className="flex items-center gap-3 mb-2">
-                            <div className="p-2 bg-green-500 rounded-lg">
-                              <Share2 className="text-white" size={20} />
-                            </div>
-                            <p className="text-xs font-bold text-green-600 dark:text-green-400 uppercase">Shares</p>
-                          </div>
-                          <p className="text-3xl font-black text-green-900 dark:text-green-100">
-                            {getMockMetrics(viewingMetrics.post).shares}
-                          </p>
-                          <p className="text-xs text-green-600 dark:text-green-400 mt-1 font-medium">
-                            +{getMockMetrics(viewingMetrics.post).sharesGrowth}% from last week
-                          </p>
-                        </div>
-
-                        <div className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 p-6 rounded-xl border border-purple-200 dark:border-purple-800">
-                          <div className="flex items-center gap-3 mb-2">
-                            <div className="p-2 bg-purple-500 rounded-lg">
-                              <MessageCircle className="text-white" size={20} />
-                            </div>
-                            <p className="text-xs font-bold text-purple-600 dark:text-purple-400 uppercase">Comments</p>
-                          </div>
-                          <p className="text-3xl font-black text-purple-900 dark:text-purple-100">
-                            {getMockMetrics(viewingMetrics.post).comments}
-                          </p>
-                          <p className="text-xs text-purple-600 dark:text-purple-400 mt-1 font-medium">
-                            +{getMockMetrics(viewingMetrics.post).commentsGrowth}% from last week
-                          </p>
-                        </div>
-
-                        <div className="bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-900/20 dark:to-orange-800/20 p-6 rounded-xl border border-orange-200 dark:border-orange-800">
-                          <div className="flex items-center gap-3 mb-2">
-                            <div className="p-2 bg-orange-500 rounded-lg">
-                              <Eye className="text-white" size={20} />
-                            </div>
-                            <p className="text-xs font-bold text-orange-600 dark:text-orange-400 uppercase">Views</p>
-                          </div>
-                          <p className="text-3xl font-black text-orange-900 dark:text-orange-100">
-                            {getMockMetrics(viewingMetrics.post).views}
-                          </p>
-                          <p className="text-xs text-orange-600 dark:text-orange-400 mt-1 font-medium">
-                            +{getMockMetrics(viewingMetrics.post).viewsGrowth}% from last week
-                          </p>
-                        </div>
-                      </div>
-
-                      {/* Additional Metrics */}
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div className="bg-white dark:bg-slate-800 p-5 rounded-xl border border-gray-200 dark:border-slate-700">
-                          <p className="text-xs font-bold text-gray-400 uppercase mb-2">Reach</p>
-                          <p className="text-2xl font-black text-gray-900 dark:text-white">
-                            {getMockMetrics(viewingMetrics.post).reach}
-                          </p>
-                          <p className="text-xs text-gray-500 mt-1">Unique people who saw this post</p>
-                        </div>
-
-                        <div className="bg-white dark:bg-slate-800 p-5 rounded-xl border border-gray-200 dark:border-slate-700">
-                          <p className="text-xs font-bold text-gray-400 uppercase mb-2">Impressions</p>
-                          <p className="text-2xl font-black text-gray-900 dark:text-white">
-                            {getMockMetrics(viewingMetrics.post).impressions}
-                          </p>
-                          <p className="text-xs text-gray-500 mt-1">Total times post was shown</p>
-                        </div>
-
-                        <div className="bg-white dark:bg-slate-800 p-5 rounded-xl border border-gray-200 dark:border-slate-700">
-                          <p className="text-xs font-bold text-gray-400 uppercase mb-2">Engagement Rate</p>
-                          <p className="text-2xl font-black text-gray-900 dark:text-white">
-                            {(() => {
-                              const m = getMockMetrics(viewingMetrics.post);
-                              return ((m.likes + m.comments + m.shares) / m.reach * 100).toFixed(1);
-                            })()}%
-                          </p>
-                          <p className="text-xs text-gray-500 mt-1">Likes + Comments + Shares / Reach</p>
-                        </div>
-                      </div>
-
-                      {/* Platform-Specific Metrics */}
-                      {viewingMetrics.platform === 'facebook' && (
-                        <div className="bg-blue-50 dark:bg-blue-900/20 p-5 rounded-xl border border-blue-200 dark:border-blue-800">
-                          <h3 className="text-sm font-bold text-blue-900 dark:text-blue-100 mb-4 flex items-center gap-2">
-                            <Facebook className="text-[#1877F2]" size={18} />
-                            Facebook-Specific Metrics
-                          </h3>
-                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                            <div>
-                              <p className="text-xs text-blue-600 dark:text-blue-400 font-medium">Reactions</p>
-                              <p className="text-lg font-black text-blue-900 dark:text-blue-100">
-                                {getMockMetrics(viewingMetrics.post).reactions}
-                              </p>
-                            </div>
-                            <div>
-                              <p className="text-xs text-blue-600 dark:text-blue-400 font-medium">Clicks</p>
-                              <p className="text-lg font-black text-blue-900 dark:text-blue-100">
-                                {getMockMetrics(viewingMetrics.post).clicks}
-                              </p>
-                            </div>
-                            <div>
-                              <p className="text-xs text-blue-600 dark:text-blue-400 font-medium">Saves</p>
-                              <p className="text-lg font-black text-blue-900 dark:text-blue-100">
-                                {getMockMetrics(viewingMetrics.post).saves}
-                              </p>
-                            </div>
-                            <div>
-                              <p className="text-xs text-blue-600 dark:text-blue-400 font-medium">Video Views</p>
-                              <p className="text-lg font-black text-blue-900 dark:text-blue-100">
-                                {getMockMetrics(viewingMetrics.post).videoViews || 'N/A'}
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
-                      {viewingMetrics.platform === 'instagram' && (
-                        <div className="bg-pink-50 dark:bg-pink-900/20 p-5 rounded-xl border border-pink-200 dark:border-pink-800">
-                          <h3 className="text-sm font-bold text-pink-900 dark:text-pink-100 mb-4 flex items-center gap-2">
-                            <Instagram className="text-[#E4405F]" size={18} />
-                            Instagram-Specific Metrics
-                          </h3>
-                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                            <div>
-                              <p className="text-xs text-pink-600 dark:text-pink-400 font-medium">Saves</p>
-                              <p className="text-lg font-black text-pink-900 dark:text-pink-100">
-                                {getMockMetrics(viewingMetrics.post).instagramSaves}
-                              </p>
-                            </div>
-                            <div>
-                              <p className="text-xs text-pink-600 dark:text-pink-400 font-medium">Profile Visits</p>
-                              <p className="text-lg font-black text-pink-900 dark:text-pink-100">
-                                {getMockMetrics(viewingMetrics.post).instagramProfileVisits}
-                              </p>
-                            </div>
-                            <div>
-                              <p className="text-xs text-pink-600 dark:text-pink-400 font-medium">Website Clicks</p>
-                              <p className="text-lg font-black text-pink-900 dark:text-pink-100">
-                                {getMockMetrics(viewingMetrics.post).instagramWebsiteClicks || 'N/A'}
-                              </p>
-                            </div>
-                            <div>
-                              <p className="text-xs text-pink-600 dark:text-pink-400 font-medium">Reach</p>
-                              <p className="text-lg font-black text-pink-900 dark:text-pink-100">
-                                {getMockMetrics(viewingMetrics.post).instagramReach}
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Engagement Timeline */}
-                      <div className="bg-white dark:bg-slate-800 p-5 rounded-xl border border-gray-200 dark:border-slate-700">
-                        <h3 className="text-sm font-bold text-gray-900 dark:text-white mb-4">Recent Engagement Activity</h3>
-                        <div className="space-y-3">
-                          {[
-                            { time: '1 hour ago', action: 'New comment', user: '@user123', type: 'comment' },
-                            { time: '2 hours ago', action: 'Liked by', user: '@user456', type: 'like' },
-                            { time: '3 hours ago', action: 'Shared by', user: '@user789', type: 'share' },
-                            { time: '5 hours ago', action: 'New comment', user: '@user321', type: 'comment' },
-                            { time: '6 hours ago', action: 'Liked by', user: '@user654', type: 'like' },
-                          ].map((activity, idx) => (
-                            <div key={idx} className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-slate-700 rounded-lg">
-                              <div className={`w-8 h-8 rounded-full flex items-center justify-center ${activity.type === 'comment' ? 'bg-purple-100 text-purple-600' :
-                                activity.type === 'like' ? 'bg-blue-100 text-blue-600' :
-                                  'bg-green-100 text-green-600'
-                                }`}>
-                                {activity.type === 'comment' ? <MessageCircle size={16} /> :
-                                  activity.type === 'like' ? <CheckCircle2 size={16} /> :
-                                    <Share2 size={16} />}
-                              </div>
-                              <div className="flex-1">
-                                <p className="text-sm font-bold text-gray-900 dark:text-white">
-                                  {activity.action} <span className="text-blue-600">{activity.user}</span>
-                                </p>
-                                <p className="text-xs text-gray-500">{activity.time}</p>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
+                    <div>
+                      <p className="text-xs text-blue-600 dark:text-blue-400 font-medium">Clicks</p>
+                      <p className="text-lg font-black text-blue-900 dark:text-blue-100">
+                        {getMockMetrics(viewingMetrics.post).clicks}
+                      </p>
                     </div>
-
-                    {/* Footer */}
-                    <div className="p-6 border-t border-gray-100 dark:border-slate-800 flex justify-end gap-3">
-                      <button
-                        onClick={() => {
-                          setViewingPost(viewingMetrics.post);
-                          setViewingMetrics(null);
-                        }}
-                        className="px-6 py-2 bg-gray-100 text-gray-700 font-bold rounded-lg hover:bg-gray-200 transition-all"
-                      >
-                        View Full Post
-                      </button>
-                      <button
-                        onClick={() => setViewingMetrics(null)}
-                        className="px-6 py-2 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition-all"
-                      >
-                        Close
-                      </button>
+                    <div>
+                      <p className="text-xs text-blue-600 dark:text-blue-400 font-medium">Saves</p>
+                      <p className="text-lg font-black text-blue-900 dark:text-blue-100">
+                        {getMockMetrics(viewingMetrics.post).saves}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-blue-600 dark:text-blue-400 font-medium">Video Views</p>
+                      <p className="text-lg font-black text-blue-900 dark:text-blue-100">
+                        {getMockMetrics(viewingMetrics.post).videoViews || 'N/A'}
+                      </p>
                     </div>
                   </div>
                 </div>
               )}
 
-              {/* View Post Modal */}
-              {viewingPost && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in duration-200" onClick={(e) => {
-                  if (e.target === e.currentTarget) {
-                    setViewingPost(null);
-                  }
-                }}>
-                  <div className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden shadow-2xl border border-gray-100 dark:border-slate-800 flex flex-col">
-                    {/* Header */}
-                    <div className="p-6 border-b border-gray-100 dark:border-slate-800 flex items-center justify-between">
-                      <div>
-                        <h2 className="text-xl font-black text-gray-900 dark:text-white">Post Details</h2>
-                        <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">View complete post information</p>
-                      </div>
-                      <button onClick={() => setViewingPost(null)} className="p-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg transition-colors">
-                        <X size={20} className="text-gray-500" />
-                      </button>
+              {viewingMetrics.platform === 'instagram' && (
+                <div className="bg-pink-50 dark:bg-pink-900/20 p-5 rounded-xl border border-pink-200 dark:border-pink-800">
+                  <h3 className="text-sm font-bold text-pink-900 dark:text-pink-100 mb-4 flex items-center gap-2">
+                    <Instagram className="text-[#E4405F]" size={18} />
+                    Instagram-Specific Metrics
+                  </h3>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div>
+                      <p className="text-xs text-pink-600 dark:text-pink-400 font-medium">Saves</p>
+                      <p className="text-lg font-black text-pink-900 dark:text-pink-100">
+                        {getMockMetrics(viewingMetrics.post).instagramSaves}
+                      </p>
                     </div>
-
-                    {/* Content */}
-                    <div className="flex-1 overflow-y-auto p-6 space-y-6">
-                      {/* Status and Platforms */}
-                      <div className="flex items-center gap-4 flex-wrap">
-                        <span className={`px-3 py-1 rounded-lg text-xs font-bold uppercase ${viewingPost.status === 'published' ? 'bg-green-100 text-green-700' :
-                          viewingPost.status === 'scheduled' ? 'bg-blue-100 text-blue-700' :
-                            'bg-gray-100 text-gray-600'
-                          }`}>
-                          {viewingPost.status}
-                        </span>
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-bold text-gray-500">Platforms:</span>
-                          <div className="flex items-center gap-2">
-                            {viewingPost.platforms?.map((platform: string, idx: number) => {
-                              const icons: Record<string, React.ReactNode> = {
-                                facebook: <Facebook className="text-[#1877F2]" size={20} />,
-                                instagram: <Instagram className="text-[#E4405F]" size={20} />,
-                                twitter: <Twitter className="text-[#1DA1F2]" size={20} />,
-                                linkedin: <Linkedin className="text-[#0A66C2]" size={20} />,
-                                whatsapp: <MessageCircle className="text-[#25D366]" size={20} />,
-                              };
-                              return (
-                                <div key={idx} className="flex items-center gap-1 px-2 py-1 bg-gray-50 rounded-lg">
-                                  {icons[platform.toLowerCase()] || <Globe size={20} />}
-                                  <span className="text-xs font-bold text-gray-700 capitalize">{platform}</span>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Post Content */}
-                      <div className="bg-gray-50 dark:bg-slate-800 rounded-xl p-6">
-                        <h3 className="text-sm font-bold text-gray-500 uppercase mb-3">Content</h3>
-                        <p className="text-base text-gray-900 dark:text-white whitespace-pre-wrap leading-relaxed">
-                          {viewingPost.content || '(No text content)'}
-                        </p>
-                      </div>
-
-                      {/* Media */}
-                      {viewingPost.media_urls && viewingPost.media_urls.length > 0 && (
-                        <div>
-                          <h3 className="text-sm font-bold text-gray-500 uppercase mb-3">Media</h3>
-                          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                            {viewingPost.media_urls.map((url: string, idx: number) => (
-                              <div key={idx} className="relative rounded-lg overflow-hidden border border-gray-200">
-                                {url.match(/\.(mp4|webm|mov)$/i) ? (
-                                  <video src={url} className="w-full h-32 object-cover" controls />
-                                ) : (
-                                  <img src={url} alt={`Media ${idx + 1}`} className="w-full h-32 object-cover" />
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Details Grid */}
-                      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                        <div className="bg-gray-50 dark:bg-slate-800 p-4 rounded-xl">
-                          <p className="text-xs font-bold text-gray-400 uppercase mb-1">Created</p>
-                          <p className="text-sm font-bold text-gray-900 dark:text-white">
-                            {new Date(viewingPost.created_at).toLocaleDateString()}
-                          </p>
-                          <p className="text-xs text-gray-500">
-                            {new Date(viewingPost.created_at).toLocaleTimeString()}
-                          </p>
-                        </div>
-
-                        {viewingPost.published_at && (
-                          <div className="bg-gray-50 dark:bg-slate-800 p-4 rounded-xl">
-                            <p className="text-xs font-bold text-gray-400 uppercase mb-1">Published</p>
-                            <p className="text-sm font-bold text-gray-900 dark:text-white">
-                              {new Date(viewingPost.published_at).toLocaleDateString()}
-                            </p>
-                            <p className="text-xs text-gray-500">
-                              {new Date(viewingPost.published_at).toLocaleTimeString()}
-                            </p>
-                          </div>
-                        )}
-
-                        {viewingPost.scheduled_for && (
-                          <div className="bg-gray-50 dark:bg-slate-800 p-4 rounded-xl">
-                            <p className="text-xs font-bold text-gray-400 uppercase mb-1">Scheduled For</p>
-                            <p className="text-sm font-bold text-gray-900 dark:text-white">
-                              {new Date(viewingPost.scheduled_for).toLocaleDateString()}
-                            </p>
-                            <p className="text-xs text-gray-500">
-                              {new Date(viewingPost.scheduled_for).toLocaleTimeString()}
-                            </p>
-                          </div>
-                        )}
-
-                        {viewingPost.content_type && (
-                          <div className="bg-gray-50 dark:bg-slate-800 p-4 rounded-xl">
-                            <p className="text-xs font-bold text-gray-400 uppercase mb-1">Content Type</p>
-                            <p className="text-sm font-bold text-gray-900 dark:text-white capitalize">
-                              {viewingPost.content_type}
-                            </p>
-                          </div>
-                        )}
-
-                        {viewingPost.link_url && (
-                          <div className="bg-gray-50 dark:bg-slate-800 p-4 rounded-xl">
-                            <p className="text-xs font-bold text-gray-400 uppercase mb-1">Link</p>
-                            <a
-                              href={viewingPost.link_url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-sm font-bold text-blue-600 hover:text-blue-700 flex items-center gap-1 break-all"
-                            >
-                              {viewingPost.link_url.length > 30 ? viewingPost.link_url.substring(0, 30) + '...' : viewingPost.link_url}
-                              <ExternalLink size={14} />
-                            </a>
-                          </div>
-                        )}
-
-                        {viewingPost.location && (
-                          <div className="bg-gray-50 dark:bg-slate-800 p-4 rounded-xl">
-                            <p className="text-xs font-bold text-gray-400 uppercase mb-1">Location</p>
-                            <p className="text-sm font-bold text-gray-900 dark:text-white flex items-center gap-1">
-                              <MapPin size={14} />
-                              {viewingPost.location}
-                            </p>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Additional Info */}
-                      {(viewingPost.is_recurring || viewingPost.hashtags?.length > 0 || viewingPost.mentions?.length > 0) && (
-                        <div className="space-y-3">
-                          {viewingPost.is_recurring && (
-                            <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-xl">
-                              <p className="text-xs font-bold text-blue-600 dark:text-blue-400 uppercase mb-1">Recurring Post</p>
-                              <p className="text-sm text-gray-700 dark:text-slate-300">
-                                {viewingPost.recurrence_rule || 'Recurring post enabled'}
-                              </p>
-                            </div>
-                          )}
-
-                          {viewingPost.hashtags && viewingPost.hashtags.length > 0 && (
-                            <div>
-                              <p className="text-xs font-bold text-gray-400 uppercase mb-2">Hashtags</p>
-                              <div className="flex flex-wrap gap-2">
-                                {viewingPost.hashtags.map((tag: string, idx: number) => (
-                                  <span key={idx} className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs font-bold">
-                                    #{tag}
-                                  </span>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-
-                          {viewingPost.mentions && viewingPost.mentions.length > 0 && (
-                            <div>
-                              <p className="text-xs font-bold text-gray-400 uppercase mb-2">Mentions</p>
-                              <div className="flex flex-wrap gap-2">
-                                {viewingPost.mentions.map((mention: string, idx: number) => (
-                                  <span key={idx} className="px-2 py-1 bg-purple-100 text-purple-700 rounded text-xs font-bold">
-                                    @{mention}
-                                  </span>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      )}
+                    <div>
+                      <p className="text-xs text-pink-600 dark:text-pink-400 font-medium">Profile Visits</p>
+                      <p className="text-lg font-black text-pink-900 dark:text-pink-100">
+                        {getMockMetrics(viewingMetrics.post).instagramProfileVisits}
+                      </p>
                     </div>
-
-                    {/* Footer */}
-                    <div className="p-6 border-t border-gray-100 dark:border-slate-800 flex justify-end gap-3">
-                      <button
-                        onClick={() => {
-                          handleEditPost(viewingPost);
-                          setViewingPost(null);
-                        }}
-                        className="px-6 py-2 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition-all"
-                      >
-                        Edit Post
-                      </button>
-                      <button
-                        onClick={() => setViewingPost(null)}
-                        className="px-6 py-2 bg-gray-100 text-gray-700 font-bold rounded-lg hover:bg-gray-200 transition-all"
-                      >
-                        Close
-                      </button>
+                    <div>
+                      <p className="text-xs text-pink-600 dark:text-pink-400 font-medium">Website Clicks</p>
+                      <p className="text-lg font-black text-pink-900 dark:text-pink-100">
+                        {getMockMetrics(viewingMetrics.post).instagramWebsiteClicks || 'N/A'}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-pink-600 dark:text-pink-400 font-medium">Reach</p>
+                      <p className="text-lg font-black text-pink-900 dark:text-pink-100">
+                        {getMockMetrics(viewingMetrics.post).instagramReach}
+                      </p>
                     </div>
                   </div>
+                </div>
+              )}
+
+              {/* Engagement Timeline */}
+              <div className="bg-white dark:bg-slate-800 p-5 rounded-xl border border-gray-200 dark:border-slate-700">
+                <h3 className="text-sm font-bold text-gray-900 dark:text-white mb-4">Recent Engagement Activity</h3>
+                <div className="space-y-3">
+                  {[
+                    { time: '1 hour ago', action: 'New comment', user: '@user123', type: 'comment' },
+                    { time: '2 hours ago', action: 'Liked by', user: '@user456', type: 'like' },
+                    { time: '3 hours ago', action: 'Shared by', user: '@user789', type: 'share' },
+                    { time: '5 hours ago', action: 'New comment', user: '@user321', type: 'comment' },
+                    { time: '6 hours ago', action: 'Liked by', user: '@user654', type: 'like' },
+                  ].map((activity, idx) => (
+                    <div key={idx} className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-slate-700 rounded-lg">
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center ${activity.type === 'comment' ? 'bg-purple-100 text-purple-600' :
+                        activity.type === 'like' ? 'bg-blue-100 text-blue-600' :
+                          'bg-green-100 text-green-600'
+                        }`}>
+                        {activity.type === 'comment' ? <MessageCircle size={16} /> :
+                          activity.type === 'like' ? <CheckCircle2 size={16} /> :
+                            <Share2 size={16} />}
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-sm font-bold text-gray-900 dark:text-white">
+                          {activity.action} <span className="text-blue-600">{activity.user}</span>
+                        </p>
+                        <p className="text-xs text-gray-500">{activity.time}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="p-6 border-t border-gray-100 dark:border-slate-800 flex justify-end gap-3">
+              <button
+                onClick={() => {
+                  setViewingPost(viewingMetrics.post);
+                  setViewingMetrics(null);
+                }}
+                className="px-6 py-2 bg-gray-100 text-gray-700 font-bold rounded-lg hover:bg-gray-200 transition-all"
+              >
+                View Full Post
+              </button>
+              <button
+                onClick={() => setViewingMetrics(null)}
+                className="px-6 py-2 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition-all"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* View Post Modal */}
+      {viewingPost && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in duration-200" onClick={(e) => {
+          if (e.target === e.currentTarget) {
+            setViewingPost(null);
+          }
+        }}>
+          <div className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden shadow-2xl border border-gray-100 dark:border-slate-800 flex flex-col">
+            {/* Header */}
+            <div className="p-6 border-b border-gray-100 dark:border-slate-800 flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-black text-gray-900 dark:text-white">Post Details</h2>
+                <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">View complete post information</p>
+              </div>
+              <button onClick={() => setViewingPost(null)} className="p-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg transition-colors">
+                <X size={20} className="text-gray-500" />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-6">
+              {/* Status and Platforms */}
+              <div className="flex items-center gap-4 flex-wrap">
+                <span className={`px-3 py-1 rounded-lg text-xs font-bold uppercase ${viewingPost.status === 'published' ? 'bg-green-100 text-green-700' :
+                  viewingPost.status === 'scheduled' ? 'bg-blue-100 text-blue-700' :
+                    'bg-gray-100 text-gray-600'
+                  }`}>
+                  {viewingPost.status}
+                </span>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-gray-500">Platforms:</span>
+                  <div className="flex items-center gap-2">
+                    {viewingPost.platforms?.map((platform: string, idx: number) => {
+                      const icons: Record<string, React.ReactNode> = {
+                        facebook: <Facebook className="text-[#1877F2]" size={20} />,
+                        instagram: <Instagram className="text-[#E4405F]" size={20} />,
+                        twitter: <Twitter className="text-[#1DA1F2]" size={20} />,
+                        linkedin: <Linkedin className="text-[#0A66C2]" size={20} />,
+                        whatsapp: <MessageCircle className="text-[#25D366]" size={20} />,
+                      };
+                      return (
+                        <div key={idx} className="flex items-center gap-1 px-2 py-1 bg-gray-50 rounded-lg">
+                          {icons[platform.toLowerCase()] || <Globe size={20} />}
+                          <span className="text-xs font-bold text-gray-700 capitalize">{platform}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              {/* Post Content */}
+              <div className="bg-gray-50 dark:bg-slate-800 rounded-xl p-6">
+                <h3 className="text-sm font-bold text-gray-500 uppercase mb-3">Content</h3>
+                <p className="text-base text-gray-900 dark:text-white whitespace-pre-wrap leading-relaxed">
+                  {viewingPost.content || '(No text content)'}
+                </p>
+              </div>
+
+              {/* Media */}
+              {viewingPost.media_urls && viewingPost.media_urls.length > 0 && (
+                <div>
+                  <h3 className="text-sm font-bold text-gray-500 uppercase mb-3">Media</h3>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                    {viewingPost.media_urls.map((url: string, idx: number) => (
+                      <div key={idx} className="relative rounded-lg overflow-hidden border border-gray-200">
+                        {url.match(/\.(mp4|webm|mov)$/i) ? (
+                          <video src={url} className="w-full h-32 object-cover" controls />
+                        ) : (
+                          <img src={url} alt={`Media ${idx + 1}`} className="w-full h-32 object-cover" />
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Details Grid */}
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                <div className="bg-gray-50 dark:bg-slate-800 p-4 rounded-xl">
+                  <p className="text-xs font-bold text-gray-400 uppercase mb-1">Created</p>
+                  <p className="text-sm font-bold text-gray-900 dark:text-white">
+                    {new Date(viewingPost.created_at).toLocaleDateString()}
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    {new Date(viewingPost.created_at).toLocaleTimeString()}
+                  </p>
+                </div>
+
+                {viewingPost.published_at && (
+                  <div className="bg-gray-50 dark:bg-slate-800 p-4 rounded-xl">
+                    <p className="text-xs font-bold text-gray-400 uppercase mb-1">Published</p>
+                    <p className="text-sm font-bold text-gray-900 dark:text-white">
+                      {new Date(viewingPost.published_at).toLocaleDateString()}
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      {new Date(viewingPost.published_at).toLocaleTimeString()}
+                    </p>
+                  </div>
+                )}
+
+                {viewingPost.scheduled_for && (
+                  <div className="bg-gray-50 dark:bg-slate-800 p-4 rounded-xl">
+                    <p className="text-xs font-bold text-gray-400 uppercase mb-1">Scheduled For</p>
+                    <p className="text-sm font-bold text-gray-900 dark:text-white">
+                      {new Date(viewingPost.scheduled_for).toLocaleDateString()}
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      {new Date(viewingPost.scheduled_for).toLocaleTimeString()}
+                    </p>
+                  </div>
+                )}
+
+                {viewingPost.content_type && (
+                  <div className="bg-gray-50 dark:bg-slate-800 p-4 rounded-xl">
+                    <p className="text-xs font-bold text-gray-400 uppercase mb-1">Content Type</p>
+                    <p className="text-sm font-bold text-gray-900 dark:text-white capitalize">
+                      {viewingPost.content_type}
+                    </p>
+                  </div>
+                )}
+
+                {viewingPost.link_url && (
+                  <div className="bg-gray-50 dark:bg-slate-800 p-4 rounded-xl">
+                    <p className="text-xs font-bold text-gray-400 uppercase mb-1">Link</p>
+                    <a
+                      href={viewingPost.link_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-sm font-bold text-blue-600 hover:text-blue-700 flex items-center gap-1 break-all"
+                    >
+                      {viewingPost.link_url.length > 30 ? viewingPost.link_url.substring(0, 30) + '...' : viewingPost.link_url}
+                      <ExternalLink size={14} />
+                    </a>
+                  </div>
+                )}
+
+                {viewingPost.location && (
+                  <div className="bg-gray-50 dark:bg-slate-800 p-4 rounded-xl">
+                    <p className="text-xs font-bold text-gray-400 uppercase mb-1">Location</p>
+                    <p className="text-sm font-bold text-gray-900 dark:text-white flex items-center gap-1">
+                      <MapPin size={14} />
+                      {viewingPost.location}
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Additional Info */}
+              {(viewingPost.is_recurring || viewingPost.hashtags?.length > 0 || viewingPost.mentions?.length > 0) && (
+                <div className="space-y-3">
+                  {viewingPost.is_recurring && (
+                    <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-xl">
+                      <p className="text-xs font-bold text-blue-600 dark:text-blue-400 uppercase mb-1">Recurring Post</p>
+                      <p className="text-sm text-gray-700 dark:text-slate-300">
+                        {viewingPost.recurrence_rule || 'Recurring post enabled'}
+                      </p>
+                    </div>
+                  )}
+
+                  {viewingPost.hashtags && viewingPost.hashtags.length > 0 && (
+                    <div>
+                      <p className="text-xs font-bold text-gray-400 uppercase mb-2">Hashtags</p>
+                      <div className="flex flex-wrap gap-2">
+                        {viewingPost.hashtags.map((tag: string, idx: number) => (
+                          <span key={idx} className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs font-bold">
+                            #{tag}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {viewingPost.mentions && viewingPost.mentions.length > 0 && (
+                    <div>
+                      <p className="text-xs font-bold text-gray-400 uppercase mb-2">Mentions</p>
+                      <div className="flex flex-wrap gap-2">
+                        {viewingPost.mentions.map((mention: string, idx: number) => (
+                          <span key={idx} className="px-2 py-1 bg-purple-100 text-purple-700 rounded text-xs font-bold">
+                            @{mention}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
-            );
+
+            {/* Footer */}
+            <div className="p-6 border-t border-gray-100 dark:border-slate-800 flex justify-end gap-3">
+              <button
+                onClick={() => {
+                  handleEditPost(viewingPost);
+                  setViewingPost(null);
+                }}
+                className="px-6 py-2 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition-all"
+              >
+                Edit Post
+              </button>
+              <button
+                onClick={() => setViewingPost(null)}
+                className="px-6 py-2 bg-gray-100 text-gray-700 font-bold rounded-lg hover:bg-gray-200 transition-all"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 };
 
-            export default Content;
+export default Content;

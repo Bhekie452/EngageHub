@@ -12,7 +12,7 @@ Before connecting Instagram, you need:
 
 1. **Instagram Business or Creator Account**
    - Your Instagram account must be a Business or Creator account (not a personal account)
-   - Convert your account: Instagram App → Settings → Account → Switch to Professional Account
+   - **You can only switch to Business or Creator in the Instagram mobile app** — not on instagram.com or any web browser. Open the Instagram app on your phone → Profile → ☰ Menu → **Settings and privacy** → **Account type and tools** → **Switch to professional account** → choose Business or Creator.
 
 2. **Facebook Page**
    - You must have a Facebook Page
@@ -29,12 +29,10 @@ Before connecting Instagram, you need:
 
 ### Step 1: Ensure Your Instagram Account is Set Up
 
-1. **Convert to Business Account** (if not already):
-   - Open Instagram app
-   - Go to Settings → Account
-   - Tap "Switch to Professional Account"
-   - Choose "Business" or "Creator"
-   - Follow the setup wizard
+1. **Convert to Business/Creator** (if not already) — **mobile app only** (not available on web):
+   - Open the **Instagram app** on your phone (not instagram.com)
+   - Profile → ☰ Menu → **Settings and privacy** → **Account type and tools** → **Switch to professional account**
+   - Choose **Business** or **Creator**, pick a category, then follow the prompts
 
 2. **Link Instagram to Facebook Page**:
    - In Instagram app: Settings → Account → Linked Accounts

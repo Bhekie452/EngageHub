@@ -37,13 +37,13 @@ export const LandingFooter: React.FC = () => {
                     <div>
                         <h4 className="text-white font-bold mb-4">Product</h4>
                         <ul className="space-y-3">
-                            {['Features', 'Pricing', 'Integrations', 'API', 'Changelog', 'Roadmap'].map((item) => (
-                                <li key={item}>
-                                    <a href="#" className="text-sm hover:text-white hover:translate-x-1 inline-block transition-all duration-200">
-                                        {item}
-                                    </a>
-                                </li>
-                            ))}
+                            <li><a href="/features" className="text-sm hover:text-white hover:translate-x-1 inline-block transition-all duration-200">Features</a></li>
+                            <li><a href="/pricing" className="text-sm hover:text-white hover:translate-x-1 inline-block transition-all duration-200">Pricing</a></li>
+                            <li><a href="/integrations" className="text-sm hover:text-white hover:translate-x-1 inline-block transition-all duration-200">Integrations</a></li>
+                            <li><a href="/about" className="text-sm hover:text-white hover:translate-x-1 inline-block transition-all duration-200">About</a></li>
+                            <li><a href="#" className="text-sm hover:text-white hover:translate-x-1 inline-block transition-all duration-200">API</a></li>
+                            <li><a href="#" className="text-sm hover:text-white hover:translate-x-1 inline-block transition-all duration-200">Changelog</a></li>
+                            <li><a href="#" className="text-sm hover:text-white hover:translate-x-1 inline-block transition-all duration-200">Roadmap</a></li>
                         </ul>
                     </div>
 
@@ -67,8 +67,8 @@ export const LandingFooter: React.FC = () => {
                         <ul className="space-y-3">
                             <li className="flex items-start gap-2">
                                 <Mail className="w-5 h-5 flex-shrink-0 mt-0.5 text-blue-400" />
-                                <a href="mailto:hello@engagehub.co.za" className="text-sm hover:text-white transition-colors">
-                                    hello@engagehub.co.za
+                                <a href="mailto:support@engagehub.co.za" className="text-sm hover:text-white transition-colors">
+                                    support@engagehub.co.za
                                 </a>
                             </li>
                             <li className="flex items-start gap-2">

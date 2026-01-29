@@ -29,12 +29,19 @@ export function useAuth() {
         }
       })
       .catch((error) => {
-        // Ignore abort errors in development
-        if (error.name !== 'AbortError') {
-          console.error('Error getting session:', error);
-        }
         if (mounted) {
+          setSession(null);
+          setUser(null);
           setLoading(false);
+        }
+        const isNetworkOrAbort =
+          error?.name === 'AbortError' ||
+          error?.message === 'Failed to fetch' ||
+          (error?.name && String(error.name).toLowerCase().includes('network'));
+        if (!isNetworkOrAbort) {
+          console.error('Error getting session:', error);
+        } else {
+          console.warn('Supabase unreachable (offline or connection timeout). Using local session if any.');
         }
       });
 

@@ -63,7 +63,14 @@ const EmptyState: React.FC<{ title: string; onReturn: () => void }> = ({ title, 
 );
 
 const App: React.FC = () => {
-  const [currentSection, setCurrentSection] = useState<MenuSection>(MenuSection.Dashboard);
+  const [currentSection, setCurrentSection] = useState<MenuSection>(() => {
+    if (typeof window === 'undefined') return MenuSection.Dashboard;
+    const saved = window.localStorage.getItem('eh_current_section');
+    if (saved && Object.values(MenuSection).includes(saved as MenuSection)) {
+      return saved as MenuSection;
+    }
+    return MenuSection.Dashboard;
+  });
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
   const { fetchTheme } = useTheme();
@@ -80,6 +87,35 @@ const App: React.FC = () => {
     }
     // Cleanup: AbortController is handled by Supabase internally
   }, [user?.id, fetchCurrency]);
+
+  // Persist current section so refresh stays on same page
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem('eh_current_section', currentSection);
+  }, [currentSection]);
+
+  // Listen for navigation events from child components
+  useEffect(() => {
+    const handleNavigate = (event: CustomEvent) => {
+      const section = event.detail?.section;
+      if (section) {
+        // Map section names to MenuSection enum
+        const sectionMap: Record<string, MenuSection> = {
+          'Social Media': MenuSection.SocialMedia,
+          'social-media': MenuSection.SocialMedia,
+          'SocialMedia': MenuSection.SocialMedia,
+        };
+        if (sectionMap[section]) {
+          setCurrentSection(sectionMap[section]);
+        }
+      }
+    };
+
+    window.addEventListener('navigate', handleNavigate as EventListener);
+    return () => {
+      window.removeEventListener('navigate', handleNavigate as EventListener);
+    };
+  }, []);
 
   // Listen for navigation events from child components
   useEffect(() => {

@@ -1,13 +1,38 @@
+// Handle Supabase auth token-refresh failures (network timeout / offline) so they don't show as uncaught
+if (typeof window !== 'undefined') {
+  window.addEventListener('unhandledrejection', (event) => {
+    const reason = event?.reason;
+    const isSupabaseAuthAbort =
+      reason?.name === 'AbortError' ||
+      (reason?.message && /signal is aborted|failed to fetch|AuthRetryableFetchError/i.test(String(reason.message)));
+    if (isSupabaseAuthAbort) {
+      event.preventDefault();
+      console.warn('Supabase auth refresh skipped (offline or timeout). You can still use the app.');
+    }
+  });
+}
 
-import React, { useState, Component, ErrorInfo, ReactNode } from 'react';
+import React, { useState, useEffect, Component, ErrorInfo, ReactNode } from 'react';
 import ReactDOM from 'react-dom/client';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClient } from './src/lib/queryClient';
 import { useAuth } from './src/hooks/useAuth';
 import { LandingPage } from './components/LandingPage';
+import { WebsiteLayout } from './components/WebsiteLayout';
+import { FeaturesPage } from './components/pages/FeaturesPage';
+import { PricingPage } from './components/pages/PricingPage';
+import { IntegrationsPage } from './components/pages/IntegrationsPage';
+import { AboutPage } from './components/pages/AboutPage';
+import { PaymentSuccessPage } from './components/pages/PaymentSuccessPage';
+import { PaymentCancelPage } from './components/pages/PaymentCancelPage';
+import { SubscriptionCheckoutPage } from './components/pages/SubscriptionCheckoutPage';
 import { LoginForm } from './src/components/auth/LoginForm';
 import { RegisterForm } from './src/components/auth/RegisterForm';
 import App from './App';
+
+function getPathname(): string {
+  return typeof window !== 'undefined' ? window.location.pathname : '/';
+}
 
 type View = 'landing' | 'login' | 'register' | 'app';
 
@@ -65,6 +90,43 @@ class ErrorBoundary extends Component<{ children: ReactNode }, ErrorBoundaryStat
 const Router: React.FC = () => {
   const { user, loading } = useAuth();
   const [currentView, setCurrentView] = useState<View>('landing');
+  const [pathname, setPathname] = useState(getPathname);
+  const [pendingPlan, setPendingPlan] = useState<string | null>(() => {
+    if (typeof window === 'undefined') return null;
+    return window.sessionStorage.getItem('pending_subscription_plan');
+  });
+
+  useEffect(() => {
+    const onPop = () => setPathname(getPathname());
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
+
+  // Listen for auth navigation events from components (e.g., PaymentCheckout)
+  useEffect(() => {
+    const handler = (event: Event) => {
+      const detail = (event as CustomEvent)?.detail || {};
+      const view = detail.view as View | undefined;
+      if (view === 'login' || view === 'register') {
+        setCurrentView(view);
+      }
+    };
+
+    window.addEventListener('auth:navigate', handler as EventListener);
+    return () => window.removeEventListener('auth:navigate', handler as EventListener);
+  }, []);
+
+  // Listen for subscription intent events (user clicked Start Free Trial while logged out)
+  useEffect(() => {
+    const handler = (event: Event) => {
+      const detail = (event as CustomEvent)?.detail || {};
+      if (detail.planTier) {
+        setPendingPlan(String(detail.planTier));
+      }
+    };
+    window.addEventListener('subscription:intent', handler as EventListener);
+    return () => window.removeEventListener('subscription:intent', handler as EventListener);
+  }, []);
 
   // Show loading state
   if (loading) {
@@ -80,23 +142,77 @@ const Router: React.FC = () => {
 
   // If user is authenticated, show the main app
   if (user) {
+    if (pendingPlan) {
+      return (
+        <SubscriptionCheckoutPage
+          planTier={pendingPlan}
+          onDone={() => {
+            if (typeof window !== 'undefined') {
+              window.sessionStorage.removeItem('pending_subscription_plan');
+            }
+            setPendingPlan(null);
+          }}
+        />
+      );
+    }
     return <App />;
   }
 
-  // If not authenticated, show landing page or auth forms
+  // If not authenticated, show landing pages (pathname-based) or auth forms
   switch (currentView) {
     case 'login':
       return <LoginForm onSwitchToRegister={() => setCurrentView('register')} />;
     case 'register':
       return <RegisterForm onSwitchToLogin={() => setCurrentView('login')} />;
     case 'landing':
-    default:
-      return (
-        <LandingPage
-          onGetStarted={() => setCurrentView('register')}
-          onSignIn={() => setCurrentView('login')}
-        />
-      );
+    default: {
+      const onSignIn = () => setCurrentView('login');
+      const onGetStarted = () => setCurrentView('register');
+      const layoutProps = { onSignIn, onGetStarted };
+      if (pathname === '/features') {
+        return (
+          <WebsiteLayout {...layoutProps}>
+            <FeaturesPage />
+          </WebsiteLayout>
+        );
+      }
+      if (pathname === '/pricing') {
+        return (
+          <WebsiteLayout {...layoutProps}>
+            <PricingPage />
+          </WebsiteLayout>
+        );
+      }
+      if (pathname === '/integrations') {
+        return (
+          <WebsiteLayout {...layoutProps}>
+            <IntegrationsPage />
+          </WebsiteLayout>
+        );
+      }
+      if (pathname === '/about') {
+        return (
+          <WebsiteLayout {...layoutProps}>
+            <AboutPage />
+          </WebsiteLayout>
+        );
+      }
+      if (pathname === '/payment/success') {
+        return (
+          <WebsiteLayout {...layoutProps}>
+            <PaymentSuccessPage />
+          </WebsiteLayout>
+        );
+      }
+      if (pathname === '/payment/cancel') {
+        return (
+          <WebsiteLayout {...layoutProps}>
+            <PaymentCancelPage />
+          </WebsiteLayout>
+        );
+      }
+      return <LandingPage onGetStarted={onGetStarted} onSignIn={onSignIn} />;
+    }
   }
 };
 

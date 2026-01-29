@@ -30,6 +30,7 @@ import { useAuth } from '../src/hooks/useAuth';
 import { supabase } from '../src/lib/supabase';
 import { useTheme } from '../src/hooks/useTheme';
 import { useCurrency } from '../src/hooks/useCurrency';
+import { PLAN_CONFIGS } from '../src/lib/payfast';
 
 type SettingsTab = 'company' | 'profile' | 'branding' | 'social' | 'notifications' | 'privacy' | 'billing' | 'security' | 'audit';
 
@@ -42,6 +43,9 @@ interface UserProfile {
   role: string;
   created_at: string;
   updated_at: string;
+  subscription_tier?: 'free' | 'starter' | 'professional' | 'business' | null;
+  subscription_status?: 'active' | 'trialing' | 'past_due' | 'canceled' | 'paused' | null;
+  trial_ends_at?: string | null;
 }
 
 const Settings: React.FC = () => {
@@ -189,6 +193,19 @@ const Settings: React.FC = () => {
   const [tempColor, setTempColor] = useState(primaryColor);
   const [tempSidebarColor, setTempSidebarColor] = useState(sidebarColor);
   const [isApplying, setIsApplying] = useState(false);
+
+  // Derived subscription details (used in Billing tab)
+  const subscriptionTier = (profile?.subscription_tier || 'free') as
+    | 'free'
+    | 'starter'
+    | 'professional'
+    | 'business';
+  const subscriptionPlan =
+    subscriptionTier !== 'free' ? PLAN_CONFIGS[subscriptionTier] : null;
+  const subscriptionStatus = profile?.subscription_status || 'active';
+  const trialEndsAt = profile?.trial_ends_at
+    ? new Date(profile.trial_ends_at)
+    : null;
 
   const themeColors = [
     { name: 'Default Blue', hex: '#2563EB' },
@@ -663,16 +680,146 @@ const Settings: React.FC = () => {
               </div>
             </div>
 
-            {/* Placeholder for actual billing info */}
-            <div className="bg-gray-50 dark:bg-slate-800/50 rounded-2xl border border-gray-200 dark:border-slate-800 p-8 text-center space-y-4">
-              <CreditCard size={40} className="mx-auto text-gray-300" />
-              <h3 className="text-base font-bold text-gray-900 dark:text-white">Subscription Management</h3>
-              <p className="text-sm text-gray-500 dark:text-slate-400 max-w-sm mx-auto">
-                Manage your plan, payment methods, and billing history.
-              </p>
-              <button className="px-6 py-2 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl text-xs font-bold uppercase tracking-widest text-gray-900 dark:text-white hover:bg-gray-50 dark:hover:bg-slate-700 transition-all">
-                Manage Subscription
-              </button>
+            {/* Subscription Details */}
+            <div className="bg-gray-50 dark:bg-slate-800/50 rounded-2xl border border-gray-200 dark:border-slate-800 p-8 space-y-6">
+              <div className="flex items-start justify-between gap-6 flex-wrap">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-brand-600/10 flex items-center justify-center text-brand-600">
+                    <CreditCard size={22} />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-gray-900 dark:text-white">
+                      Subscription Management
+                    </h3>
+                    <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">
+                      View your current plan, status, and trial information.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Status pill */}
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                  <span className="text-xs font-bold uppercase tracking-widest text-emerald-700 dark:text-emerald-400">
+                    {subscriptionStatus === 'trialing'
+                      ? 'On Trial'
+                      : subscriptionStatus === 'past_due'
+                      ? 'Payment Issue'
+                      : subscriptionStatus === 'canceled'
+                      ? 'Canceled'
+                      : subscriptionStatus === 'paused'
+                      ? 'Paused'
+                      : 'Active'}
+                  </span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {/* Current Plan */}
+                <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-200 dark:border-slate-800 p-5 space-y-2">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">
+                    Current Plan
+                  </p>
+                  <p className="text-lg font-black text-gray-900 dark:text-white">
+                    {subscriptionPlan ? subscriptionPlan.name : 'Free'}
+                  </p>
+                  {subscriptionPlan ? (
+                    <p className="text-xs text-gray-500 dark:text-slate-400">
+                      R{subscriptionPlan.price.toLocaleString()} / month •{' '}
+                      {subscriptionPlan.monthlyPosts} AI posts •{' '}
+                      {subscriptionPlan.crmContacts.toLocaleString()} contacts
+                    </p>
+                  ) : (
+                    <p className="text-xs text-gray-500 dark:text-slate-400">
+                      You are currently on the free plan.
+                    </p>
+                  )}
+                </div>
+
+                {/* Trial / renewal */}
+                <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-200 dark:border-slate-800 p-5 space-y-2">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">
+                    {trialEndsAt && subscriptionStatus === 'trialing'
+                      ? 'Trial Ends'
+                      : 'Next Billing'}
+                  </p>
+                  {trialEndsAt && subscriptionStatus === 'trialing' ? (
+                    <>
+                      <p className="text-lg font-black text-gray-900 dark:text-white">
+                        {trialEndsAt.toLocaleDateString()}
+                      </p>
+                      <p className="text-xs text-gray-500 dark:text-slate-400">
+                        You will only be charged after your trial ends.
+                      </p>
+                    </>
+                  ) : subscriptionPlan ? (
+                    <>
+                      <p className="text-lg font-black text-gray-900 dark:text-white">
+                        Monthly on your billing date
+                      </p>
+                      <p className="text-xs text-gray-500 dark:text-slate-400">
+                        Billing handled via PayFast subscription.
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-lg font-black text-gray-900 dark:text-white">
+                        Not applicable
+                      </p>
+                      <p className="text-xs text-gray-500 dark:text-slate-400">
+                        Upgrade to a paid plan to start billing.
+                      </p>
+                    </>
+                  )}
+                </div>
+
+                {/* Account owner */}
+                <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-200 dark:border-slate-800 p-5 space-y-2">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">
+                    Account Owner
+                  </p>
+                  <p className="text-lg font-black text-gray-900 dark:text-white">
+                    {profile?.full_name || 'Unknown'}
+                  </p>
+                  <p className="text-xs text-gray-500 dark:text-slate-400">
+                    {profile?.email}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-2">
+                <p className="text-xs text-gray-500 dark:text-slate-400 max-w-md">
+                  {subscriptionPlan
+                    ? 'To change plans or update payment details, use the subscription management link below. Payments are processed securely via PayFast.'
+                    : 'You are on the free plan. Upgrade to a paid plan to unlock higher usage limits and advanced features.'}
+                </p>
+                <button
+                  onClick={() => {
+                    if (typeof window === 'undefined') return;
+
+                    if (!subscriptionPlan) {
+                      // On free plan: send user to pricing and open subscription flow for Starter by default
+                      const planTier = 'starter';
+                      window.sessionStorage.setItem('pending_subscription_plan', planTier);
+                      window.dispatchEvent(
+                        new CustomEvent('subscription:intent', { detail: { planTier } })
+                      );
+                      if (window.location.pathname !== '/pricing') {
+                        window.history.pushState({}, '', '/pricing');
+                        window.dispatchEvent(new PopStateEvent('popstate'));
+                      }
+                    } else {
+                      // Paid plan: for now, just inform user how to manage in PayFast
+                      alert(
+                        'To change or cancel your subscription, please use your PayFast account or contact EngageHub support.\n\nA direct self-service portal link will appear here in a future update.'
+                      );
+                    }
+                  }}
+                  className="px-6 py-2 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl text-xs font-bold uppercase tracking-widest text-gray-900 dark:text-white hover:bg-gray-50 dark:hover:bg-slate-700 transition-all"
+                >
+                  {subscriptionPlan ? 'Manage Subscription' : 'Upgrade Plan'}
+                </button>
+              </div>
             </div>
           </div>
         );

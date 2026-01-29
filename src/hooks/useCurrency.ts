@@ -45,24 +45,32 @@ export const useCurrency = create<CurrencyState>((set, get) => ({
           .from('profiles')
           .select('currency, currency_symbol')
           .eq('id', userId)
-          .single();
+          .maybeSingle();
 
-        if (error) throw error;
+        if (error) {
+          // RLS or missing profile: use defaults without breaking the app
+          set({ currency: 'USD', symbol: '$' });
+          return;
+        }
 
         if (data) {
           set({
             currency: data.currency || 'USD',
             symbol: data.currency_symbol || '$'
           });
+        } else {
+          // No profile row (e.g. PGRST116): use defaults
+          set({ currency: 'USD', symbol: '$' });
         }
       } catch (error: any) {
         // Ignore AbortError - it's expected when requests are cancelled
         if (error?.name === 'AbortError' || error?.message?.includes('aborted')) {
-          // Silently ignore abort errors
+          set({ currency: 'USD', symbol: '$' });
           return;
         }
-        // Only log non-abort errors
-        console.error('Error fetching currency:', error);
+        // On any other error (401, 406, network): use defaults so app doesn't break
+        set({ currency: 'USD', symbol: '$' });
+        console.warn('Currency fetch failed, using defaults:', error?.message || error);
       } finally {
         set({ isLoading: false });
         // Clear ongoing request when done

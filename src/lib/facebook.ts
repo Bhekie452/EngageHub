@@ -26,6 +26,20 @@ declare global {
 const FB_APP_ID = import.meta.env.VITE_FACEBOOK_APP_ID || '1621732999001688';
 
 /**
+ * Scopes for Facebook Login. Default uses only permissions that work without App Review.
+ * Requesting pages_show_list, pages_read_engagement, pages_manage_posts often returns
+ * "Invalid Scopes" unless your app has those permissions enabled.
+ *
+ * Meta's current dashboard often does NOT show Page permissions under
+ * Use cases → Facebook Login → Permissions and features — that list is usually
+ * profile-only (email, public_profile, user_*). Page access may require a separate
+ * use case (e.g. "Manage everything on your Page"), App Review, or Business
+ * Verification. See FACEBOOK_PAGES_PERMISSIONS_SETUP.md and Meta's docs.
+ */
+const getLoginScope = (): string =>
+    import.meta.env.VITE_FACEBOOK_SCOPES || 'public_profile,email,pages_show_list,pages_read_engagement';
+
+/**
  * Get redirect URI (calculated at call time to avoid hydration issues)
  */
 const getRedirectURI = (): string => {
@@ -226,7 +240,7 @@ export const loginWithFacebook = () => {
                             } else {
                                 // SDK login failed or was cancelled - fall back to redirect OAuth
                                 console.warn('Facebook SDK login failed or cancelled, using redirect OAuth');
-                                const scope = 'pages_manage_posts,pages_read_engagement,pages_show_list,public_profile,instagram_basic,instagram_content_publish';
+                                const scope = getLoginScope();
                                 const state = 'facebook_oauth';
                                 const redirectUri = getRedirectURI();
                                 const authUrl = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${FB_APP_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}&state=${state}&response_type=code`;
@@ -235,13 +249,13 @@ export const loginWithFacebook = () => {
                                 window.location.href = authUrl;
                             }
                         }, {
-                            scope: 'pages_manage_posts,pages_read_engagement,pages_show_list,public_profile,instagram_basic,instagram_content_publish',
+                            scope: getLoginScope(),
                             return_scopes: true
                         });
                     } catch (err: any) {
                         // Fall back to redirect OAuth if SDK call fails
                         console.warn('Facebook SDK login error, using redirect OAuth:', err);
-                        const scope = 'pages_manage_posts,pages_read_engagement,public_profile,instagram_basic,instagram_content_publish';
+                        const scope = getLoginScope();
                         const state = 'facebook_oauth';
                         const redirectUri = getRedirectURI();
                         const authUrl = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${FB_APP_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}&state=${state}&response_type=code`;
@@ -253,7 +267,7 @@ export const loginWithFacebook = () => {
                 .catch((err) => {
                     // If SDK not available or timeout, use redirect OAuth
                     console.warn('Facebook SDK not ready, using redirect OAuth:', err);
-                    const scope = 'pages_manage_posts,pages_read_engagement,public_profile';
+                    const scope = getLoginScope();
                     const state = 'facebook_oauth';
                     const redirectUri = getRedirectURI();
                     const authUrl = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${FB_APP_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}&state=${state}&response_type=code`;
@@ -277,7 +291,7 @@ export const loginWithFacebook = () => {
             }
             
             // Use redirect OAuth for HTTP (non-localhost)
-            const scope = 'pages_manage_posts,pages_read_engagement,public_profile,instagram_basic,instagram_content_publish';
+            const scope = getLoginScope();
             const state = 'facebook_oauth';
             const redirectUri = getRedirectURI();
             const authUrl = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${FB_APP_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}&state=${state}&response_type=code`;
@@ -343,6 +357,18 @@ const exchangeCodeForToken = async (code: string): Promise<any> => {
     } catch (error: any) {
         throw new Error(`Token exchange failed: ${error.message}`);
     }
+};
+
+/**
+ * Get Facebook user profile (id, name) using basic-scope token. Works with public_profile,email only.
+ */
+export const getFacebookProfile = async (userAccessToken: string): Promise<{ id: string; name: string }> => {
+    const response = await fetch(
+        `https://graph.facebook.com/v21.0/me?fields=id,name&access_token=${userAccessToken}`
+    );
+    const data = await response.json();
+    if (data.error) throw new Error(data.error.message || 'Failed to fetch profile');
+    return { id: String(data.id), name: data.name || 'Facebook' };
 };
 
 /**

@@ -26,7 +26,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../src/hooks/useAuth';
 import { supabase } from '../src/lib/supabase';
-import { initFacebookSDK, loginWithFacebook, getPageTokens, getInstagramAccount } from '../src/lib/facebook';
+import { initFacebookSDK, loginWithFacebook, getPageTokens, getFacebookProfile, getInstagramAccount } from '../src/lib/facebook';
 import { loginWithLinkedIn, getLinkedInProfile, getLinkedInOrganizations, getLinkedInOrganizationDetails } from '../src/lib/linkedin';
 import { connectYouTube, getYouTubeChannel } from '../src/lib/youtube';
 import { connectTwitter, exchangeCodeForToken, getTwitterProfile } from '../src/lib/twitter';
@@ -39,6 +39,7 @@ const SocialMedia: React.FC = () => {
   const [activeTab, setActiveTab] = useState<SocialTab>('accounts');
   const [connectedAccounts, setConnectedAccounts] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isOAuthRedirect, setIsOAuthRedirect] = useState(false);
 
   React.useEffect(() => {
     if (user) {
@@ -70,14 +71,14 @@ const SocialMedia: React.FC = () => {
             `   • Fill in all required fields (App Name, Contact Email, Privacy Policy URL)\n` +
             `   • Add App Domain: engage-hub-ten.vercel.app\n` +
             `   • Add Website: https://engage-hub-ten.vercel.app\n\n` +
-            `3. Configure Facebook Login:\n` +
-            `   • Go to Products → Facebook Login → Settings\n` +
-            `   • Add Valid OAuth Redirect URIs:\n` +
+            `3. Configure Facebook Login and permissions:\n` +
+            `   • Go to Use cases → add or configure a use case that includes Facebook Login\n` +
+            `   • Add Valid OAuth Redirect URIs (in the use case or App settings):\n` +
             `     - https://engage-hub-ten.vercel.app\n` +
             `     - http://localhost:3000\n\n` +
-            `4. Add Pages Product:\n` +
-            `   • Go to Products → Add Product → Pages\n` +
-            `   • Click "Set Up"\n\n` +
+            `4. Page/Instagram access:\n` +
+            `   • In Use cases → Facebook Login → Permissions and features you often see only profile permissions (email, public_profile, user_*). Page permissions (pages_show_list, etc.) are not shown there in Meta's current UI.\n` +
+            `   • Page access may require a separate use case (e.g. "Manage everything on your Page"), App Review, or Business Verification. See FACEBOOK_PAGES_PERMISSIONS_SETUP.md or Meta's docs for options.\n\n` +
             `5. Wait 5-10 minutes after making changes\n\n` +
             `📖 See FACEBOOK_FEATURE_UNAVAILABLE_FIX.md for detailed instructions.`;
 
@@ -100,6 +101,9 @@ const SocialMedia: React.FC = () => {
         }
       }
 
+      // Reset OAuth redirect flag when handling callbacks (we're back from redirect)
+      setIsOAuthRedirect(false);
+
       if (code && state === 'facebook_oauth') {
         handleFacebookCallback(code);
       } else if (code && state === 'instagram_oauth') {
@@ -117,6 +121,7 @@ const SocialMedia: React.FC = () => {
   }, [user]);
 
   const handleFacebookCallback = async (code: string) => {
+    setIsOAuthRedirect(false); // Reset flag - we're back from redirect
     setIsLoading(true);
     try {
       // Exchange code for access token using backend or direct method
@@ -173,30 +178,85 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
         return;
       }
 
-      const pages: any = await getPageTokens(accessToken);
-
-      if (!pages?.length) {
-        alert('No Facebook Pages found. Please make sure you have at least one Facebook Page.');
-        return;
+      let pages: any[] = [];
+      try {
+        pages = (await getPageTokens(accessToken)) || [];
+      } catch {
+        // Token has no Page permission — connect as profile instead
       }
 
-      const page = pages[0];
       const { data: workspaces } = await supabase.from('workspaces').select('id').eq('owner_id', user!.id).limit(1);
       if (!workspaces?.length) throw new Error('No workspace found');
 
-      const { error } = await supabase.from('social_accounts').upsert({
-        workspace_id: workspaces[0].id,
-        platform: 'facebook',
-        platform_account_id: page.id,
-        account_name: page.name,
-        access_token: page.access_token,
-        is_active: true
-      }, { onConflict: 'workspace_id,platform,platform_account_id' });
-
-      if (error) throw error;
-
-      alert(`✅ Connected to Facebook Page: ${page.name}!`);
+      if (pages?.length) {
+        const page = pages[0];
+        const { error } = await supabase.from('social_accounts').upsert({
+          workspace_id: workspaces[0].id,
+          connected_by: user!.id,
+          platform: 'facebook',
+          account_id: page.id,
+          display_name: page.name,
+          account_type: 'page',
+          access_token: page.access_token,
+          is_active: true,
+          connection_status: 'connected',
+        }, { onConflict: 'workspace_id,platform,account_id' });
+        if (error) throw error;
+        alert(`✅ Connected to Facebook Page: ${page.name}!`);
+      } else {
+        const profile = await getFacebookProfile(accessToken);
+        const { error } = await supabase.from('social_accounts').upsert({
+          workspace_id: workspaces[0].id,
+          connected_by: user!.id,
+          platform: 'facebook',
+          account_id: `profile_${profile.id}`,
+          display_name: profile.name,
+          account_type: 'profile',
+          access_token: accessToken,
+          is_active: true,
+          connection_status: 'connected',
+        }, { onConflict: 'workspace_id,platform,account_id' });
+        if (error) throw error;
+        alert(`✅ Connected to Facebook as ${profile.name}. (Page posting not available — Meta's APIs require separate Page permissions.)`);
+      }
       fetchConnectedAccounts();
+
+      // If user was connecting Instagram, try to save Instagram from same token (we already have pages)
+      const instagramReturn = sessionStorage.getItem('instagram_oauth_return');
+      if (instagramReturn) {
+        try {
+          const pagesWithIg = pages.filter((p: any) => p.instagram_business_account);
+          if (pagesWithIg.length > 0) {
+            for (const p of pagesWithIg) {
+              try {
+                const ig = await getInstagramAccount(p.access_token, p.instagram_business_account.id);
+                await supabase.from('social_accounts').upsert({
+                  workspace_id: workspaces[0].id,
+                  connected_by: user!.id,
+                  platform: 'instagram',
+                  account_id: ig.id,
+                  display_name: ig.username || `Instagram (${p.name})`,
+                  username: ig.username,
+                  account_type: 'business',
+                  access_token: p.access_token,
+                  is_active: true,
+                  connection_status: 'connected',
+                }, { onConflict: 'workspace_id,platform,account_id' });
+              } catch (err) {
+                console.warn('Instagram account fetch failed for page', p.name, err);
+              }
+            }
+            fetchConnectedAccounts();
+            alert('✅ Connected to Facebook and Instagram!');
+          }
+        } finally {
+          sessionStorage.removeItem('instagram_oauth_return');
+          const base = instagramReturn.indexOf(window.location.origin) === 0
+            ? instagramReturn.replace(window.location.origin, '')
+            : window.location.pathname + (window.location.hash || '');
+          window.history.replaceState({}, '', base);
+        }
+      }
     } catch (err: any) {
       console.error('Facebook callback error:', err);
       alert(`Failed to connect to Facebook: ${err.message || 'Unknown error'}`);
@@ -419,6 +479,7 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
   };
 
   const handleTikTokCallback = async (code: string) => {
+    setIsOAuthRedirect(false);
     setIsLoading(true);
     try {
       // Exchange code for token
@@ -508,6 +569,53 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
     }
   };
 
+  const tryConnectInstagramWithToken = async (accessToken: string): Promise<boolean> => {
+    const { data: workspaces } = await supabase.from('workspaces').select('id').eq('owner_id', user!.id).limit(1);
+    if (!workspaces?.length) return false;
+
+    let pages: any[] = [];
+    try {
+      pages = (await getPageTokens(accessToken)) || [];
+    } catch {
+      return false;
+    }
+    const pagesWithInstagram = pages.filter((p: any) => p.instagram_business_account);
+    if (pagesWithInstagram.length === 0) return false;
+
+    const instagramAccounts: any[] = [];
+    for (const page of pagesWithInstagram) {
+      try {
+        const ig = await getInstagramAccount(page.access_token, page.instagram_business_account.id);
+        instagramAccounts.push({
+          ...ig,
+          page_id: page.id,
+          page_name: page.name,
+          page_access_token: page.access_token,
+        });
+      } catch (err) {
+        console.warn(`Failed to get Instagram for page ${page.name}:`, err);
+      }
+    }
+    if (instagramAccounts.length === 0) return false;
+
+    for (const acc of instagramAccounts) {
+      await supabase.from('social_accounts').upsert({
+        workspace_id: workspaces[0].id,
+        connected_by: user!.id,
+        platform: 'instagram',
+        account_id: acc.id,
+        display_name: acc.username || `Instagram (${acc.page_name})`,
+        username: acc.username,
+        account_type: 'business',
+        access_token: acc.page_access_token,
+        is_active: true,
+        connection_status: 'connected',
+      }, { onConflict: 'workspace_id,platform,account_id' });
+    }
+    fetchConnectedAccounts();
+    return true;
+  };
+
   const handleConnectInstagram = async () => {
     if (!user) {
       alert('Please log in first');
@@ -516,8 +624,6 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
 
     setIsLoading(true);
     try {
-      // Instagram Business accounts are connected through Facebook Pages
-      // First, check if user has connected Facebook Pages
       const { data: workspaces } = await supabase.from('workspaces').select('id').eq('owner_id', user.id).limit(1);
       if (!workspaces?.length) throw new Error('No workspace found');
 
@@ -528,91 +634,80 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
         .eq('platform', 'facebook')
         .eq('is_active', true);
 
-      if (!facebookAccounts || facebookAccounts.length === 0) {
-        const shouldConnectFacebook = confirm(
-          'Instagram Business accounts must be linked to a Facebook Page.\n\n' +
-          'You need to connect Facebook first to access Instagram.\n\n' +
-          'Would you like to connect Facebook now?'
-        );
+      // If user has Facebook connected, try to get Instagram using stored token
+      const isProfileOnly = facebookAccounts?.length && String((facebookAccounts[0] as { account_id?: string }).account_id || '').startsWith('profile_');
 
-        if (shouldConnectFacebook) {
+      if (facebookAccounts?.length && !isProfileOnly) {
+        const fbToken = (facebookAccounts[0] as { access_token?: string }).access_token;
+        if (fbToken) {
+          const ok = await tryConnectInstagramWithToken(fbToken);
+          if (ok) {
+            const names = (await supabase.from('social_accounts').select('display_name,username').eq('workspace_id', workspaces[0].id).eq('platform', 'instagram').eq('is_active', true)).data;
+            alert(`✅ Connected to Instagram: ${(names || []).map((n: any) => n.display_name || n.username || '').filter(Boolean).join(', ') || 'Instagram'}!`);
+            setIsLoading(false);
+            return;
+          }
+        }
+      }
+
+      // No Facebook, profile-only Facebook, or token couldn't get Instagram
+      const profileOnlyMessage =
+        'Instagram connects via a Facebook Page (not a profile).\n\n' +
+        '⚠️ Your Facebook is connected as a profile only, so we can\'t see any Pages or linked Instagram.\n\n' +
+        'Even though you have a Facebook Page in Meta Business Suite, EngageHub needs Page permissions to access it.\n\n' +
+        'Do this:\n' +
+        '1. Make sure your Instagram Business/Creator account is linked to your Facebook Page in Meta Business Suite (business.facebook.com).\n' +
+        '2. Click "Reconnect Facebook with Page Access" button below to grant Page permissions.\n' +
+        '3. Then try connecting Instagram again.\n\n' +
+        'Note: If Page permissions are not available, your Facebook App may need App Review. See FACEBOOK_PAGES_PERMISSIONS_SETUP.md for details.';
+
+      if (!facebookAccounts?.length) {
+        const should = confirm(
+          'Instagram connects via Facebook. Connect Facebook first, then we’ll look for Instagram Business accounts linked to your Pages.\n\nConnect Facebook now?'
+        );
+        if (!should) {
           setIsLoading(false);
-          handleConnectFacebook();
           return;
-        } else {
+        }
+      } else if (isProfileOnly) {
+        const should = confirm(profileOnlyMessage + '\n\nReconnect Facebook now to request Page access?');
+        if (!should) {
+          setIsLoading(false);
+          return;
+        }
+      } else {
+        const should = confirm(
+          'No Instagram Business accounts found using your current Facebook connection.\n\n' +
+          'Make sure your Instagram is a Business/Creator account linked to a Facebook Page (Meta Business Suite). Then try logging in to Facebook again to refresh and look for linked Instagram?\n\n' +
+          'https://www.facebook.com/business/help/898752960195806'
+        );
+        if (!should) {
           setIsLoading(false);
           return;
         }
       }
 
-      // User has Facebook connected, now get Instagram accounts
-      // Store that we're connecting Instagram
       sessionStorage.setItem('instagram_oauth_return', window.location.href);
-
       const authResponse: any = await loginWithFacebook();
 
-      if (!authResponse || !authResponse.accessToken) {
-        // OAuth redirect happened, callback will handle it
+      if (!authResponse?.accessToken) {
+        setIsOAuthRedirect(true);
         return;
       }
 
-      const pages: any = await getPageTokens(authResponse.accessToken);
-
-      // Find pages with Instagram Business accounts
-      const pagesWithInstagram = pages.filter((page: any) => page.instagram_business_account);
-
-      if (pagesWithInstagram.length === 0) {
-        alert(
-          'No Instagram Business accounts found.\n\n' +
-          'To connect Instagram:\n' +
-          '1. Your Instagram account must be a Business or Creator account\n' +
-          '2. It must be linked to a Facebook Page\n' +
-          '3. You must be an admin of both the Page and Instagram account\n\n' +
-          'See: https://www.facebook.com/business/help/898752960195806'
-        );
-        setIsLoading(false);
+      const ok = await tryConnectInstagramWithToken(authResponse.accessToken);
+      if (ok) {
+        alert(`✅ Connected to Instagram!`);
         return;
       }
 
-      // Get Instagram account details for each page
-      const instagramAccounts = [];
-      for (const page of pagesWithInstagram) {
-        try {
-          const instagramAccount = await getInstagramAccount(page.access_token, page.instagram_business_account.id);
-          instagramAccounts.push({
-            ...instagramAccount,
-            page_id: page.id,
-            page_name: page.name,
-            page_access_token: page.access_token,
-          });
-        } catch (err) {
-          console.warn(`Failed to get Instagram account for page ${page.name}:`, err);
-        }
-      }
-
-      if (instagramAccounts.length === 0) {
-        alert('Failed to retrieve Instagram account details. Please try again.');
-        setIsLoading(false);
-        return;
-      }
-
-      // Store Instagram accounts
-      const { data: workspacesData } = await supabase.from('workspaces').select('id').eq('owner_id', user!.id).limit(1);
-      if (!workspacesData?.length) throw new Error('No workspace found');
-
-      for (const instagramAccount of instagramAccounts) {
-        await supabase.from('social_accounts').upsert({
-          workspace_id: workspacesData[0].id,
-          platform: 'instagram',
-          platform_account_id: instagramAccount.id,
-          account_name: instagramAccount.username || `Instagram (${instagramAccount.page_name})`,
-          access_token: instagramAccount.page_access_token, // Use page token for Instagram API calls
-          is_active: true,
-        }, { onConflict: 'workspace_id,platform,platform_account_id' });
-      }
-
-      alert(`✅ Connected to Instagram: ${instagramAccounts.map((acc: any) => acc.username || acc.page_name).join(', ')}!`);
-      fetchConnectedAccounts();
+      alert(
+        'No Instagram Business accounts found.\n\n' +
+        '• Your Instagram must be a Business or Creator account (switch in the Instagram **mobile app** only — not on web).\n' +
+        '• Link it to a Facebook Page: business.facebook.com → Settings → Accounts → Instagram accounts → Connect account.\n' +
+        '• Your Facebook connection here must have Page access (reconnect Facebook if you only connected as profile).\n\n' +
+        'Help: https://www.facebook.com/business/help/898752960195806'
+      );
     } catch (err: any) {
       console.error('Instagram connection error:', err);
       alert(`Failed to connect Instagram: ${err.message || 'Unknown error'}`);
@@ -622,6 +717,7 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
   };
 
   const handleInstagramCallback = async (code: string) => {
+    setIsOAuthRedirect(false);
     setIsLoading(true);
     try {
       // Instagram uses the same OAuth flow as Facebook
@@ -656,11 +752,34 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
       }
 
       // Get pages with Instagram accounts
-      const pages: any = await getPageTokens(accessToken);
+      let pages: any[] = [];
+      try {
+        pages = (await getPageTokens(accessToken)) || [];
+      } catch {
+        /* token has no Page permission */
+      }
+      if (!pages?.length) {
+        alert(
+          'No Facebook Pages were returned. Instagram connects via a Facebook Page.\n\n' +
+          '• Create a Page at facebook.com/pages/create and connect it to your Instagram Business/Creator account.\n\n' +
+          "• Meta's dashboard often doesn't show Page permissions under Use cases → Facebook Login → Permissions and features (that list is usually profile-only). Page access may need a different use case, App Review, or Business Verification. See FACEBOOK_PAGES_PERMISSIONS_SETUP.md or Meta's docs."
+        );
+        setIsLoading(false);
+        const returnUrl = sessionStorage.getItem('instagram_oauth_return') || window.location.pathname;
+        window.history.replaceState({}, '', returnUrl);
+        sessionStorage.removeItem('instagram_oauth_return');
+        return;
+      }
       const pagesWithInstagram = pages.filter((page: any) => page.instagram_business_account);
 
       if (pagesWithInstagram.length === 0) {
-        alert('No Instagram Business accounts found linked to your Facebook Pages.');
+        alert(
+          'No Instagram Business accounts found linked to your Facebook Pages.\n\n' +
+          '• Your Instagram must be a Business or Creator account (switch in the Instagram **mobile app** only — not on web).\n' +
+          '• Link it to a Facebook Page: business.facebook.com → Settings → Accounts → Instagram accounts.\n' +
+          '• You must be admin of both the Page and the Instagram account.\n\n' +
+          'Help: https://www.facebook.com/business/help/898752960195806'
+        );
         setIsLoading(false);
         const returnUrl = sessionStorage.getItem('instagram_oauth_return') || window.location.pathname;
         window.history.replaceState({}, '', returnUrl);
@@ -697,12 +816,16 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
       for (const instagramAccount of instagramAccounts) {
         await supabase.from('social_accounts').upsert({
           workspace_id: workspaces[0].id,
+          connected_by: user!.id,
           platform: 'instagram',
-          platform_account_id: instagramAccount.id,
-          account_name: instagramAccount.username || `Instagram (${instagramAccount.page_name})`,
+          account_id: instagramAccount.id,
+          display_name: instagramAccount.username || `Instagram (${instagramAccount.page_name})`,
+          username: instagramAccount.username,
+          account_type: 'business',
           access_token: instagramAccount.page_access_token,
           is_active: true,
-        }, { onConflict: 'workspace_id,platform,platform_account_id' });
+          connection_status: 'connected',
+        }, { onConflict: 'workspace_id,platform,account_id' });
       }
 
       alert(`✅ Connected to Instagram: ${instagramAccounts.map((acc: any) => acc.username || acc.page_name).join(', ')}!`);
@@ -884,6 +1007,7 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
   };
 
   const handleLinkedInCallback = async (code: string) => {
+    setIsOAuthRedirect(false);
     setIsLoading(true);
     try {
       // LinkedIn uses backend for token exchange
@@ -1086,6 +1210,7 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
   };
 
   const handleYouTubeCallback = async (code: string) => {
+    setIsOAuthRedirect(false);
     setIsLoading(true);
     try {
       // YouTube uses Google OAuth, requires backend for token exchange
@@ -1264,33 +1389,52 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
 
       // If we got redirected, the callback handler will process it
       if (!authResponse || !authResponse.accessToken) {
-        // OAuth redirect happened, callback will handle it
+        // OAuth redirect happened - prevent React from rendering during redirect
+        setIsOAuthRedirect(true);
         return;
       }
 
-      const pages: any = await getPageTokens(authResponse.accessToken);
-
-      if (!pages?.length) {
-        alert('No Facebook Pages found. Please make sure you have at least one Facebook Page associated with your account.');
-        return;
+      let pages: any[] = [];
+      try {
+        pages = (await getPageTokens(authResponse.accessToken)) || [];
+      } catch {
+        // Token has no Page permission — connect as profile instead
       }
 
-      const page = pages[0];
       const { data: workspaces } = await supabase.from('workspaces').select('id').eq('owner_id', user!.id).limit(1);
       if (!workspaces?.length) throw new Error('No workspace found');
 
-      const { error } = await supabase.from('social_accounts').upsert({
-        workspace_id: workspaces[0].id,
-        platform: 'facebook',
-        platform_account_id: page.id,
-        account_name: page.name,
-        access_token: page.access_token,
-        is_active: true
-      }, { onConflict: 'workspace_id,platform,platform_account_id' });
-
-      if (error) throw error;
-
-      alert(`✅ Connected to Facebook Page: ${page.name}!`);
+      if (pages?.length) {
+        const page = pages[0];
+        const { error } = await supabase.from('social_accounts').upsert({
+          workspace_id: workspaces[0].id,
+          connected_by: user!.id,
+          platform: 'facebook',
+          account_id: page.id,
+          display_name: page.name,
+          account_type: 'page',
+          access_token: page.access_token,
+          is_active: true,
+          connection_status: 'connected',
+        }, { onConflict: 'workspace_id,platform,account_id' });
+        if (error) throw error;
+        alert(`✅ Connected to Facebook Page: ${page.name}!`);
+      } else {
+        const profile = await getFacebookProfile(authResponse.accessToken);
+        const { error } = await supabase.from('social_accounts').upsert({
+          workspace_id: workspaces[0].id,
+          connected_by: user!.id,
+          platform: 'facebook',
+          account_id: `profile_${profile.id}`,
+          display_name: profile.name,
+          account_type: 'profile',
+          access_token: authResponse.accessToken,
+          is_active: true,
+          connection_status: 'connected',
+        }, { onConflict: 'workspace_id,platform,account_id' });
+        if (error) throw error;
+        alert(`✅ Connected to Facebook as ${profile.name}. (Page posting not available — Meta's APIs require separate Page permissions.)`);
+      }
       fetchConnectedAccounts();
     } catch (err: any) {
       console.error('Connection error:', err);
@@ -1307,7 +1451,7 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
         errorMessage += `The "Feature Unavailable" error means your Facebook App needs configuration.\n\n`;
         errorMessage += `This usually happens when:\n`;
         errorMessage += `• App is in development mode and needs setup\n`;
-        errorMessage += `• Pages product is not added\n`;
+        errorMessage += `• Page-related use case is not added or configured\n`;
         errorMessage += `• App settings are incomplete\n\n`;
         errorMessage += `✅ Quick Fix Steps:\n\n`;
         errorMessage += `1. Go to: https://developers.facebook.com/apps/1621732999001688\n\n`;
@@ -1316,9 +1460,9 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
         errorMessage += `   • Fill in all required fields (App Name, Contact Email, etc.)\n`;
         errorMessage += `   • Add your domain to "App Domains"\n`;
         errorMessage += `   • Add redirect URI to "Valid OAuth Redirect URIs"\n\n`;
-        errorMessage += `3. Add Pages Product:\n`;
-        errorMessage += `   • Go to Products → + Add Product\n`;
-        errorMessage += `   • Click "Set Up" on "Pages"\n\n`;
+        errorMessage += `3. Page access (why you may not see it in the UI):\n`;
+        errorMessage += `   • Use cases → Facebook Login → Permissions and features often shows only profile permissions (email, public_profile, user_*). Page permissions are not listed there in Meta's current dashboard.\n`;
+        errorMessage += `   • Page access may require a separate use case, App Review, or Business Verification. See FACEBOOK_PAGES_PERMISSIONS_SETUP.md or Meta's docs.\n\n`;
         errorMessage += `4. For Testing (Immediate Access):\n`;
         errorMessage += `   • Go to Roles → Test Users\n`;
         errorMessage += `   • Add yourself as a test user\n\n`;
@@ -1404,6 +1548,7 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
             ].map((account, idx) => {
               const connectedAccount = connectedAccounts.find(ca => ca.platform === account.platform);
               const isConnected = !!connectedAccount;
+              const fbProfileOnly = connectedAccounts.some(ca => ca.platform === 'facebook' && String((ca as { account_id?: string }).account_id || '').startsWith('profile_'));
 
               // Get the actual user name from connected account
               const connectedName = isConnected
@@ -1420,6 +1565,8 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
                 });
               }
 
+              const instagramNeedsPage = account.platform === 'instagram' && !isConnected && fbProfileOnly;
+
               return (
                 <div key={idx} className={`p-5 rounded-xl border flex items-center justify-between group transition-all shadow-sm ${isConnected ? 'bg-white border-blue-200 ring-1 ring-blue-50' : 'bg-gray-50/50 border-gray-200 filter grayscale-[0.5]'}`}>
                   <div className="flex items-center gap-3">
@@ -1433,6 +1580,40 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
                       <p className="text-xs text-gray-400 truncate font-medium">
                         {isConnected ? (connectedName ? account.name : 'Connected') : 'Not connected'}
                       </p>
+                      {instagramNeedsPage && (
+                        <div className="mt-2 space-y-1">
+                          <p className="text-[10px] text-amber-600 font-medium" title="Instagram is linked to your Facebook, but we only have profile access. Reconnect Facebook with Page access to see Instagram here.">
+                            Facebook is profile-only — needs Page access to link Instagram
+                          </p>
+                          <button
+                            onClick={async () => {
+                              if (!confirm(
+                                'To connect Instagram, you need to reconnect Facebook with Page permissions.\n\n' +
+                                'This will:\n' +
+                                '1. Disconnect your current Facebook connection\n' +
+                                '2. Reconnect with Page access permissions\n' +
+                                '3. Automatically connect Instagram if it\'s linked to your Page\n\n' +
+                                'Make sure your Instagram Business account is linked to your Facebook Page in Meta Business Suite first.\n\n' +
+                                'Continue?'
+                              )) return;
+                              
+                              // Disconnect current Facebook
+                              const fbAccount = connectedAccounts.find(ca => ca.platform === 'facebook');
+                              if (fbAccount) {
+                                await handleDisconnect(fbAccount.id);
+                                // Wait a moment for disconnect to complete
+                                await new Promise(resolve => setTimeout(resolve, 500));
+                              }
+                              
+                              // Reconnect with Page permissions
+                              await handleConnectFacebook();
+                            }}
+                            className="text-[10px] font-bold text-blue-600 hover:text-blue-700 underline"
+                          >
+                            Reconnect Facebook with Page Access →
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </div>
                   <div className="flex flex-col items-end gap-2 shrink-0">
@@ -1588,6 +1769,18 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
         );
     }
   };
+
+  // Prevent rendering during OAuth redirect to avoid React error #418 (invalid HTML nesting)
+  if (isOAuthRedirect) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-600 font-medium">Redirecting to Facebook...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

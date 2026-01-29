@@ -14,50 +14,50 @@ const features = [
     {
         icon: Sparkles,
         title: 'AI Content Studio',
-        description: 'Generate engaging posts, captions, and content ideas powered by advanced AI in seconds.',
+        description: 'Stop staring at a blank screen. Our AI analyzes your unique "Brand Voice" to generate high-authority posts, threads, and visuals that sound exactly like you—delivered in seconds, not hours.',
         gradient: 'from-blue-500 to-cyan-500'
     },
     {
-        icon: Share2,
-        title: 'Social Media Management',
-        description: 'Connect and manage all your social platforms from one unified dashboard.',
-        gradient: 'from-purple-500 to-pink-500'
-    },
-    {
         icon: Users,
-        title: 'Smart CRM',
-        description: 'Track customers, manage deals, and nurture relationships effortlessly.',
+        title: 'Smart CRM & Sales Assistant',
+        description: 'Most B2B leads go cold because of slow response times. Our CRM predicts "win probability" and reminds you exactly who to message first, ensuring your most valuable prospects never slip through the cracks.',
         gradient: 'from-orange-500 to-red-500'
-    },
-    {
-        icon: BarChart3,
-        title: 'Advanced Analytics',
-        description: 'Get actionable insights with beautiful dashboards and real-time reporting.',
-        gradient: 'from-green-500 to-emerald-500'
-    },
-    {
-        icon: Megaphone,
-        title: 'Campaign Management',
-        description: 'Plan, execute, and track marketing campaigns across all channels seamlessly.',
-        gradient: 'from-indigo-500 to-purple-500'
-    },
-    {
-        icon: Zap,
-        title: 'Automations',
-        description: 'Automate repetitive tasks and workflows to save hours every week.',
-        gradient: 'from-yellow-500 to-orange-500'
-    },
-    {
-        icon: Calendar,
-        title: 'Content Calendar',
-        description: 'Schedule and organize your content strategy with an intuitive visual calendar.',
-        gradient: 'from-teal-500 to-cyan-500'
     },
     {
         icon: Inbox,
         title: 'Unified Inbox',
-        description: 'Respond to messages from all platforms in one central inbox. Never miss a conversation.',
+        description: 'Your customers are on WhatsApp, Instagram, LinkedIn, and Email. Manage every conversation in one unified view to decrease response times and build trust through consistency.',
         gradient: 'from-rose-500 to-pink-500'
+    },
+    {
+        icon: Zap,
+        title: 'Marketing Automations',
+        description: 'Execute hyper-personalized campaigns that trigger social posts, emails, and CRM updates based on customer behavior. Achieve 90% of agency results for 5% of the cost.',
+        gradient: 'from-yellow-500 to-orange-500'
+    },
+    {
+        icon: Share2,
+        title: 'Social Media Management',
+        description: 'Connect and manage all your social platforms from one unified dashboard. No account limits—scale as you grow.',
+        gradient: 'from-purple-500 to-pink-500'
+    },
+    {
+        icon: BarChart3,
+        title: 'Advanced Analytics',
+        description: 'Get actionable insights with beautiful dashboards and real-time reporting. Track what matters most to your business growth.',
+        gradient: 'from-green-500 to-emerald-500'
+    },
+    {
+        icon: Calendar,
+        title: 'Content Calendar',
+        description: 'Schedule and organize your content strategy with an intuitive visual calendar. Plan weeks ahead with confidence.',
+        gradient: 'from-teal-500 to-cyan-500'
+    },
+    {
+        icon: Megaphone,
+        title: 'Campaign Management',
+        description: 'Plan, execute, and track marketing campaigns across all channels seamlessly. Measure ROI and optimize in real-time.',
+        gradient: 'from-indigo-500 to-purple-500'
     }
 ];
 
