@@ -1,4 +1,4 @@
-import React, { useState, useRef, useMemo } from 'react';
+﻿import React, { useState, useRef, useMemo } from 'react';
 import {
   PenTool,
   FileText,
@@ -757,13 +757,16 @@ const Content: React.FC = () => {
           const failed = payload.failed || [];
           if (failed.length > 0) {
             const names = [...new Set(failed.map((f: any) => f?.platform).filter(Boolean))];
-            const onlyYoutube = names.length === 1 && names[0]?.toLowerCase() === 'youtube';
-            const onlyFacebookHint = failed.some((f: any) => (f?.platform || '').toLowerCase() === 'facebook');
-            const hint = onlyYoutube
-              ? ' YouTube video upload is not yet supported.'
-              : onlyFacebookHint
-                ? ' Check connected accounts (use Facebook Page, not profile).'
-                : ' Check your connected accounts.';
+            const firstError = failed.find((f: any) => f?.error)?.error;
+            const onlyYoutube = names.length === 1 && String(names[0] ?? '').toLowerCase() === 'youtube';
+            const onlyFacebookHint = !firstError && failed.some((f: any) => (f?.platform || '').toLowerCase() === 'facebook');
+            const hint = firstError
+              ? ` ${firstError}`
+              : onlyYoutube
+                ? ' YouTube video upload is not yet supported.'
+                : onlyFacebookHint
+                  ? ' In Connected Accounts, connect a Facebook Page (not a personal profile) to post.'
+                  : ' Check your connected accounts.';
             alert(`Post saved. Failed to publish to: ${names.join(', ')}.${hint}`);
           }
         } catch (e) {
