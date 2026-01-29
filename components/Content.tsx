@@ -1,4 +1,4 @@
-﻿import React, { useState, useRef, useMemo } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import {
   PenTool,
   FileText,
@@ -677,6 +677,17 @@ const Content: React.FC = () => {
       if (wsError || !workspaces?.length) throw new Error('No workspace found. Please contact support.');
       const workspaceId = workspaces[0].id;
 
+      // Don't send huge base64 video/image to Supabase (causes 520 / Failed to fetch). Max ~200KB per data URL.
+      const MAX_DATA_URL_LENGTH = 200 * 1024;
+      const allMedia = [...uploadedImages, ...uploadedVideos];
+      const mediaForDb = allMedia.filter((url) => {
+        if (!url || typeof url !== 'string') return false;
+        if (url.startsWith('http://') || url.startsWith('https://')) return true;
+        if (url.startsWith('data:')) return url.length <= MAX_DATA_URL_LENGTH;
+        return true;
+      });
+      const skippedLarge = allMedia.length - mediaForDb.length;
+
       // 2. Prepare data matching schema
       const postData = {
         workspace_id: workspaceId,
@@ -691,7 +702,7 @@ const Content: React.FC = () => {
           : null,
         is_recurring: isRecur,
         recurrence_rule: isRecur ? `FREQ=${recurFrequency.toUpperCase()};UNTIL=${recurUntil}` : null,
-        media_urls: [...uploadedImages, ...uploadedVideos], // Note: in production, upload these to Supabase Storage first!
+        media_urls: mediaForDb,
         link_url: linkUrl,
         location: location,
         // Optional metadata
@@ -746,7 +757,14 @@ const Content: React.FC = () => {
           const failed = payload.failed || [];
           if (failed.length > 0) {
             const names = [...new Set(failed.map((f: any) => f?.platform).filter(Boolean))];
-            alert(`Post saved. Failed to publish to: ${names.join(', ')}. Check your connected accounts (use Facebook Page, not profile).`);
+            const onlyYoutube = names.length === 1 && names[0]?.toLowerCase() === 'youtube';
+            const onlyFacebookHint = failed.some((f: any) => (f?.platform || '').toLowerCase() === 'facebook');
+            const hint = onlyYoutube
+              ? ' YouTube video upload is not yet supported.'
+              : onlyFacebookHint
+                ? ' Check connected accounts (use Facebook Page, not profile).'
+                : ' Check your connected accounts.';
+            alert(`Post saved. Failed to publish to: ${names.join(', ')}.${hint}`);
           }
         } catch (e) {
           console.warn('Publish API call failed:', e);
@@ -754,7 +772,9 @@ const Content: React.FC = () => {
         }
       }
 
-      alert(`Post ${editingPost ? 'updated' : scheduleMode === 'now' ? 'published' : 'scheduled'} successfully! 🎉`);
+      let successMsg = `Post ${editingPost ? 'updated' : scheduleMode === 'now' ? 'published' : 'scheduled'} successfully! 🎉`;
+      if (skippedLarge > 0) successMsg += ` Large media (e.g. video) was not saved to the database; upload to Storage for publishing.`;
+      alert(successMsg);
       await fetchPosts();
 
       // Reset form
@@ -777,7 +797,10 @@ const Content: React.FC = () => {
 
     } catch (error: any) {
       console.error('Error creating post:', error);
-      alert(`Failed to create post: ${error.message}`);
+      const msg = error?.message || '';
+      const isNetwork = /failed to fetch|network|520|cors/i.test(msg);
+      const hint = isNetwork ? ' Check your connection or try a smaller video (large files can time out).' : '';
+      alert(`Failed to create post: ${msg}${hint}`);
     } finally {
       setIsSubmitting(false);
     }

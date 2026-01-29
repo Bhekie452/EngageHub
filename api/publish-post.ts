@@ -57,6 +57,9 @@ async function publishOne(
       if (!res.ok) return { ok: false, platform: p, error: (data as any)?.message || res.statusText };
       return { ok: true, platform: p };
     }
+    if (p === 'youtube') {
+      return { ok: false, platform: p, error: 'YouTube video upload is not yet supported in Post Now.' };
+    }
     if (p === 'instagram') {
       const publicUrl = (mediaUrls || []).find((u) => typeof u === 'string' && (u.startsWith('http://') || u.startsWith('https://')));
       if (!publicUrl) return { ok: false, platform: p, error: 'Instagram requires a publicly accessible image or video URL' };

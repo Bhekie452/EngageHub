@@ -1220,10 +1220,15 @@ const SocialMedia: React.FC = () => {
               const connectedAccount = connectedAccounts.find(ca => ca.platform === account.platform);
               const isConnected = !!connectedAccount;
 
-              // Get the actual user name from connected account
+              // Get the actual name (page name or person name) from connected account
               const connectedName = isConnected
                 ? (connectedAccount.display_name || connectedAccount.username || null)
                 : null;
+
+              // Subtitle: for Facebook use account_type so Page shows "Facebook Page", profile shows "Personal profile"
+              const connectedSubtitle = isConnected && account.platform === 'facebook' && connectedAccount?.account_type
+                ? (connectedAccount.account_type === 'page' ? 'Facebook Page' : 'Personal profile')
+                : (isConnected ? (connectedName ? account.name : 'Connected') : account.handle);
 
               // Debug logging
               if (isConnected && account.platform === 'linkedin') {
@@ -1246,9 +1251,7 @@ const SocialMedia: React.FC = () => {
                         {isConnected && connectedName ? connectedName : account.name}
                       </h4>
                       <p className="text-xs text-gray-500 truncate">
-                        {isConnected
-                          ? (connectedName ? account.name : 'Connected')
-                          : account.handle}
+                        {connectedSubtitle}
                       </p>
                     </div>
                   </div>

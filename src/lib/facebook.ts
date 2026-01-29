@@ -66,111 +66,72 @@ if (typeof window !== 'undefined' && import.meta.env.DEV) {
 }
 
 /**
- * Initialize Facebook SDK (for production/HTTPS environments)
+ * Initialize Facebook SDK (for production/HTTPS environments).
+ * We do NOT load the Facebook JS SDK by default to avoid the warning:
+ * "You are overriding current access token... Please consider passing access_token
+ * directly to API parameters instead of overriding the global settings."
+ * This app uses redirect OAuth and passes access_token in every Graph API request;
+ * loading the SDK is unnecessary and can conflict with other scripts on the page.
+ * Set VITE_FACEBOOK_SDK_LOCALHOST=true to load the SDK on localhost for testing.
  */
 export const initFacebookSDK = () => {
-    return new Promise((resolve, reject) => {
-        // For testing: allow SDK initialization on localhost if explicitly enabled
+    return new Promise<boolean>((resolve) => {
         const allowLocalhostSDK = import.meta.env.VITE_FACEBOOK_SDK_LOCALHOST === 'true';
-        const isHTTPS = window.location.protocol === 'https:';
-        const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+        const isHTTPS = typeof window !== 'undefined' && window.location.protocol === 'https:';
+        const isLocalhost = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
 
-        // Initialize SDK if HTTPS or if explicitly enabled for localhost testing
-        if (isHTTPS || (allowLocalhostSDK && isLocalhost)) {
-            // Check if SDK is already loaded
-            if (window.FB) {
-                console.log('✅ Facebook SDK already initialized');
-                resolve(true);
-                return;
-            }
-
-            // Set a timeout for SDK loading
-            const loadTimeout = setTimeout(() => {
-                console.warn('Facebook SDK loading timeout - will use redirect OAuth fallback');
-                // Don't reject, just resolve so the app can continue with redirect OAuth
-                resolve(false);
-            }, 10000); // 10 second timeout
-
-            // Store original fbAsyncInit if it exists
-            const originalFbAsyncInit = (window as any).fbAsyncInit;
-
-            window.fbAsyncInit = function () {
-                try {
-                    clearTimeout(loadTimeout);
-                    if (!window.FB) {
-                        throw new Error('FB object not available');
-                    }
-                    // Initialize Facebook SDK (standard pattern)
-                    window.FB.init({
-                        appId: FB_APP_ID,
-                        cookie: true,
-                        xfbml: true,
-                        version: 'v21.0'
-                    });
-
-                    // Log page view for analytics (standard Facebook pattern)
-                    if (window.FB.AppEvents) {
-                        window.FB.AppEvents.logPageView();
-                    }
-
-                    console.log('✅ Facebook SDK Initialized successfully');
-                    console.log('📱 App ID:', FB_APP_ID);
-                    resolve(true);
-                } catch (err: any) {
-                    clearTimeout(loadTimeout);
-                    console.error('❌ Facebook SDK init error:', err);
-                    // Don't reject - allow fallback to redirect OAuth
-                    console.warn('⚠️ Falling back to redirect OAuth method');
-                    resolve(false);
-                }
-            };
-
-            // Load Facebook SDK script (standard Facebook pattern)
-            (function (d, s, id) {
-                var js, fjs = d.getElementsByTagName(s)[0];
-                if (d.getElementById(id)) {
-                    // Script already exists, wait for it to load
-                    if (window.FB) {
-                        clearTimeout(loadTimeout);
-                        resolve(true);
-                    } else {
-                        // Wait a bit for the existing script to initialize
-                        setTimeout(() => {
-                            clearTimeout(loadTimeout);
-                            if (window.FB) {
-                                console.log('✅ Facebook SDK loaded from existing script');
-                                resolve(true);
-                            } else {
-                                console.warn('⚠️ Facebook SDK script exists but not initialized - using redirect OAuth');
-                                resolve(false);
-                            }
-                        }, 2000);
-                    }
-                    return;
-                }
-                js = d.createElement(s) as any;
-                js.id = id;
-                js.src = "https://connect.facebook.net/en_US/sdk.js";
-                js.async = true;
-
-                // Add error handler for script loading
-                js.onerror = () => {
-                    clearTimeout(loadTimeout);
-                    console.warn('Facebook SDK script failed to load - using redirect OAuth fallback');
-                    resolve(false);
-                };
-
-                if (fjs && fjs.parentNode) {
-                    fjs.parentNode.insertBefore(js, fjs);
-                } else {
-                    // Fallback if fjs not found
-                    d.body.appendChild(js);
-                }
-            }(document, 'script', 'facebook-jssdk'));
-        } else {
-            console.log('Facebook SDK skipped (HTTP localhost - using redirect OAuth)');
-            resolve(true);
+        if (typeof window === 'undefined') {
+            resolve(false);
+            return;
         }
+
+        // Only load SDK if explicitly enabled for localhost testing; otherwise skip to avoid token-override warning
+        if (!allowLocalhostSDK || !isLocalhost) {
+            if (import.meta.env.DEV && isHTTPS) {
+                console.log('Facebook: using redirect OAuth only (SDK not loaded to avoid access token override warning).');
+            }
+            resolve(false);
+            return;
+        }
+
+        // Optional: load SDK only when explicitly enabled for localhost
+        if (window.FB) {
+            resolve(true);
+            return;
+        }
+
+        const loadTimeout = setTimeout(() => {
+            resolve(false);
+        }, 10000);
+
+        window.fbAsyncInit = function () {
+            clearTimeout(loadTimeout);
+            if (!window.FB) return;
+            try {
+                window.FB.init({
+                    appId: FB_APP_ID,
+                    cookie: true,
+                    xfbml: true,
+                    version: 'v21.0'
+                });
+                if (window.FB.AppEvents) window.FB.AppEvents.logPageView();
+                resolve(true);
+            } catch {
+                resolve(false);
+            }
+        };
+
+        const js = document.createElement('script');
+        js.id = 'facebook-jssdk';
+        js.src = 'https://connect.facebook.net/en_US/sdk.js';
+        js.async = true;
+        js.onerror = () => {
+            clearTimeout(loadTimeout);
+            resolve(false);
+        };
+        const fjs = document.getElementsByTagName('script')[0];
+        if (fjs?.parentNode) fjs.parentNode.insertBefore(js, fjs);
+        else document.body.appendChild(js);
     });
 };
 
@@ -223,87 +184,29 @@ export const loginWithFacebook = () => {
             return;
         }
 
-        // Check if we're on HTTPS (can use SDK) or HTTP (must use redirect)
-        const isHTTPS = window.location.protocol === 'https:';
+        // Always use redirect OAuth so we never call FB.login(), which would set a global
+        // access token and trigger: "You are overriding current access token..."
         const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-
-        if (isHTTPS && !isLocalhost) {
-            // Use SDK method for HTTPS production, with fallback to redirect OAuth
-            waitForFacebookSDK(3000)
-                .then(() => {
-                    if (!(window as any).FB) {
-                        throw new Error('Facebook SDK not available');
-                    }
-
-                    try {
-                        (window as any).FB.login((response: any) => {
-                            if (response.authResponse) {
-                                resolve(response.authResponse);
-                            } else {
-                                // SDK login failed or was cancelled - fall back to redirect OAuth
-                                console.warn('Facebook SDK login failed or cancelled, using redirect OAuth');
-                                const scope = getLoginScope();
-                                const state = 'facebook_oauth';
-                                const redirectUri = getRedirectURI();
-                                const authUrl = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${FB_APP_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}&state=${state}&response_type=code`;
-
-                                sessionStorage.setItem('facebook_oauth_return', window.location.href);
-                                window.location.href = authUrl;
-                            }
-                        }, {
-                            scope: getLoginScope(),
-                            return_scopes: true
-                        });
-                    } catch (err: any) {
-                        // Fall back to redirect OAuth if SDK call fails
-                        console.warn('Facebook SDK login error, using redirect OAuth:', err);
-                        const scope = getLoginScope();
-                        const state = 'facebook_oauth';
-                        const redirectUri = getRedirectURI();
-                        const authUrl = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${FB_APP_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}&state=${state}&response_type=code`;
-
-                        sessionStorage.setItem('facebook_oauth_return', window.location.href);
-                        window.location.href = authUrl;
-                    }
-                })
-                .catch((err) => {
-                    // If SDK not available or timeout, use redirect OAuth
-                    console.warn('Facebook SDK not ready, using redirect OAuth:', err);
-                    const scope = getLoginScope();
-                    const state = 'facebook_oauth';
-                    const redirectUri = getRedirectURI();
-                    const authUrl = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${FB_APP_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}&state=${state}&response_type=code`;
-
-                    sessionStorage.setItem('facebook_oauth_return', window.location.href);
-                    window.location.href = authUrl;
-                });
-        } else {
-            // For HTTP/localhost, show helpful message about setup requirements
-            const isHTTP = window.location.protocol === 'http:';
-            if (isLocalhost && isHTTP) {
-                reject(new Error(
-                    'LOCALHOST_SETUP_REQUIRED: Facebook integration on localhost requires:\n\n' +
-                    '1. Add "localhost" to Facebook App Domains\n' +
-                    '2. Add "http://localhost:3000" to Valid OAuth Redirect URIs\n' +
-                    '3. Set up a backend endpoint for secure token exchange\n\n' +
-                    'OR use ngrok/HTTPS tunnel for development.\n\n' +
-                    'See: https://developers.facebook.com/docs/facebook-login/web'
-                ));
-                return;
-            }
-
-            // Use redirect OAuth for HTTP (non-localhost)
-            const scope = getLoginScope();
-            const state = 'facebook_oauth';
-            const redirectUri = getRedirectURI();
-            const authUrl = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${FB_APP_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}&state=${state}&response_type=code`;
-
-            // Store the current URL to return to after OAuth
-            sessionStorage.setItem('facebook_oauth_return', window.location.href);
-
-            window.location.href = authUrl;
-            // Note: This will redirect, so the promise won't resolve until callback
+        const isHTTP = window.location.protocol === 'http:';
+        if (isLocalhost && isHTTP) {
+            reject(new Error(
+                'LOCALHOST_SETUP_REQUIRED: Facebook integration on localhost requires:\n\n' +
+                '1. Add "localhost" to Facebook App Domains\n' +
+                '2. Add "http://localhost:3000" to Valid OAuth Redirect URIs\n' +
+                '3. Set up a backend endpoint for secure token exchange\n\n' +
+                'OR use ngrok/HTTPS tunnel for development.\n\n' +
+                'See: https://developers.facebook.com/docs/facebook-login/web'
+            ));
+            return;
         }
+
+        const scope = getLoginScope();
+        const state = 'facebook_oauth';
+        const redirectUri = getRedirectURI();
+        const authUrl = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${FB_APP_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}&state=${state}&response_type=code`;
+
+        sessionStorage.setItem('facebook_oauth_return', window.location.href);
+        window.location.href = authUrl;
     });
 };
 
