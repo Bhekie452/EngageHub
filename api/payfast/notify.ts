@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import CryptoJS from 'crypto-js';
+import crypto from 'crypto';
 
 function md5Signature(params: Record<string, string>, passPhrase?: string) {
   const data: Record<string, string> = {};
@@ -11,7 +11,7 @@ function md5Signature(params: Record<string, string>, passPhrase?: string) {
     .map((k) => `${k}=${encodeURIComponent(data[k]).replace(/%20/g, '+')}`)
     .join('&');
   if (passPhrase) qs += `&passphrase=${encodeURIComponent(passPhrase).replace(/%20/g, '+')}`;
-  return CryptoJS.MD5(qs).toString().toLowerCase();
+  return crypto.createHash('md5').update(qs).digest('hex').toLowerCase();
 }
 
 async function validateWithPayFast(rawBody: string, sandbox: boolean) {

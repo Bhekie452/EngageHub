@@ -129,50 +129,38 @@ export const exchangeCodeForToken = async (code: string): Promise<{ accessToken:
         // Check if we have a backend endpoint for token exchange
         const backendUrl = import.meta.env.VITE_API_URL || import.meta.env.VITE_VERCEL_URL || '';
 
-        if (backendUrl) {
-            const response = await fetch(`${backendUrl}/api/twitter?action=token`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ code, redirectUri, codeVerifier })
-            });
+        // Use consolidated auth endpoint
+        const response = await fetch(`/api/auth?provider=twitter&action=token`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ code, redirectUri, codeVerifier })
+        });
 
-            if (!response.ok) {
-                if (response.status === 404) {
-                    throw new Error(
-                        'Twitter OAuth requires a backend endpoint.\n\n' +
-                        'Please set up: POST /api/twitter/token\n' +
-                        'Set VITE_API_URL in environment variables.\n\n' +
-                        'See TWITTER_CONNECTION_GUIDE.md for setup instructions.'
-                    );
-                }
-
-                let errorMessage = 'Token exchange failed';
-                try {
-                    const error = await response.json();
-                    errorMessage = error.message || error.error || 'Token exchange failed';
-                } catch {
-                    errorMessage = response.statusText || 'Token exchange failed';
-                }
-                throw new Error(errorMessage);
+        if (!response.ok) {
+            let errorMessage = 'Token exchange failed';
+            try {
+                const error = await response.json();
+                errorMessage = error.message || error.error || 'Token exchange failed';
+            } catch {
+                errorMessage = response.statusText || 'Token exchange failed';
             }
-
-            const data = await response.json();
-
-            // Clean up session storage
-            const returnUrl = sessionStorage.getItem('twitter_oauth_return') || window.location.pathname;
-            window.history.replaceState({}, '', returnUrl);
-            sessionStorage.removeItem('twitter_oauth_return');
-            sessionStorage.removeItem('twitter_oauth_redirect_uri');
-            sessionStorage.removeItem('twitter_oauth_code_verifier');
-
-            return {
-                accessToken: data.access_token,
-                refreshToken: data.refresh_token,
-                expiresIn: data.expires_in
-            };
-        } else {
-            throw new Error('Backend URL not configured. Please set VITE_API_URL in environment variables.');
+            throw new Error(errorMessage);
         }
+
+        const data = await response.json();
+
+        // Clean up session storage
+        const returnUrl = sessionStorage.getItem('twitter_oauth_return') || window.location.pathname;
+        window.history.replaceState({}, '', returnUrl);
+        sessionStorage.removeItem('twitter_oauth_return');
+        sessionStorage.removeItem('twitter_oauth_redirect_uri');
+        sessionStorage.removeItem('twitter_oauth_code_verifier');
+
+        return {
+            accessToken: data.access_token,
+            refreshToken: data.refresh_token,
+            expiresIn: data.expires_in
+        };
     } catch (error: any) {
         throw new Error(`Failed to exchange Twitter code for token: ${error.message}`);
     }
@@ -189,7 +177,8 @@ export const getTwitterProfile = async (accessToken: string): Promise<any> => {
             throw new Error('Backend URL not configured. Please set VITE_API_URL in environment variables.');
         }
 
-        const response = await fetch(`${backendUrl}/api/twitter?action=profile`, {
+        // Use consolidated auth endpoint
+        const response = await fetch(`/api/auth?provider=twitter&action=profile`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ accessToken })

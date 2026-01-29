@@ -125,7 +125,7 @@ export const loginWithLinkedIn = () => {
  * Exchange authorization code for access token
  * NOTE: This MUST be done server-side for security (client secret required)
  */
-const exchangeCodeForToken = async (code: string): Promise<any> => {
+export const exchangeCodeForToken = async (code: string): Promise<any> => {
     try {
         // CRITICAL: Use the EXACT redirect URI that was used in the authorization request
         // This must match exactly, or LinkedIn will reject the token exchange
@@ -137,49 +137,31 @@ const exchangeCodeForToken = async (code: string): Promise<any> => {
         console.log('Stored redirect URI:', storedRedirectUri);
 
         // Check if we have a backend endpoint for token exchange
-        const backendUrl = import.meta.env.VITE_API_URL || '';
+        // Use consolidated auth endpoint
+        const response = await fetch(`/api/auth?provider=linkedin&action=token`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ code, redirectUri })
+        });
 
-        if (backendUrl) {
-            // Use backend endpoint (recommended)
-            const response = await fetch(`${backendUrl}/api/linkedin?action=token`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ code, redirectUri })
-            });
-
-            if (!response.ok) {
-                const error = await response.json();
-                throw new Error(error.message || 'Token exchange failed');
-            }
-
-            const data = await response.json();
-
-            // Clean up URL and stored data
-            const returnUrl = sessionStorage.getItem('linkedin_oauth_return') || window.location.pathname;
-            window.history.replaceState({}, '', returnUrl);
-            sessionStorage.removeItem('linkedin_oauth_return');
-            sessionStorage.removeItem('linkedin_oauth_redirect_uri');
-
-            return {
-                accessToken: data.access_token,
-                expiresIn: data.expires_in,
-                refreshToken: data.refresh_token
-            };
-        } else {
-            // For localhost development without backend, show helpful error
-            const returnUrl = sessionStorage.getItem('linkedin_oauth_return') || window.location.pathname;
-            window.history.replaceState({}, '', returnUrl);
-            sessionStorage.removeItem('linkedin_oauth_return');
-
-            throw new Error(
-                'LinkedIn OAuth requires a backend server for security (client secret needed).\n\n' +
-                'For localhost development, please:\n\n' +
-                '1. Set up a backend endpoint at /api/linkedin/token\n' +
-                '2. Set VITE_API_URL in environment variables\n' +
-                '3. Or use Supabase Edge Functions\n\n' +
-                'See LINKEDIN_CONNECTION_GUIDE.md for setup instructions.'
-            );
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.message || 'Token exchange failed');
         }
+
+        const data = await response.json();
+
+        // Clean up URL and stored data
+        const returnUrl = sessionStorage.getItem('linkedin_oauth_return') || window.location.pathname;
+        window.history.replaceState({}, '', returnUrl);
+        sessionStorage.removeItem('linkedin_oauth_return');
+        sessionStorage.removeItem('linkedin_oauth_redirect_uri');
+
+        return {
+            accessToken: data.access_token,
+            expiresIn: data.expires_in,
+            refreshToken: data.refresh_token
+        };
     } catch (error: any) {
         throw new Error(`Token exchange failed: ${error.message}`);
     }
@@ -191,9 +173,8 @@ const exchangeCodeForToken = async (code: string): Promise<any> => {
  */
 export const getLinkedInProfile = async (accessToken: string): Promise<any> => {
     try {
-        // Use backend endpoint to avoid CORS issues
-        const backendUrl = import.meta.env.VITE_API_URL || window.location.origin;
-        const response = await fetch(`${backendUrl}/api/linkedin?action=profile`, {
+        // Use consolidated auth endpoint
+        const response = await fetch(`/api/auth?provider=linkedin&action=profile`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -257,9 +238,8 @@ export const getLinkedInOrganizations = async (accessToken: string): Promise<any
  */
 export const getLinkedInOrganizationDetails = async (accessToken: string, organizationUrn: string): Promise<any> => {
     try {
-        // Use backend endpoint to avoid CORS issues
-        const backendUrl = import.meta.env.VITE_API_URL || window.location.origin;
-        const response = await fetch(`${backendUrl}/api/linkedin?action=organization-details`, {
+        // Use consolidated auth endpoint
+        const response = await fetch(`/api/auth?provider=linkedin&action=organization-details`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'

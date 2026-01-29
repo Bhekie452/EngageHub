@@ -11,9 +11,11 @@ declare global {
             init: (config: { appId: string; cookie: boolean; xfbml: boolean; version: string }) => void;
             login: (callback: (response: any) => void, options?: { scope?: string }) => void;
             getLoginStatus: (callback: (response: any) => void) => void;
-            api: (path: string, callback: (response: any) => void) => void;
-            api: (path: string, method: string, callback: (response: any) => void) => void;
-            api: (path: string, method: string, params: any, callback: (response: any) => void) => void;
+            api: {
+                (path: string, callback: (response: any) => void): void;
+                (path: string, method: string, callback: (response: any) => void): void;
+                (path: string, method: string, params: any, callback: (response: any) => void): void;
+            };
             AppEvents?: {
                 logPageView: () => void;
                 logEvent: (eventName: string, valueToSum?: number, parameters?: any) => void;
@@ -72,7 +74,7 @@ export const initFacebookSDK = () => {
         const allowLocalhostSDK = import.meta.env.VITE_FACEBOOK_SDK_LOCALHOST === 'true';
         const isHTTPS = window.location.protocol === 'https:';
         const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-        
+
         // Initialize SDK if HTTPS or if explicitly enabled for localhost testing
         if (isHTTPS || (allowLocalhostSDK && isLocalhost)) {
             // Check if SDK is already loaded
@@ -105,12 +107,12 @@ export const initFacebookSDK = () => {
                         xfbml: true,
                         version: 'v21.0'
                     });
-                    
+
                     // Log page view for analytics (standard Facebook pattern)
                     if (window.FB.AppEvents) {
                         window.FB.AppEvents.logPageView();
                     }
-                    
+
                     console.log('✅ Facebook SDK Initialized successfully');
                     console.log('📱 App ID:', FB_APP_ID);
                     resolve(true);
@@ -124,7 +126,7 @@ export const initFacebookSDK = () => {
             };
 
             // Load Facebook SDK script (standard Facebook pattern)
-            (function(d, s, id) {
+            (function (d, s, id) {
                 var js, fjs = d.getElementsByTagName(s)[0];
                 if (d.getElementById(id)) {
                     // Script already exists, wait for it to load
@@ -150,14 +152,14 @@ export const initFacebookSDK = () => {
                 js.id = id;
                 js.src = "https://connect.facebook.net/en_US/sdk.js";
                 js.async = true;
-                
+
                 // Add error handler for script loading
                 js.onerror = () => {
                     clearTimeout(loadTimeout);
                     console.warn('Facebook SDK script failed to load - using redirect OAuth fallback');
                     resolve(false);
                 };
-                
+
                 if (fjs && fjs.parentNode) {
                     fjs.parentNode.insertBefore(js, fjs);
                 } else {
@@ -244,7 +246,7 @@ export const loginWithFacebook = () => {
                                 const state = 'facebook_oauth';
                                 const redirectUri = getRedirectURI();
                                 const authUrl = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${FB_APP_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}&state=${state}&response_type=code`;
-                                
+
                                 sessionStorage.setItem('facebook_oauth_return', window.location.href);
                                 window.location.href = authUrl;
                             }
@@ -259,7 +261,7 @@ export const loginWithFacebook = () => {
                         const state = 'facebook_oauth';
                         const redirectUri = getRedirectURI();
                         const authUrl = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${FB_APP_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}&state=${state}&response_type=code`;
-                        
+
                         sessionStorage.setItem('facebook_oauth_return', window.location.href);
                         window.location.href = authUrl;
                     }
@@ -271,7 +273,7 @@ export const loginWithFacebook = () => {
                     const state = 'facebook_oauth';
                     const redirectUri = getRedirectURI();
                     const authUrl = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${FB_APP_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}&state=${state}&response_type=code`;
-                    
+
                     sessionStorage.setItem('facebook_oauth_return', window.location.href);
                     window.location.href = authUrl;
                 });
@@ -289,16 +291,16 @@ export const loginWithFacebook = () => {
                 ));
                 return;
             }
-            
+
             // Use redirect OAuth for HTTP (non-localhost)
             const scope = getLoginScope();
             const state = 'facebook_oauth';
             const redirectUri = getRedirectURI();
             const authUrl = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${FB_APP_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}&state=${state}&response_type=code`;
-            
+
             // Store the current URL to return to after OAuth
             sessionStorage.setItem('facebook_oauth_return', window.location.href);
-            
+
             window.location.href = authUrl;
             // Note: This will redirect, so the promise won't resolve until callback
         }
@@ -310,50 +312,29 @@ export const loginWithFacebook = () => {
  * NOTE: In production, this MUST be done server-side for security
  * For localhost development, you'll need to set up a backend endpoint or use ngrok
  */
-const exchangeCodeForToken = async (code: string): Promise<any> => {
+export const exchangeCodeForToken = async (code: string): Promise<any> => {
     try {
-        // Check if we have a backend endpoint for token exchange
-        const backendUrl = import.meta.env.VITE_API_URL || '';
-        
-        if (backendUrl) {
-            // Use backend endpoint (recommended)
-            const response = await fetch(`${backendUrl}/api/facebook/token`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ code, redirectUri: getRedirectURI() })
-            });
-            
-            if (!response.ok) {
-                const error = await response.json();
-                throw new Error(error.message || 'Token exchange failed');
-            }
-            
-            const data = await response.json();
-            
-            // Clean up URL
-            const returnUrl = sessionStorage.getItem('facebook_oauth_return') || window.location.pathname;
-            window.history.replaceState({}, '', returnUrl);
-            sessionStorage.removeItem('facebook_oauth_return');
-            
-            return {
-                accessToken: data.access_token,
-                expiresIn: data.expires_in
-            };
-        } else {
-            // For localhost development without backend, show helpful error
-            const returnUrl = sessionStorage.getItem('facebook_oauth_return') || window.location.pathname;
-            window.history.replaceState({}, '', returnUrl);
-            sessionStorage.removeItem('facebook_oauth_return');
-            
-            throw new Error(
-                'Facebook OAuth requires a backend server for security. ' +
-                'For localhost development, please:\n\n' +
-                '1. Set up a backend endpoint at /api/facebook/token\n' +
-                '2. Or use ngrok to create an HTTPS tunnel\n' +
-                '3. Or configure your Facebook App to allow localhost in App Domains\n\n' +
-                'See README.md for setup instructions.'
-            );
+        const response = await fetch(`/api/auth?provider=facebook&action=token`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ code, redirectUri: getRedirectURI() })
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.message || 'Token exchange failed');
         }
+
+        const data = await response.json();
+
+        const returnUrl = sessionStorage.getItem('facebook_oauth_return') || window.location.pathname;
+        window.history.replaceState({}, '', returnUrl);
+        sessionStorage.removeItem('facebook_oauth_return');
+
+        return {
+            accessToken: data.access_token,
+            expiresIn: data.expires_in
+        };
     } catch (error: any) {
         throw new Error(`Token exchange failed: ${error.message}`);
     }
@@ -380,11 +361,11 @@ export const getPageTokens = async (userAccessToken: string): Promise<any[]> => 
             `https://graph.facebook.com/v21.0/me/accounts?fields=id,name,access_token,instagram_business_account&access_token=${userAccessToken}`
         );
         const data = await response.json();
-        
+
         if (data.error) {
             throw new Error(data.error.message || 'Failed to fetch pages');
         }
-        
+
         return data.data || [];
     } catch (error: any) {
         throw new Error(`Failed to get pages: ${error.message}`);
@@ -400,11 +381,11 @@ export const getInstagramAccount = async (pageAccessToken: string, instagramBusi
             `https://graph.facebook.com/v21.0/${instagramBusinessAccountId}?fields=id,username,profile_picture_url&access_token=${pageAccessToken}`
         );
         const data = await response.json();
-        
+
         if (data.error) {
             throw new Error(data.error.message || 'Failed to fetch Instagram account');
         }
-        
+
         return data;
     } catch (error: any) {
         throw new Error(`Failed to get Instagram account: ${error.message}`);

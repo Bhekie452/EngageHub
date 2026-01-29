@@ -17,6 +17,7 @@ export interface Deal {
   status: 'open' | 'won' | 'lost' | 'abandoned';
   probability: number;
   priority: 'low' | 'medium' | 'high' | 'urgent';
+  lead_source?: string;
   notes?: string;
   created_at: string;
   updated_at: string;
@@ -48,7 +49,7 @@ export const dealsService = {
       .select('*')
       .eq('owner_id', user.id)
       .order('created_at', { ascending: false });
-    
+
     if (dealsError) {
       console.error('Error fetching deals:', dealsError);
       throw dealsError;
@@ -64,13 +65,13 @@ export const dealsService = {
     const companyIds = [...new Set(dealsData.map(d => d.company_id).filter(Boolean))];
 
     const [stagesResult, contactsResult, companiesResult] = await Promise.all([
-      stageIds.length > 0 
+      stageIds.length > 0
         ? supabase.from('pipeline_stages').select('id, name, probability').in('id', stageIds)
         : { data: [], error: null },
-      contactIds.length > 0 
+      contactIds.length > 0
         ? supabase.from('contacts').select('id, full_name, company_name').in('id', contactIds)
         : { data: [], error: null },
-      companyIds.length > 0 
+      companyIds.length > 0
         ? supabase.from('companies').select('id, name').in('id', companyIds)
         : { data: [], error: null },
     ]);
@@ -94,7 +95,7 @@ export const dealsService = {
       .select('*')
       .eq('id', id)
       .single();
-    
+
     if (error) {
       console.error('Error fetching deal:', error);
       throw error;
@@ -125,7 +126,7 @@ export const dealsService = {
       .eq('owner_id', user.id)
       .eq('status', status)
       .order('created_at', { ascending: false });
-    
+
     if (dealsError) {
       console.error('Error fetching deals by status:', dealsError);
       throw dealsError;
@@ -141,13 +142,13 @@ export const dealsService = {
     const companyIds = [...new Set(dealsData.map(d => d.company_id).filter(Boolean))];
 
     const [stagesResult, contactsResult, companiesResult] = await Promise.all([
-      stageIds.length > 0 
+      stageIds.length > 0
         ? supabase.from('pipeline_stages').select('id, name, probability').in('id', stageIds)
         : { data: [], error: null },
-      contactIds.length > 0 
+      contactIds.length > 0
         ? supabase.from('contacts').select('id, full_name, company_name').in('id', contactIds)
         : { data: [], error: null },
-      companyIds.length > 0 
+      companyIds.length > 0
         ? supabase.from('companies').select('id, name').in('id', companyIds)
         : { data: [], error: null },
     ]);
@@ -177,7 +178,7 @@ export const dealsService = {
 
     if (!stages || stages.length === 0) return [];
 
-    return this.getByStatus('open').then(deals => 
+    return this.getByStatus('open').then(deals =>
       deals.filter(deal => deal.stage_id === stages[0].id)
     );
   },
@@ -191,12 +192,12 @@ export const dealsService = {
       .insert([{ ...deal, owner_id: user.id }])
       .select()
       .single();
-    
+
     if (error) {
       console.error('Error creating deal:', error);
       throw error;
     }
-    
+
     return this.getById(data.id);
   },
 
@@ -207,12 +208,12 @@ export const dealsService = {
       .eq('id', id)
       .select()
       .single();
-    
+
     if (error) {
       console.error('Error updating deal:', error);
       throw error;
     }
-    
+
     return this.getById(data.id);
   },
 
@@ -221,7 +222,7 @@ export const dealsService = {
       .from('deals')
       .delete()
       .eq('id', id);
-    
+
     if (error) {
       console.error('Error deleting deal:', error);
       throw error;

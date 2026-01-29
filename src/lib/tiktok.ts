@@ -111,9 +111,8 @@ export const connectTikTok = async () => {
 /**
  * Exchange authorization code for access token
  */
-export const exchangeCodeForToken = async (code: string): Promise<{ accessToken: string; refreshToken?: string; expiresIn?: number }> => {
+export const exchangeCodeForToken = async (code: string): Promise<{ accessToken: string; refreshToken?: string; expiresIn?: number; userId?: string }> => {
     try {
-        // CRITICAL: Use the EXACT redirect URI that was used in the authorization request
         const storedRedirectUri = sessionStorage.getItem('tiktok_oauth_redirect_uri');
         const redirectUri = storedRedirectUri || getRedirectURI();
         const codeVerifier = sessionStorage.getItem('tiktok_oauth_code_verifier');
@@ -122,74 +121,45 @@ export const exchangeCodeForToken = async (code: string): Promise<{ accessToken:
             throw new Error('Code verifier not found. Please try connecting again.');
         }
 
-        console.log('🔄 Exchanging TikTok code for token...');
-        console.log('Using redirect URI:', redirectUri);
-        console.log('Stored redirect URI:', storedRedirectUri);
+        const response = await fetch(`/api/auth?provider=tiktok&action=token`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ code, redirectUri, codeVerifier })
+        });
 
-        // Check if we have a backend endpoint for token exchange
-        const backendUrl = import.meta.env.VITE_API_URL || import.meta.env.VITE_VERCEL_URL || '';
-
-        if (backendUrl) {
-            const response = await fetch(`${backendUrl}/api/tiktok?action=token`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ code, redirectUri, codeVerifier })
-            });
-
-            if (!response.ok) {
-                if (response.status === 404) {
-                    throw new Error(
-                        'TikTok OAuth requires a backend endpoint.\n\n' +
-                        'Please set up: POST /api/tiktok/token\n' +
-                        'Set VITE_API_URL in environment variables.\n\n' +
-                        'See TIKTOK_CONNECTION_GUIDE.md for setup instructions.'
-                    );
-                }
-
-                let errorMessage = 'Token exchange failed';
-                try {
-                    const error = await response.json();
-                    errorMessage = error.message || error.error || 'Token exchange failed';
-                } catch {
-                    errorMessage = response.statusText || 'Token exchange failed';
-                }
-                throw new Error(errorMessage);
+        if (!response.ok) {
+            let errorMessage = 'Token exchange failed';
+            try {
+                const error = await response.json();
+                errorMessage = error.message || error.error || error.error_description || 'Token exchange failed';
+            } catch {
+                errorMessage = response.statusText || 'Token exchange failed';
             }
-
-            const data = await response.json();
-
-            // Clean up session storage
-            const returnUrl = sessionStorage.getItem('tiktok_oauth_return') || window.location.pathname;
-            window.history.replaceState({}, '', returnUrl);
-            sessionStorage.removeItem('tiktok_oauth_return');
-            sessionStorage.removeItem('tiktok_oauth_redirect_uri');
-            sessionStorage.removeItem('tiktok_oauth_code_verifier');
-
-            return {
-                accessToken: data.access_token,
-                refreshToken: data.refresh_token,
-                expiresIn: data.expires_in
-            };
-        } else {
-            throw new Error('Backend URL not configured. Please set VITE_API_URL in environment variables.');
+            throw new Error(errorMessage);
         }
+
+        const data = await response.json();
+
+        const returnUrl = sessionStorage.getItem('tiktok_oauth_return') || window.location.pathname;
+        window.history.replaceState({}, '', returnUrl);
+        sessionStorage.removeItem('tiktok_oauth_return');
+        sessionStorage.removeItem('tiktok_oauth_redirect_uri');
+        sessionStorage.removeItem('tiktok_oauth_code_verifier');
+
+        return {
+            accessToken: data.access_token,
+            refreshToken: data.refresh_token,
+            expiresIn: data.expires_in,
+            userId: data.open_id || data.union_id
+        };
     } catch (error: any) {
-        throw new Error(`Failed to exchange TikTok code for token: ${error.message}`);
+        throw new Error(`Token exchange failed: ${error.message}`);
     }
 };
 
-/**
- * Get TikTok user profile (via backend to avoid CORS)
- */
 export const getTikTokProfile = async (accessToken: string): Promise<any> => {
     try {
-        const backendUrl = import.meta.env.VITE_API_URL || import.meta.env.VITE_VERCEL_URL || '';
-
-        if (!backendUrl) {
-            throw new Error('Backend URL not configured. Please set VITE_API_URL in environment variables.');
-        }
-
-        const response = await fetch(`${backendUrl}/api/tiktok?action=profile`, {
+        const response = await fetch(`/api/auth?provider=tiktok&action=profile`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ accessToken })

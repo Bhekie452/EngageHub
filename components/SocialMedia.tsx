@@ -26,10 +26,10 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../src/hooks/useAuth';
 import { supabase } from '../src/lib/supabase';
-import { initFacebookSDK, loginWithFacebook, getPageTokens, getFacebookProfile, getInstagramAccount } from '../src/lib/facebook';
-import { loginWithLinkedIn, getLinkedInProfile, getLinkedInOrganizations, getLinkedInOrganizationDetails } from '../src/lib/linkedin';
-import { connectYouTube, getYouTubeChannel } from '../src/lib/youtube';
-import { connectTwitter, exchangeCodeForToken, getTwitterProfile } from '../src/lib/twitter';
+import { initFacebookSDK, loginWithFacebook, getPageTokens, getFacebookProfile, getInstagramAccount, exchangeCodeForToken as exchangeFacebookCodeForToken } from '../src/lib/facebook';
+import { loginWithLinkedIn, getLinkedInProfile, getLinkedInOrganizations, getLinkedInOrganizationDetails, exchangeCodeForToken as exchangeLinkedInCodeForToken } from '../src/lib/linkedin';
+import { connectYouTube, getYouTubeChannel, exchangeCodeForToken as exchangeYouTubeCodeForToken } from '../src/lib/youtube';
+import { connectTwitter, exchangeCodeForToken as exchangeTwitterCodeForToken, getTwitterProfile } from '../src/lib/twitter';
 import { connectTikTok, exchangeCodeForToken as exchangeTikTokCodeForToken, getTikTokProfile } from '../src/lib/tiktok';
 
 type SocialTab = 'accounts' | 'schedule' | 'engagement' | 'mentions' | 'comments' | 'dms';
@@ -117,63 +117,78 @@ const SocialMedia: React.FC = () => {
     }
   }, [user]);
 
-  const handleFacebookCallback = async (code: string) => {
+  async function handleConnectFacebook() {
+    if (!user) {
+      alert('Please log in first');
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const authResponse: any = await loginWithFacebook();
+
+      if (!authResponse || !authResponse.accessToken) {
+        setIsOAuthRedirect(true);
+        return;
+      }
+
+      let pages: any[] = [];
+      try {
+        pages = (await getPageTokens(authResponse.accessToken)) || [];
+      } catch {
+        // Token has no Page permission — connect as profile instead
+      }
+
+      const { data: workspaces } = await supabase.from('workspaces').select('id').eq('owner_id', user!.id).limit(1);
+      if (!workspaces?.length) throw new Error('No workspace found');
+
+      if (pages?.length) {
+        const page = pages[0];
+        const { error } = await supabase.from('social_accounts').upsert({
+          workspace_id: workspaces[0].id,
+          connected_by: user!.id,
+          platform: 'facebook',
+          account_id: page.id,
+          display_name: page.name,
+          account_type: 'page',
+          access_token: page.access_token,
+          is_active: true,
+          connection_status: 'connected',
+        }, { onConflict: 'workspace_id,platform,account_id' });
+        if (error) throw error;
+        alert(`✅ Connected to Facebook Page: ${page.name}!`);
+      } else {
+        const profile = await getFacebookProfile(authResponse.accessToken);
+        const { error } = await supabase.from('social_accounts').upsert({
+          workspace_id: workspaces[0].id,
+          connected_by: user!.id,
+          platform: 'facebook',
+          account_id: `profile_${profile.id}`,
+          display_name: profile.name,
+          account_type: 'profile',
+          access_token: authResponse.accessToken,
+          is_active: true,
+          connection_status: 'connected',
+        }, { onConflict: 'workspace_id,platform,account_id' });
+        if (error) throw error;
+        alert(`✅ Connected to Facebook as ${profile.name}. (Page posting not available — Meta's APIs require separate Page permissions.)`);
+      }
+      fetchConnectedAccounts();
+    } catch (err: any) {
+      console.error('Connection error:', err);
+      alert(`Failed to connect to Facebook: ${err.message || 'Unknown error'}`);
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  async function handleFacebookCallback(code: string) {
     setIsOAuthRedirect(false); // Reset flag - we're back from redirect
     setIsLoading(true);
     try {
-      // Exchange code for access token using backend or direct method
-      const backendUrl = import.meta.env.VITE_API_URL || '';
-      let accessToken: string;
-
-      if (backendUrl) {
-        // Use backend endpoint (recommended for production)
-        const response = await fetch(`${backendUrl}/api/facebook/token`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            code,
-            redirectUri: `${window.location.origin}${window.location.pathname}${window.location.hash || ''}`
-          })
-        });
-
-        if (!response.ok) {
-          const error = await response.json();
-          throw new Error(error.message || 'Token exchange failed');
-        }
-
-        const data = await response.json();
-        accessToken = data.access_token;
-      } else {
-        // No backend configured - show setup instructions
-        const setupMsg = `🔧 Facebook OAuth Setup Required
-
-For production, you need a backend server to securely exchange the OAuth code for an access token.
-
-Options:
-1. Set up a backend API endpoint (recommended)
-   - Create endpoint: POST /api/facebook/token
-   - Set VITE_API_URL in Vercel environment variables
-   
-2. Use Supabase Edge Functions
-   - Create a function to handle token exchange
-   
-3. Configure Facebook App properly
-   - Make sure your domain is in Valid OAuth Redirect URIs
-   - App should be in Live mode or add test users
-
-Current domain: ${window.location.origin}
-Facebook App ID: ${import.meta.env.VITE_FACEBOOK_APP_ID || '1621732999001688'}
-
-See FACEBOOK_SETUP.md for detailed instructions.`;
-
-        alert(setupMsg);
-        setIsLoading(false);
-        // Clean up URL
-        const returnUrl = sessionStorage.getItem('facebook_oauth_return') || window.location.pathname;
-        window.history.replaceState({}, '', returnUrl);
-        sessionStorage.removeItem('facebook_oauth_return');
-        return;
-      }
+      // Exchange code for access token using centralized library
+      const tokenData = await exchangeFacebookCodeForToken(code);
+      const accessToken = tokenData.accessToken;
 
       let pages: any[] = [];
       try {
@@ -260,9 +275,9 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
     } finally {
       setIsLoading(false);
     }
-  };
+  }
 
-  const handleConnectTwitter = async () => {
+  async function handleConnectTwitter() {
     if (!user) {
       alert('Please log in first');
       return;
@@ -341,13 +356,14 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
     } finally {
       setIsLoading(false);
     }
-  };
+  }
 
-  const handleTwitterCallback = async (code: string) => {
+  async function handleTwitterCallback(code: string) {
     setIsLoading(true);
     try {
-      // Exchange code for token
-      const tokenData = await exchangeCodeForToken(code);
+      // Exchange code for token using centralized library
+      const tokenData = await exchangeTwitterCodeForToken(code);
+
 
       // Get Twitter profile
       const profileData = await getTwitterProfile(tokenData.accessToken);
@@ -394,7 +410,7 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
     }
   };
 
-  const handleConnectTikTok = async () => {
+  async function handleConnectTikTok() {
     if (!user) {
       alert('Please log in first');
       return;
@@ -473,15 +489,14 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
     } finally {
       setIsLoading(false);
     }
-  };
+  }
 
-  const handleTikTokCallback = async (code: string) => {
+  async function handleTikTokCallback(code: string) {
     setIsOAuthRedirect(false);
     setIsLoading(true);
     try {
       // Exchange code for token
       const tokenData = await exchangeTikTokCodeForToken(code);
-
       // Get TikTok profile
       const profileData = await getTikTokProfile(tokenData.accessToken);
 
@@ -525,9 +540,9 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
     } finally {
       setIsLoading(false);
     }
-  };
+  }
 
-  const fetchConnectedAccounts = async () => {
+  async function fetchConnectedAccounts() {
     if (!user) return;
     setIsLoading(true);
     try {
@@ -564,9 +579,9 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
     } finally {
       setIsLoading(false);
     }
-  };
+  }
 
-  const tryConnectInstagramWithToken = async (accessToken: string): Promise<boolean> => {
+  async function tryConnectInstagramWithToken(accessToken: string): Promise<boolean> {
     const { data: workspaces } = await supabase.from('workspaces').select('id').eq('owner_id', user!.id).limit(1);
     if (!workspaces?.length) return false;
 
@@ -611,9 +626,10 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
     }
     fetchConnectedAccounts();
     return true;
-  };
+  }
 
-  const handleConnectInstagram = async () => {
+
+  async function handleConnectInstagram() {
     if (!user) {
       alert('Please log in first');
       return;
@@ -681,42 +697,15 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
     } finally {
       setIsLoading(false);
     }
-  };
+  }
 
-  const handleInstagramCallback = async (code: string) => {
+  async function handleInstagramCallback(code: string) {
     setIsOAuthRedirect(false);
     setIsLoading(true);
     try {
-      // Instagram uses the same OAuth flow as Facebook
-      // Exchange code for token and then get Instagram accounts
-      const backendUrl = import.meta.env.VITE_API_URL || '';
-      let accessToken: string;
-
-      if (backendUrl) {
-        const response = await fetch(`${backendUrl}/api/facebook/token`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            code,
-            redirectUri: `${window.location.origin}${window.location.pathname}${window.location.hash || ''}`
-          })
-        });
-
-        if (!response.ok) {
-          const error = await response.json();
-          throw new Error(error.message || 'Token exchange failed');
-        }
-
-        const data = await response.json();
-        accessToken = data.access_token;
-      } else {
-        alert('Backend API URL not configured. Instagram connection requires a backend endpoint.');
-        setIsLoading(false);
-        const returnUrl = sessionStorage.getItem('instagram_oauth_return') || window.location.pathname;
-        window.history.replaceState({}, '', returnUrl);
-        sessionStorage.removeItem('instagram_oauth_return');
-        return;
-      }
+      // Exchange code for token using centralized library (same as Facebook)
+      const tokenData = await exchangeFacebookCodeForToken(code);
+      const accessToken = tokenData.accessToken;
 
       // Get pages with Instagram accounts
       let pages: any[] = [];
@@ -810,7 +799,7 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
     }
   };
 
-  const handleConnectLinkedIn = async () => {
+  async function handleConnectLinkedIn() {
     if (!user) {
       alert('Please log in first');
       return;
@@ -973,84 +962,15 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
     }
   };
 
-  const handleLinkedInCallback = async (code: string) => {
+  async function handleLinkedInCallback(code: string) {
     setIsOAuthRedirect(false);
     setIsLoading(true);
     try {
-      // LinkedIn uses backend for token exchange
-      const backendUrl = import.meta.env.VITE_API_URL || '';
-      let accessToken: string;
-      let refreshToken: string;
-      let expiresIn: number;
-
-      if (backendUrl) {
-        // CRITICAL: Use the EXACT redirect URI that was used in the authorization request
-        // This must match exactly, or LinkedIn will reject the token exchange
-        const storedRedirectUri = sessionStorage.getItem('linkedin_oauth_redirect_uri');
-        // Fallback to calculated URI if not stored (shouldn't happen, but safety)
-        const redirectUri = storedRedirectUri || window.location.origin.replace(/\/$/, '');
-
-        console.log('🔍 LinkedIn Token Exchange Debug:');
-        console.log('  - Backend URL:', backendUrl);
-        console.log('  - API Endpoint:', `${backendUrl.replace(/\/$/, '')}/api/linkedin/token`);
-        console.log('  - Stored redirect URI:', storedRedirectUri);
-        console.log('  - Final redirect URI:', redirectUri);
-        console.log('  - Code received:', code ? `${code.substring(0, 20)}...` : 'MISSING');
-        console.log('  - Current URL:', window.location.href);
-
-        // Ensure backendUrl doesn't have trailing slash
-        const apiUrl = `${backendUrl.replace(/\/$/, '')}/api/linkedin/token`;
-
-        const response = await fetch(apiUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            code,
-            redirectUri: redirectUri
-          })
-        });
-
-        if (!response.ok) {
-          // Handle 404 (endpoint not found) with helpful message
-          if (response.status === 404) {
-            const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-            if (isLocalhost && backendUrl.includes('localhost')) {
-              throw new Error(
-                'LOCAL_DEV_API_ERROR: The API endpoint is not available locally.\n\n' +
-                'Vercel serverless functions only work on Vercel, not in local development.\n\n' +
-                'Solutions:\n' +
-                '1. Use production URL: Set VITE_API_URL=https://engage-hub-ten.vercel.app in .env.local\n' +
-                '2. Or deploy to Vercel first, then test\n' +
-                '3. Or set up a local backend server\n\n' +
-                'For now, update .env.local to use your Vercel URL.'
-              );
-            }
-          }
-
-          // Try to parse error response
-          let errorMessage = 'Token exchange failed';
-          try {
-            const error = await response.json();
-            errorMessage = error.message || error.error || 'Token exchange failed';
-          } catch {
-            // If response is not JSON, use status text
-            errorMessage = response.statusText || 'Token exchange failed';
-          }
-          throw new Error(errorMessage);
-        }
-
-        const data = await response.json();
-        accessToken = data.access_token;
-        refreshToken = data.refresh_token;
-        expiresIn = data.expires_in;
-      } else {
-        alert('Backend API URL not configured. LinkedIn connection requires a backend endpoint.');
-        setIsLoading(false);
-        const returnUrl = sessionStorage.getItem('linkedin_oauth_return') || window.location.pathname;
-        window.history.replaceState({}, '', returnUrl);
-        sessionStorage.removeItem('linkedin_oauth_return');
-        return;
-      }
+      // Exchange code for token using centralized library
+      const tokenData = await exchangeLinkedInCodeForToken(code);
+      const accessToken = tokenData.accessToken;
+      const refreshToken = tokenData.refreshToken;
+      const expiresIn = tokenData.expiresIn;
 
       // Get LinkedIn profile and organizations
       const profile = await getLinkedInProfile(accessToken);
@@ -1075,7 +995,7 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
         connection_status: 'connected',
       }, { onConflict: 'workspace_id,platform,account_id' });
 
-      // Store organizations
+      // Store organizations (if any managed)
       if (organizations && organizations.length > 0) {
         for (const org of organizations) {
           try {
@@ -1117,9 +1037,9 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
     } finally {
       setIsLoading(false);
     }
-  };
+  }
 
-  const handleConnectYouTube = async () => {
+  async function handleConnectYouTube() {
     if (!user) {
       alert('Please log in first');
       return;
@@ -1176,91 +1096,15 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
     }
   };
 
-  const handleYouTubeCallback = async (code: string) => {
+  async function handleYouTubeCallback(code: string) {
     setIsOAuthRedirect(false);
     setIsLoading(true);
     try {
-      // YouTube uses Google OAuth, requires backend for token exchange
-      const backendUrl = import.meta.env.VITE_API_URL || '';
-      let accessToken: string;
-      let refreshToken: string;
-      let expiresIn: number;
-
-      if (backendUrl) {
-        // CRITICAL: Use the EXACT redirect URI that was used in the authorization request
-        // For localhost, use just the origin (no pathname/hash) to match Google Cloud Console
-        const storedRedirectUri = sessionStorage.getItem('youtube_oauth_redirect_uri');
-        // Fallback: use just origin (root URL) to match what was used in authorization
-        const fallbackRedirectUri = window.location.origin.replace(/\/$/, '');
-        const redirectUri = storedRedirectUri || fallbackRedirectUri;
-
-        console.log('🔍 YouTube Token Exchange Debug:');
-        console.log('  - Backend URL:', backendUrl);
-        console.log('  - API Endpoint:', `${backendUrl.replace(/\/$/, '')}/api/youtube/token`);
-        console.log('  - Stored redirect URI:', storedRedirectUri);
-        console.log('  - Fallback redirect URI:', fallbackRedirectUri);
-        console.log('  - Final redirect URI:', redirectUri);
-        console.log('  - Code received:', code ? `${code.substring(0, 20)}...` : 'MISSING');
-        console.log('  - Current URL:', window.location.href);
-
-        const response = await fetch(`${backendUrl}/api/youtube/token`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            code,
-            redirectUri: redirectUri
-          })
-        });
-
-        if (!response.ok) {
-          if (response.status === 404) {
-            throw new Error(
-              'YouTube OAuth requires a backend endpoint.\n\n' +
-              'Please set up: POST /api/youtube/token\n' +
-              'Set VITE_API_URL in environment variables.\n\n' +
-              'See YOUTUBE_CONNECTION_GUIDE.md for setup instructions.'
-            );
-          }
-
-          let errorMessage = 'Token exchange failed';
-          let errorDetails: any = null;
-          try {
-            const error = await response.json();
-            errorMessage = error.message || error.error || 'Token exchange failed';
-            errorDetails = error;
-            console.error('YouTube token exchange error details:', error);
-          } catch {
-            errorMessage = response.statusText || 'Token exchange failed';
-          }
-
-          // Provide more detailed error message
-          if (errorDetails?.error === 'redirect_uri_mismatch') {
-            throw new Error(
-              `Redirect URI mismatch!\n\n` +
-              `Expected: ${redirectUri}\n` +
-              `Make sure this exact URL is in Google Cloud Console → OAuth Client → Authorized redirect URIs.\n\n` +
-              `For localhost: http://localhost:3000\n` +
-              `For production: https://engage-hub-ten.vercel.app`
-            );
-          }
-
-          throw new Error(errorMessage);
-        }
-
-        const data = await response.json();
-        accessToken = data.access_token;
-        refreshToken = data.refresh_token;
-        expiresIn = data.expires_in;
-      } else {
-        throw new Error(
-          'YouTube OAuth requires a backend server for security (client secret needed).\n\n' +
-          'Please:\n' +
-          '1. Set up a backend endpoint at /api/youtube/token\n' +
-          '2. Set VITE_API_URL in environment variables\n' +
-          '3. Or use Supabase Edge Functions\n\n' +
-          'See YOUTUBE_CONNECTION_GUIDE.md for setup instructions.'
-        );
-      }
+      // Exchange code for token using centralized library
+      const tokenData = await exchangeYouTubeCodeForToken(code);
+      const accessToken = tokenData.accessToken;
+      const refreshToken = tokenData.refreshToken;
+      const expiresIn = tokenData.expiresIn;
 
       // Get YouTube channel info
       const channelData = await getYouTubeChannel(accessToken);
@@ -1332,149 +1176,10 @@ See FACEBOOK_SETUP.md for detailed instructions.`;
     } finally {
       setIsLoading(false);
     }
-  };
+  }
 
-  const getRedirectURI = (): string => {
-    if (typeof window === 'undefined') {
-      return 'http://localhost:3000';
-    }
-    return `${window.location.origin}${window.location.pathname}${window.location.hash || ''}`;
-  };
 
-  const handleConnectFacebook = async () => {
-    if (!user) {
-      alert('Please log in first');
-      return;
-    }
-
-    // Note: We'll show the permissions info only if there's an error
-    // For now, just proceed with the connection attempt
-
-    setIsLoading(true);
-    try {
-      const authResponse: any = await loginWithFacebook();
-
-      // If we got redirected, the callback handler will process it
-      if (!authResponse || !authResponse.accessToken) {
-        // OAuth redirect happened - prevent React from rendering during redirect
-        setIsOAuthRedirect(true);
-        return;
-      }
-
-      let pages: any[] = [];
-      try {
-        pages = (await getPageTokens(authResponse.accessToken)) || [];
-      } catch {
-        // Token has no Page permission — connect as profile instead
-      }
-
-      const { data: workspaces } = await supabase.from('workspaces').select('id').eq('owner_id', user!.id).limit(1);
-      if (!workspaces?.length) throw new Error('No workspace found');
-
-      if (pages?.length) {
-        const page = pages[0];
-        const { error } = await supabase.from('social_accounts').upsert({
-          workspace_id: workspaces[0].id,
-          connected_by: user!.id,
-          platform: 'facebook',
-          account_id: page.id,
-          display_name: page.name,
-          account_type: 'page',
-          access_token: page.access_token,
-          is_active: true,
-          connection_status: 'connected',
-        }, { onConflict: 'workspace_id,platform,account_id' });
-        if (error) throw error;
-        alert(`✅ Connected to Facebook Page: ${page.name}!`);
-      } else {
-        const profile = await getFacebookProfile(authResponse.accessToken);
-        const { error } = await supabase.from('social_accounts').upsert({
-          workspace_id: workspaces[0].id,
-          connected_by: user!.id,
-          platform: 'facebook',
-          account_id: `profile_${profile.id}`,
-          display_name: profile.name,
-          account_type: 'profile',
-          access_token: authResponse.accessToken,
-          is_active: true,
-          connection_status: 'connected',
-        }, { onConflict: 'workspace_id,platform,account_id' });
-        if (error) throw error;
-        alert(`✅ Connected to Facebook as ${profile.name}. (Page posting not available — Meta's APIs require separate Page permissions.)`);
-      }
-      fetchConnectedAccounts();
-    } catch (err: any) {
-      console.error('Connection error:', err);
-
-      // Provide helpful error messages with setup instructions
-      let errorMessage = 'Failed to connect to Facebook.\n\n';
-
-      // Check for "Feature Unavailable" error (App configuration issue)
-      if (err.message?.includes('Feature Unavailable') ||
-        err.message?.includes('unavailable') ||
-        err.message?.includes('updating additional details') ||
-        err.message?.includes('currently unavailable')) {
-        errorMessage = `🔴 Facebook App Configuration Required\n\n`;
-        errorMessage += `The "Feature Unavailable" error means your Facebook App needs configuration.\n\n`;
-        errorMessage += `This usually happens when:\n`;
-        errorMessage += `• App is in development mode and needs setup\n`;
-        errorMessage += `• Page-related use case is not added or configured\n`;
-        errorMessage += `• App settings are incomplete\n\n`;
-        errorMessage += `✅ Quick Fix Steps:\n\n`;
-        errorMessage += `1. Go to: https://developers.facebook.com/apps/1621732999001688\n\n`;
-        errorMessage += `2. Complete App Setup:\n`;
-        errorMessage += `   • Go to Settings → Basic\n`;
-        errorMessage += `   • Fill in all required fields (App Name, Contact Email, etc.)\n`;
-        errorMessage += `   • Add your domain to "App Domains"\n`;
-        errorMessage += `   • Add redirect URI to "Valid OAuth Redirect URIs"\n\n`;
-        errorMessage += `3. Page access (why you may not see it in the UI):\n`;
-        errorMessage += `   • Use cases → Facebook Login → Permissions and features often shows only profile permissions (email, public_profile, user_*). Page permissions are not listed there in Meta's current dashboard.\n`;
-        errorMessage += `   • Page access may require a separate use case, App Review, or Business Verification. See FACEBOOK_PAGES_PERMISSIONS_SETUP.md or Meta's docs.\n\n`;
-        errorMessage += `4. For Testing (Immediate Access):\n`;
-        errorMessage += `   • Go to Roles → Test Users\n`;
-        errorMessage += `   • Add yourself as a test user\n\n`;
-        errorMessage += `📖 See FACEBOOK_FEATURE_UNAVAILABLE_FIX.md for detailed instructions.\n\n`;
-        errorMessage += `⏱️ Wait 5-10 minutes after making changes, then try again.`;
-
-        const shouldOpen = confirm(errorMessage + '\n\nOpen Facebook Developer Console now?');
-        if (shouldOpen) {
-          window.open('https://developers.facebook.com/apps/1621732999001688', '_blank');
-        }
-      } else if (err.message?.includes('LOCALHOST_SETUP_REQUIRED')) {
-        errorMessage = err.message.replace('LOCALHOST_SETUP_REQUIRED: ', '') + '\n\n';
-        errorMessage += '📋 Quick Setup Steps:\n';
-        errorMessage += '1. Go to https://developers.facebook.com/apps/\n';
-        errorMessage += '2. Select your app\n';
-        errorMessage += '3. Settings → Basic → Add "localhost" to App Domains\n';
-        errorMessage += '4. Add "http://localhost:3000" to Valid OAuth Redirect URIs\n';
-        errorMessage += '5. For production, deploy with HTTPS\n\n';
-        errorMessage += 'Would you like to open Facebook Developer docs?';
-
-        if (confirm(errorMessage)) {
-          window.open('https://developers.facebook.com/docs/facebook-login/web', '_blank');
-        }
-      } else if (err.message?.includes('App Domains')) {
-        errorMessage = 'Facebook App configuration error:\n\nPlease add "localhost" to your Facebook App\'s App Domains in Facebook Developer settings.\n\n';
-        errorMessage += 'Go to: Settings → Basic → App Domains';
-      } else if (err.message?.includes('HTTPS') || err.message?.includes('http pages')) {
-        errorMessage = 'Facebook requires HTTPS for the SDK login method.\n\n';
-        errorMessage += 'For localhost development:\n';
-        errorMessage += '• Configure your Facebook App for localhost (see instructions above)\n';
-        errorMessage += '• Or use ngrok to create an HTTPS tunnel\n';
-        errorMessage += '• Or deploy to production (HTTPS required)';
-        alert(errorMessage);
-      } else if (err.message) {
-        errorMessage = `Facebook connection error:\n\n${err.message}`;
-        alert(errorMessage);
-      } else {
-        alert(errorMessage + 'Please check your Facebook App configuration.');
-      }
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleDisconnect = async (accountId: string) => {
+  async function handleDisconnect(accountId: string) {
     if (!confirm('Are you sure you want to disconnect this account?')) return;
     try {
       const { error } = await supabase

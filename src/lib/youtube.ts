@@ -107,75 +107,43 @@ export const connectYouTube = () => {
  * Exchange authorization code for access token
  * NOTE: This MUST be done server-side for security (client secret required)
  */
-const exchangeCodeForToken = async (code: string): Promise<any> => {
+export const exchangeCodeForToken = async (code: string): Promise<any> => {
     try {
-        // CRITICAL: Use the EXACT redirect URI that was used in the authorization request
         const storedRedirectUri = sessionStorage.getItem('youtube_oauth_redirect_uri');
         const redirectUri = storedRedirectUri || getRedirectURI();
 
-        console.log('🔄 Exchanging YouTube code for token...');
-        console.log('Using redirect URI:', redirectUri);
-        console.log('Stored redirect URI:', storedRedirectUri);
+        const response = await fetch(`/api/auth?provider=youtube&action=token`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ code, redirectUri })
+        });
 
-        // Check if we have a backend endpoint for token exchange
-        const backendUrl = import.meta.env.VITE_API_URL || '';
-
-        if (backendUrl) {
-            // Use backend endpoint (recommended)
-            const response = await fetch(`${backendUrl}/api/youtube?action=token`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ code, redirectUri })
-            });
-
-            if (!response.ok) {
-                const error = await response.json();
-                throw new Error(error.message || 'Token exchange failed');
-            }
-
-            const data = await response.json();
-
-            // Clean up URL and stored data
-            const returnUrl = sessionStorage.getItem('youtube_oauth_return') || window.location.pathname;
-            window.history.replaceState({}, '', returnUrl);
-            sessionStorage.removeItem('youtube_oauth_return');
-            sessionStorage.removeItem('youtube_oauth_redirect_uri');
-
-            return {
-                accessToken: data.access_token,
-                expiresIn: data.expires_in,
-                refreshToken: data.refresh_token,
-                idToken: data.id_token
-            };
-        } else {
-            // For localhost development without backend, show helpful error
-            const returnUrl = sessionStorage.getItem('youtube_oauth_return') || window.location.pathname;
-            window.history.replaceState({}, '', returnUrl);
-            sessionStorage.removeItem('youtube_oauth_return');
-
-            throw new Error(
-                'YouTube OAuth requires a backend server for security (client secret needed).\n\n' +
-                'For localhost development, please:\n\n' +
-                '1. Set up a backend endpoint at /api/youtube/token\n' +
-                '2. Set VITE_API_URL in environment variables\n' +
-                '3. Or use Supabase Edge Functions\n\n' +
-                'See YOUTUBE_CONNECTION_GUIDE.md for setup instructions.'
-            );
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.message || 'Token exchange failed');
         }
+
+        const data = await response.json();
+
+        const returnUrl = sessionStorage.getItem('youtube_oauth_return') || window.location.pathname;
+        window.history.replaceState({}, '', returnUrl);
+        sessionStorage.removeItem('youtube_oauth_return');
+        sessionStorage.removeItem('youtube_oauth_redirect_uri');
+
+        return {
+            accessToken: data.access_token,
+            expiresIn: data.expires_in,
+            refreshToken: data.refresh_token,
+            idToken: data.id_token
+        };
     } catch (error: any) {
         throw new Error(`Token exchange failed: ${error.message}`);
     }
 };
 
-/**
- * Get YouTube channel information
- * Uses backend API to avoid CORS issues
- */
 export const getYouTubeChannel = async (accessToken: string): Promise<any> => {
     try {
-        // Use backend endpoint to avoid CORS issues
-        const backendUrl = import.meta.env.VITE_API_URL || window.location.origin;
-        const response = await fetch(`${backendUrl}/api/youtube?action=channel`, {
+        const response = await fetch(`/api/auth?provider=youtube&action=channel`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'

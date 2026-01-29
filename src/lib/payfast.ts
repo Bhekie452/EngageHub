@@ -217,7 +217,7 @@ export const generatePayFastSignature = (
   }
 
   // Generate MD5 hash
-  const signature = CryptoJS.MD5(queryString).toString().toLowerCase();
+  const signature = md5(queryString).toLowerCase();
   return signature;
 };
 
@@ -255,7 +255,7 @@ export const buildPayFastPaymentData = (
   };
 
   // Generate signature
-  const signature = generatePayFastSignature(data, config.passPhrase);
+  const signature = generatePayFastSignature(data as any, config.passPhrase);
   (data as any).signature = signature;
 
   return data;
