@@ -25,7 +25,7 @@ export const PaymentCheckout: React.FC<PaymentCheckoutProps> = ({
   const { user } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [trialDays, setTrialDays] = useState(14);
+  const [trialDays, setTrialDays] = useState(30);
   const [workspaceId, setWorkspaceId] = useState<string | null>(null);
   const [gateway, setGateway] = useState<'payfast' | 'stripe'>('payfast');
 
@@ -316,8 +316,8 @@ export const PaymentCheckout: React.FC<PaymentCheckoutProps> = ({
                 type="button"
                 onClick={() => setGateway('payfast')}
                 className={`p-4 rounded-xl border-2 text-left transition-all ${gateway === 'payfast'
-                    ? 'border-purple-600 bg-purple-50 ring-2 ring-purple-200'
-                    : 'border-gray-200 hover:border-gray-300 bg-white'
+                  ? 'border-purple-600 bg-purple-50 ring-2 ring-purple-200'
+                  : 'border-gray-200 hover:border-gray-300 bg-white'
                   }`}
               >
                 <div className="flex items-center justify-between mb-2">
@@ -338,8 +338,8 @@ export const PaymentCheckout: React.FC<PaymentCheckoutProps> = ({
                 type="button"
                 onClick={() => setGateway('stripe')}
                 className={`p-4 rounded-xl border-2 text-left transition-all ${gateway === 'stripe'
-                    ? 'border-purple-600 bg-purple-50 ring-2 ring-purple-200'
-                    : 'border-gray-200 hover:border-gray-300 bg-white'
+                  ? 'border-purple-600 bg-purple-50 ring-2 ring-purple-200'
+                  : 'border-gray-200 hover:border-gray-300 bg-white'
                   }`}
               >
                 <div className="flex items-center justify-between mb-2">
