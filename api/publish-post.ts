@@ -33,11 +33,15 @@ async function publishOne(
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        const msg = (data as any)?.detail || (data as any)?.title || (data as any)?.error_description || res.statusText;
-        const hint = res.status === 401
-          ? ' Token may have expired. Disconnect and reconnect Twitter in Social Media > Connected Accounts.'
-          : '';
-        return { ok: false, platform: p, error: (msg || 'Unauthorized') + hint };
+        const raw = (data as any)?.detail || (data as any)?.title || (data as any)?.error_description || res.statusText;
+        const rawStr = String(raw || 'Unauthorized');
+        let msg = rawStr;
+        if (/credits|does not have any credits/i.test(rawStr)) {
+          msg = 'Twitter API posting requires a paid plan or credits. Go to developer.twitter.com → your app → Products → add or upgrade to Basic/Pro for Tweet posting.';
+        } else if (res.status === 401) {
+          msg = rawStr + ' Token may have expired. Disconnect and reconnect Twitter in Social Media > Connected Accounts.';
+        }
+        return { ok: false, platform: p, error: msg };
       }
       return { ok: true, platform: p };
     }
@@ -60,7 +64,15 @@ async function publishOne(
         }),
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) return { ok: false, platform: p, error: (data as any)?.message || res.statusText };
+      if (!res.ok) {
+        const raw = (data as any)?.message || (data as any)?.error || res.statusText;
+        const rawStr = String(raw || '');
+        let msg = rawStr;
+        if (/member is restricted/i.test(rawStr)) {
+          msg = 'LinkedIn is restricting this account or app. Add the "Share on LinkedIn" product to your app at developer.linkedin.com, request w_member_social when connecting, then disconnect and reconnect LinkedIn in Social Media > Connected Accounts.';
+        }
+        return { ok: false, platform: p, error: msg };
+      }
       return { ok: true, platform: p };
     }
     if (p === 'youtube') {
