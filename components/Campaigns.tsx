@@ -42,7 +42,7 @@ const campaignSchema = z.object({
   end_date: z.string(),
   budget: z.number().min(0),
   budget_currency: z.string().length(3),
-  channels: z.array(z.string()).min(1, "Select at least one channel"),
+  channels: z.array(z.string()).min(1, "Select at least one channel"), // Synced from selected social accounts
   description: z.string().optional(),
 });
 
@@ -131,6 +131,13 @@ const CreateCampaignModal: React.FC<{ isOpen: boolean; onClose: () => void; onSu
     }
   }, [isOpen, user]);
 
+  // Keep form "channels" in sync with selected social accounts so validation passes
+  React.useEffect(() => {
+    const selectedAccounts = socialAccounts.filter(acc => selectedAccountIds.includes(acc.id));
+    const derivedChannels = [...new Set(selectedAccounts.map(acc => acc.platform))];
+    setValue('channels', derivedChannels);
+  }, [selectedAccountIds, socialAccounts, setValue]);
+
   const toggleAccount = (accountId: string) => {
     setSelectedAccountIds(prev =>
       prev.includes(accountId)
@@ -150,6 +157,13 @@ const CreateCampaignModal: React.FC<{ isOpen: boolean; onClose: () => void; onSu
 
   const onSubmit = async (data: CampaignFormValues) => {
     if (!user) return;
+
+    // Validate that at least one social account is selected
+    if (selectedAccountIds.length === 0) {
+      alert('Please select at least one social media account for this campaign.');
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       const { data: workspaces } = await supabase.from('workspaces').select('id').eq('owner_id', user.id).limit(1);
@@ -315,8 +329,8 @@ const CreateCampaignModal: React.FC<{ isOpen: boolean; onClose: () => void; onSu
                   <label
                     key={account.id}
                     className={`flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer transition-all ${selectedAccountIds.includes(account.id)
-                        ? 'border-brand-600 bg-brand-50 dark:bg-brand-900/20'
-                        : 'border-gray-200 dark:border-slate-700 hover:border-gray-300 dark:hover:border-slate-600'
+                      ? 'border-brand-600 bg-brand-50 dark:bg-brand-900/20'
+                      : 'border-gray-200 dark:border-slate-700 hover:border-gray-300 dark:hover:border-slate-600'
                       }`}
                   >
                     <input
@@ -328,12 +342,12 @@ const CreateCampaignModal: React.FC<{ isOpen: boolean; onClose: () => void; onSu
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${account.platform === 'facebook' ? 'bg-blue-100 text-blue-700' :
-                            account.platform === 'instagram' ? 'bg-pink-100 text-pink-700' :
-                              account.platform === 'twitter' ? 'bg-sky-100 text-sky-700' :
-                                account.platform === 'linkedin' ? 'bg-blue-100 text-blue-800' :
-                                  account.platform === 'youtube' ? 'bg-red-100 text-red-700' :
-                                    account.platform === 'tiktok' ? 'bg-gray-100 text-gray-700' :
-                                      'bg-gray-100 text-gray-600'
+                          account.platform === 'instagram' ? 'bg-pink-100 text-pink-700' :
+                            account.platform === 'twitter' ? 'bg-sky-100 text-sky-700' :
+                              account.platform === 'linkedin' ? 'bg-blue-100 text-blue-800' :
+                                account.platform === 'youtube' ? 'bg-red-100 text-red-700' :
+                                  account.platform === 'tiktok' ? 'bg-gray-100 text-gray-700' :
+                                    'bg-gray-100 text-gray-600'
                           }`}>
                           {account.platform}
                         </span>
