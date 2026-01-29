@@ -14,7 +14,7 @@ const getRedirectURI = (): string => {
     if (typeof window === 'undefined') {
         return 'http://localhost:3000';
     }
-    
+
     // Normalize 127.0.0.1 to localhost for development (LinkedIn requires exact match)
     let origin = window.location.origin;
     // Convert 127.0.0.1 to localhost to match registered redirect URI
@@ -24,7 +24,7 @@ const getRedirectURI = (): string => {
     if (origin.includes('127.0.0.1')) {
         origin = origin.replace('127.0.0.1', 'localhost');
     }
-    
+
     // For development, use just the origin (root path)
     // For production, use just the origin (root path) - LinkedIn requires exact match
     // DO NOT include pathname or hash - LinkedIn redirects to root with query params
@@ -33,7 +33,7 @@ const getRedirectURI = (): string => {
         // Remove trailing slash if present to ensure exact match
         return origin.replace(/\/$/, '');
     }
-    
+
     // For production, use just the origin (root path)
     // LinkedIn will redirect to the root with ?code=...&state=...
     // The redirect URI must match exactly what's registered in LinkedIn app settings
@@ -50,18 +50,18 @@ export const loginWithLinkedIn = () => {
             const isProduction = window.location.hostname !== 'localhost' && !window.location.hostname.includes('127.0.0.1');
             const errorMessage = isProduction
                 ? 'LinkedIn Client ID is not configured.\n\n' +
-                  '🔧 Setup Steps:\n\n' +
-                  '1. Go to Vercel Dashboard: https://vercel.com/dashboard\n' +
-                  '2. Select your project\n' +
-                  '3. Go to Settings → Environment Variables\n' +
-                  '4. Add: VITE_LINKEDIN_CLIENT_ID = your_client_id\n' +
-                  '5. Redeploy your application\n\n' +
-                  'Or for local development:\n' +
-                  'Add VITE_LINKEDIN_CLIENT_ID to your .env.local file'
+                '🔧 Setup Steps:\n\n' +
+                '1. Go to Vercel Dashboard: https://vercel.com/dashboard\n' +
+                '2. Select your project\n' +
+                '3. Go to Settings → Environment Variables\n' +
+                '4. Add: VITE_LINKEDIN_CLIENT_ID = your_client_id\n' +
+                '5. Redeploy your application\n\n' +
+                'Or for local development:\n' +
+                'Add VITE_LINKEDIN_CLIENT_ID to your .env.local file'
                 : 'LinkedIn Client ID not configured.\n\n' +
-                  'Please set VITE_LINKEDIN_CLIENT_ID in your .env.local file:\n\n' +
-                  'VITE_LINKEDIN_CLIENT_ID=your_client_id_here\n\n' +
-                  'See LINKEDIN_CONNECTION_GUIDE.md for detailed setup instructions.';
+                'Please set VITE_LINKEDIN_CLIENT_ID in your .env.local file:\n\n' +
+                'VITE_LINKEDIN_CLIENT_ID=your_client_id_here\n\n' +
+                'See LINKEDIN_CONNECTION_GUIDE.md for detailed setup instructions.';
             reject(new Error(errorMessage));
             return;
         }
@@ -95,27 +95,27 @@ export const loginWithLinkedIn = () => {
         const oauthState = 'linkedin_oauth';
         const redirectUri = getRedirectURI();
         const authUrl = `https://www.linkedin.com/oauth/v2/authorization?response_type=code&client_id=${LINKEDIN_CLIENT_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${oauthState}&scope=${encodeURIComponent(scope)}`;
-        
+
         // Debug logging
         console.log('🔍 LinkedIn OAuth Debug:');
         console.log('Client ID:', LINKEDIN_CLIENT_ID ? `${LINKEDIN_CLIENT_ID.substring(0, 4)}...` : 'NOT FOUND');
         console.log('Redirect URI:', redirectUri);
         console.log('Auth URL:', authUrl);
-        
+
         // Store the current URL to return to after OAuth
         sessionStorage.setItem('linkedin_oauth_return', window.location.href);
         // CRITICAL: Store the exact redirect URI used in authorization request
         // This must match exactly when exchanging the token
         sessionStorage.setItem('linkedin_oauth_redirect_uri', redirectUri);
-        
+
         // Redirect to LinkedIn immediately
         console.log('🔄 Redirecting to LinkedIn OAuth...');
         console.log('Full redirect URL:', authUrl);
         console.log('Stored redirect URI:', redirectUri);
-        
+
         // Immediately redirect - this will navigate away from the page
         window.location.href = authUrl;
-        
+
         // Note: Code after this line won't execute due to redirect
         // The promise will resolve when LinkedIn redirects back with code
     });
@@ -131,35 +131,35 @@ const exchangeCodeForToken = async (code: string): Promise<any> => {
         // This must match exactly, or LinkedIn will reject the token exchange
         const storedRedirectUri = sessionStorage.getItem('linkedin_oauth_redirect_uri');
         const redirectUri = storedRedirectUri || getRedirectURI();
-        
+
         console.log('🔄 Exchanging code for token...');
         console.log('Using redirect URI:', redirectUri);
         console.log('Stored redirect URI:', storedRedirectUri);
-        
+
         // Check if we have a backend endpoint for token exchange
         const backendUrl = import.meta.env.VITE_API_URL || '';
-        
+
         if (backendUrl) {
             // Use backend endpoint (recommended)
-            const response = await fetch(`${backendUrl}/api/linkedin/token`, {
+            const response = await fetch(`${backendUrl}/api/linkedin?action=token`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ code, redirectUri })
             });
-            
+
             if (!response.ok) {
                 const error = await response.json();
                 throw new Error(error.message || 'Token exchange failed');
             }
-            
+
             const data = await response.json();
-            
+
             // Clean up URL and stored data
             const returnUrl = sessionStorage.getItem('linkedin_oauth_return') || window.location.pathname;
             window.history.replaceState({}, '', returnUrl);
             sessionStorage.removeItem('linkedin_oauth_return');
             sessionStorage.removeItem('linkedin_oauth_redirect_uri');
-            
+
             return {
                 accessToken: data.access_token,
                 expiresIn: data.expires_in,
@@ -170,7 +170,7 @@ const exchangeCodeForToken = async (code: string): Promise<any> => {
             const returnUrl = sessionStorage.getItem('linkedin_oauth_return') || window.location.pathname;
             window.history.replaceState({}, '', returnUrl);
             sessionStorage.removeItem('linkedin_oauth_return');
-            
+
             throw new Error(
                 'LinkedIn OAuth requires a backend server for security (client secret needed).\n\n' +
                 'For localhost development, please:\n\n' +
@@ -193,19 +193,19 @@ export const getLinkedInProfile = async (accessToken: string): Promise<any> => {
     try {
         // Use backend endpoint to avoid CORS issues
         const backendUrl = import.meta.env.VITE_API_URL || window.location.origin;
-        const response = await fetch(`${backendUrl}/api/linkedin/profile`, {
+        const response = await fetch(`${backendUrl}/api/linkedin?action=profile`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({ accessToken })
         });
-        
+
         if (!response.ok) {
             const error = await response.json();
             throw new Error(error.message || 'Failed to fetch profile');
         }
-        
+
         return await response.json();
     } catch (error: any) {
         throw new Error(`Failed to get LinkedIn profile: ${error.message}`);
@@ -224,7 +224,7 @@ export const getLinkedInOrganizations = async (accessToken: string): Promise<any
         // For now, we'll return empty array and show a message to users
         console.info('LinkedIn organization access requires Marketing Developer Platform (partner-only). Returning empty array.');
         return [];
-        
+
         // Uncomment below when you have partner access:
         /*
         const response = await fetch(
@@ -257,24 +257,21 @@ export const getLinkedInOrganizations = async (accessToken: string): Promise<any
  */
 export const getLinkedInOrganizationDetails = async (accessToken: string, organizationUrn: string): Promise<any> => {
     try {
-        // Extract organization ID from URN (format: urn:li:organization:123456)
-        const orgId = organizationUrn.split(':').pop();
-        
-        const response = await fetch(
-            `https://api.linkedin.com/v2/organizations/${orgId}`,
-            {
-                headers: {
-                    'Authorization': `Bearer ${accessToken}`,
-                    'Content-Type': 'application/json'
-                }
-            }
-        );
-        
+        // Use backend endpoint to avoid CORS issues
+        const backendUrl = import.meta.env.VITE_API_URL || window.location.origin;
+        const response = await fetch(`${backendUrl}/api/linkedin?action=organization-details`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ accessToken, organizationUrn })
+        });
+
         if (!response.ok) {
             const error = await response.json();
             throw new Error(error.message || 'Failed to fetch organization details');
         }
-        
+
         return await response.json();
     } catch (error: any) {
         throw new Error(`Failed to get organization details: ${error.message}`);
