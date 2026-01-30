@@ -1,4 +1,4 @@
-import React, { useState, useRef, useMemo } from 'react';
+import React, { useState, useRef, useMemo, useEffect } from 'react';
 import {
   PenTool,
   FileText,
@@ -271,6 +271,45 @@ const Content: React.FC = () => {
   const [editingPost, setEditingPost] = useState<any | null>(null);
   const [viewingPost, setViewingPost] = useState<any | null>(null);
   const [viewingMetrics, setViewingMetrics] = useState<{ post: any; platform: string } | null>(null);
+  const [engagementPostId, setEngagementPostId] = useState<string | null>(null);
+  const [engagementLoading, setEngagementLoading] = useState(false);
+  const [engagementData, setEngagementData] = useState<{
+    metrics: { likes: number; comments: number; views: number; shares: number };
+    recentActivity: { type: string; user: string; text?: string; time: string }[];
+  } | null>(null);
+
+  // Fetch real engagement when viewing/editing a post (YouTube stats + comments)
+  const engagementPostIdSource = viewingMetrics?.post?.id ?? editingPost?.id;
+  useEffect(() => {
+    if (!engagementPostIdSource) {
+      setEngagementPostId(null);
+      setEngagementData(null);
+      return;
+    }
+    let cancelled = false;
+    setEngagementPostId(engagementPostIdSource);
+    setEngagementLoading(true);
+    setEngagementData(null);
+    fetch(`${window.location.origin}/api/get-post-engagement?postId=${engagementPostIdSource}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (!cancelled && data?.metrics) {
+          setEngagementData({
+            metrics: data.metrics,
+            recentActivity: Array.isArray(data.recentActivity) ? data.recentActivity : [],
+          });
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setEngagementData(null);
+      })
+      .finally(() => {
+        if (!cancelled) setEngagementLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [engagementPostIdSource]);
 
   // Generate stable mock metrics based on post ID - COMBINED from currently selected platforms
   const getMockMetrics = (post: any, currentSelectedPlatforms?: string[]) => {
@@ -773,7 +812,7 @@ const Content: React.FC = () => {
           // Fetch tokens client-side (user session allows RLS) so the API can publish when server has no service-role key
           const { data: accountRows } = await supabase
             .from('social_accounts')
-            .select('platform, account_id, access_token, refresh_token')
+            .select('id, platform, account_id, access_token, refresh_token')
             .eq('workspace_id', workspaceId)
             .eq('is_active', true)
             .in('platform', platformsToPublish.map((p) => (p || '').toLowerCase()));
@@ -854,6 +893,7 @@ const Content: React.FC = () => {
               platforms: platformsToPublish,
               mediaUrls: publicUrls,
               workspaceId,
+              postId: postId ?? undefined,
               accountTokens: Object.keys(accountTokens).length ? accountTokens : undefined,
             }),
           });
@@ -866,6 +906,22 @@ const Content: React.FC = () => {
             const msg = payload?.error || payload?.message || `Publish failed (${r.status}).`;
             alert(`Post saved but could not publish: ${msg}`);
             return;
+          }
+          const platformPostIds = payload.platformPostIds || {};
+          if (postId && Object.keys(platformPostIds).length > 0 && accountRows?.length) {
+            for (const [platform, platformPostId] of Object.entries(platformPostIds)) {
+              const row = accountRows.find((r: any) => (r.platform || '').toLowerCase() === platform.toLowerCase());
+              if (row?.id && platformPostId) {
+                await supabase.from('post_publications').upsert({
+                  post_id: postId,
+                  social_account_id: row.id,
+                  platform: platform.toLowerCase(),
+                  platform_post_id: platformPostId,
+                  status: 'published',
+                  published_at: new Date().toISOString(),
+                }, { onConflict: 'post_id,social_account_id' });
+              }
+            }
           }
           const failed = payload.failed || [];
           if (failed.length > 0) {
@@ -1679,54 +1735,102 @@ const Content: React.FC = () => {
                         </>
                       )}
                       {editingPost ? (
-                        /* Show Metrics when editing - COMBINED from all platforms */
+                        /* Show Metrics when editing - real data from API when available */
                         <div className="space-y-4">
-                          {/* Platform Count Badge - Use currently selected platforms */}
-                          {selectedPlatforms.length > 1 && (
-                            <div className="bg-blue-50 border border-blue-200 rounded-lg p-2 text-center">
-                              <p className="text-[10px] text-blue-600 font-bold uppercase">
-                                Combined Metrics from {selectedPlatforms.length} Platforms: {selectedPlatforms.join(', ').toUpperCase()}
-                              </p>
-                            </div>
-                          )}
+                          {engagementLoading && engagementPostId === editingPost.id ? (
+                            <div className="py-6 text-center text-sm text-gray-500">Loading engagement…</div>
+                          ) : (
+                            <>
+                              {engagementData && engagementPostId === editingPost.id && (
+                                <div className="bg-green-50 border border-green-200 rounded-lg p-2 text-center mb-2">
+                                  <p className="text-[10px] text-green-700 font-bold uppercase">Live from YouTube</p>
+                                </div>
+                              )}
+                              {selectedPlatforms.length > 1 && !(engagementData && engagementPostId === editingPost.id) && (
+                                <div className="bg-blue-50 border border-blue-200 rounded-lg p-2 text-center">
+                                  <p className="text-[10px] text-blue-600 font-bold uppercase">
+                                    Combined Metrics from {selectedPlatforms.length} Platforms: {selectedPlatforms.join(', ').toUpperCase()}
+                                  </p>
+                                </div>
+                              )}
 
-                          <div className="grid grid-cols-2 gap-3">
-                            <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-3 rounded-lg border border-blue-200">
-                              <p className="text-[9px] text-blue-600 font-bold uppercase mb-1">Likes</p>
-                              <p className="text-xl font-black text-blue-900">{getMockMetrics(editingPost, selectedPlatforms).likes.toLocaleString()}</p>
-                            </div>
-                            <div className="bg-gradient-to-br from-green-50 to-green-100 p-3 rounded-lg border border-green-200">
-                              <p className="text-[9px] text-green-600 font-bold uppercase mb-1">Shares</p>
-                              <p className="text-xl font-black text-green-900">{getMockMetrics(editingPost, selectedPlatforms).shares.toLocaleString()}</p>
-                            </div>
-                            <div className="bg-gradient-to-br from-purple-50 to-purple-100 p-3 rounded-lg border border-purple-200">
-                              <p className="text-[9px] text-purple-600 font-bold uppercase mb-1">Comments</p>
-                              <p className="text-xl font-black text-purple-900">{getMockMetrics(editingPost, selectedPlatforms).comments.toLocaleString()}</p>
-                            </div>
-                            <div className="bg-gradient-to-br from-orange-50 to-orange-100 p-3 rounded-lg border border-orange-200">
-                              <p className="text-[9px] text-orange-600 font-bold uppercase mb-1">Views</p>
-                              <p className="text-xl font-black text-orange-900">{getMockMetrics(editingPost, selectedPlatforms).views.toLocaleString()}</p>
-                            </div>
-                          </div>
-                          <div className="pt-3 border-t border-gray-200 space-y-2">
-                            <div className="flex justify-between items-center">
-                              <span className="text-xs text-gray-600 font-medium">Reach</span>
-                              <span className="text-sm font-black text-gray-900">{getMockMetrics(editingPost, selectedPlatforms).reach.toLocaleString()}</span>
-                            </div>
-                            <div className="flex justify-between items-center">
-                              <span className="text-xs text-gray-600 font-medium">Impressions</span>
-                              <span className="text-sm font-black text-gray-900">{getMockMetrics(editingPost, selectedPlatforms).impressions.toLocaleString()}</span>
-                            </div>
-                            <div className="flex justify-between items-center pt-2 border-t border-gray-100">
-                              <span className="text-xs text-gray-600 font-medium">Engagement Rate</span>
-                              <span className="text-sm font-black text-blue-600">
-                                {(() => {
-                                  const metrics = getMockMetrics(editingPost, selectedPlatforms);
-                                  return ((metrics.likes + metrics.comments + metrics.shares) / metrics.reach * 100).toFixed(1);
-                                })()}%
-                              </span>
-                            </div>
-                          </div>
+                              <div className="grid grid-cols-2 gap-3">
+                                <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-3 rounded-lg border border-blue-200">
+                                  <p className="text-[9px] text-blue-600 font-bold uppercase mb-1">Likes</p>
+                                  <p className="text-xl font-black text-blue-900">
+                                    {(engagementData && engagementPostId === editingPost.id ? engagementData.metrics.likes : getMockMetrics(editingPost, selectedPlatforms).likes).toLocaleString()}
+                                  </p>
+                                </div>
+                                <div className="bg-gradient-to-br from-green-50 to-green-100 p-3 rounded-lg border border-green-200">
+                                  <p className="text-[9px] text-green-600 font-bold uppercase mb-1">Shares</p>
+                                  <p className="text-xl font-black text-green-900">
+                                    {(engagementData && engagementPostId === editingPost.id ? engagementData.metrics.shares : getMockMetrics(editingPost, selectedPlatforms).shares).toLocaleString()}
+                                  </p>
+                                </div>
+                                <div className="bg-gradient-to-br from-purple-50 to-purple-100 p-3 rounded-lg border border-purple-200">
+                                  <p className="text-[9px] text-purple-600 font-bold uppercase mb-1">Comments</p>
+                                  <p className="text-xl font-black text-purple-900">
+                                    {(engagementData && engagementPostId === editingPost.id ? engagementData.metrics.comments : getMockMetrics(editingPost, selectedPlatforms).comments).toLocaleString()}
+                                  </p>
+                                </div>
+                                <div className="bg-gradient-to-br from-orange-50 to-orange-100 p-3 rounded-lg border border-orange-200">
+                                  <p className="text-[9px] text-orange-600 font-bold uppercase mb-1">Views</p>
+                                  <p className="text-xl font-black text-orange-900">
+                                    {(engagementData && engagementPostId === editingPost.id ? engagementData.metrics.views : getMockMetrics(editingPost, selectedPlatforms).views).toLocaleString()}
+                                  </p>
+                                </div>
+                              </div>
+                              <div className="pt-3 border-t border-gray-200 space-y-2">
+                                {engagementData && engagementPostId === editingPost.id ? (
+                                  <>
+                                    <div className="flex justify-between items-center pt-2 border-t border-gray-100">
+                                      <span className="text-xs text-gray-600 font-medium">Engagement Rate</span>
+                                      <span className="text-sm font-black text-blue-600">
+                                        {engagementData.metrics.views > 0
+                                          ? ((engagementData.metrics.likes + engagementData.metrics.comments + engagementData.metrics.shares) / engagementData.metrics.views * 100).toFixed(1)
+                                          : '0'}%
+                                      </span>
+                                    </div>
+                                    {engagementData.recentActivity.length > 0 && (
+                                      <div className="pt-3 border-t border-gray-200">
+                                        <p className="text-xs font-bold text-gray-600 uppercase mb-2">Recent activity</p>
+                                        <div className="space-y-2 max-h-32 overflow-y-auto">
+                                          {engagementData.recentActivity.slice(0, 5).map((a, idx) => (
+                                            <div key={idx} className="flex items-center gap-2 p-2 bg-gray-50 rounded text-xs">
+                                              <span className="font-medium text-gray-900">{a.user}</span>
+                                              <span className="text-gray-600">{a.type === 'comment' ? 'commented' : 'liked'}</span>
+                                              {a.text && <span className="text-gray-500 truncate flex-1">"{a.text.slice(0, 40)}…"</span>}
+                                              <span className="text-gray-400">{a.time}</span>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    )}
+                                  </>
+                                ) : (
+                                  <>
+                                    <div className="flex justify-between items-center">
+                                      <span className="text-xs text-gray-600 font-medium">Reach</span>
+                                      <span className="text-sm font-black text-gray-900">{getMockMetrics(editingPost, selectedPlatforms).reach.toLocaleString()}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center">
+                                      <span className="text-xs text-gray-600 font-medium">Impressions</span>
+                                      <span className="text-sm font-black text-gray-900">{getMockMetrics(editingPost, selectedPlatforms).impressions.toLocaleString()}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center pt-2 border-t border-gray-100">
+                                      <span className="text-xs text-gray-600 font-medium">Engagement Rate</span>
+                                      <span className="text-sm font-black text-blue-600">
+                                        {(() => {
+                                          const metrics = getMockMetrics(editingPost, selectedPlatforms);
+                                          return ((metrics.likes + metrics.comments + metrics.shares) / metrics.reach * 100).toFixed(1);
+                                        })()}%
+                                      </span>
+                                    </div>
+                                  </>
+                                )}
+                              </div>
+                            </>
+                          )}
                         </div>
                       ) : (
                         /* No template variables shown when creating new post */
@@ -2066,6 +2170,7 @@ const Content: React.FC = () => {
                   {viewingMetrics.platform === 'instagram' && <Instagram className="text-[#E4405F]" size={24} />}
                   {viewingMetrics.platform === 'twitter' && <Twitter className="text-[#1DA1F2]" size={24} />}
                   {viewingMetrics.platform === 'linkedin' && <Linkedin className="text-[#0A66C2]" size={24} />}
+                  {viewingMetrics.platform === 'youtube' && <Youtube className="text-[#FF0000]" size={24} />}
                   {viewingMetrics.platform === 'whatsapp' && <MessageCircle className="text-[#25D366]" size={24} />}
                   <span className="capitalize">{viewingMetrics.platform} Post Metrics</span>
                 </h2>
@@ -2088,7 +2193,10 @@ const Content: React.FC = () => {
                 </p>
               </div>
 
-              {/* Key Metrics Grid */}
+              {/* Key Metrics Grid - real data when available (e.g. YouTube) */}
+              {engagementLoading && engagementPostId === viewingMetrics.post?.id ? (
+                <div className="py-8 text-center text-gray-500">Loading engagement…</div>
+              ) : (
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 p-6 rounded-xl border border-blue-200 dark:border-blue-800">
                   <div className="flex items-center gap-3 mb-2">
@@ -2098,11 +2206,13 @@ const Content: React.FC = () => {
                     <p className="text-xs font-bold text-blue-600 dark:text-blue-400 uppercase">Likes</p>
                   </div>
                   <p className="text-3xl font-black text-blue-900 dark:text-blue-100">
-                    {getMockMetrics(viewingMetrics.post).likes}
+                    {engagementData && engagementPostId === viewingMetrics.post?.id ? engagementData.metrics.likes.toLocaleString() : getMockMetrics(viewingMetrics.post).likes}
                   </p>
-                  <p className="text-xs text-blue-600 dark:text-blue-400 mt-1 font-medium">
-                    +{getMockMetrics(viewingMetrics.post).likesGrowth}% from last week
-                  </p>
+                  {!(engagementData && engagementPostId === viewingMetrics.post?.id) && (
+                    <p className="text-xs text-blue-600 dark:text-blue-400 mt-1 font-medium">
+                      +{getMockMetrics(viewingMetrics.post).likesGrowth}% from last week
+                    </p>
+                  )}
                 </div>
 
                 <div className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 p-6 rounded-xl border border-green-200 dark:border-green-800">
@@ -2113,11 +2223,13 @@ const Content: React.FC = () => {
                     <p className="text-xs font-bold text-green-600 dark:text-green-400 uppercase">Shares</p>
                   </div>
                   <p className="text-3xl font-black text-green-900 dark:text-green-100">
-                    {getMockMetrics(viewingMetrics.post).shares}
+                    {engagementData && engagementPostId === viewingMetrics.post?.id ? engagementData.metrics.shares.toLocaleString() : getMockMetrics(viewingMetrics.post).shares}
                   </p>
-                  <p className="text-xs text-green-600 dark:text-green-400 mt-1 font-medium">
-                    +{getMockMetrics(viewingMetrics.post).sharesGrowth}% from last week
-                  </p>
+                  {!(engagementData && engagementPostId === viewingMetrics.post?.id) && (
+                    <p className="text-xs text-green-600 dark:text-green-400 mt-1 font-medium">
+                      +{getMockMetrics(viewingMetrics.post).sharesGrowth}% from last week
+                    </p>
+                  )}
                 </div>
 
                 <div className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 p-6 rounded-xl border border-purple-200 dark:border-purple-800">
@@ -2128,11 +2240,13 @@ const Content: React.FC = () => {
                     <p className="text-xs font-bold text-purple-600 dark:text-purple-400 uppercase">Comments</p>
                   </div>
                   <p className="text-3xl font-black text-purple-900 dark:text-purple-100">
-                    {getMockMetrics(viewingMetrics.post).comments}
+                    {engagementData && engagementPostId === viewingMetrics.post?.id ? engagementData.metrics.comments.toLocaleString() : getMockMetrics(viewingMetrics.post).comments}
                   </p>
-                  <p className="text-xs text-purple-600 dark:text-purple-400 mt-1 font-medium">
-                    +{getMockMetrics(viewingMetrics.post).commentsGrowth}% from last week
-                  </p>
+                  {!(engagementData && engagementPostId === viewingMetrics.post?.id) && (
+                    <p className="text-xs text-purple-600 dark:text-purple-400 mt-1 font-medium">
+                      +{getMockMetrics(viewingMetrics.post).commentsGrowth}% from last week
+                    </p>
+                  )}
                 </div>
 
                 <div className="bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-900/20 dark:to-orange-800/20 p-6 rounded-xl border border-orange-200 dark:border-orange-800">
@@ -2143,20 +2257,24 @@ const Content: React.FC = () => {
                     <p className="text-xs font-bold text-orange-600 dark:text-orange-400 uppercase">Views</p>
                   </div>
                   <p className="text-3xl font-black text-orange-900 dark:text-orange-100">
-                    {getMockMetrics(viewingMetrics.post).views}
+                    {engagementData && engagementPostId === viewingMetrics.post?.id ? engagementData.metrics.views.toLocaleString() : getMockMetrics(viewingMetrics.post).views}
                   </p>
-                  <p className="text-xs text-orange-600 dark:text-orange-400 mt-1 font-medium">
-                    +{getMockMetrics(viewingMetrics.post).viewsGrowth}% from last week
-                  </p>
+                  {!(engagementData && engagementPostId === viewingMetrics.post?.id) && (
+                    <p className="text-xs text-orange-600 dark:text-orange-400 mt-1 font-medium">
+                      +{getMockMetrics(viewingMetrics.post).viewsGrowth}% from last week
+                    </p>
+                  )}
                 </div>
               </div>
+              )}
 
-              {/* Additional Metrics */}
+              {/* Additional Metrics - reach/impressions from mock when no API data */}
+              {!(engagementLoading && engagementPostId === viewingMetrics.post?.id) && (
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="bg-white dark:bg-slate-800 p-5 rounded-xl border border-gray-200 dark:border-slate-700">
                   <p className="text-xs font-bold text-gray-400 uppercase mb-2">Reach</p>
                   <p className="text-2xl font-black text-gray-900 dark:text-white">
-                    {getMockMetrics(viewingMetrics.post).reach}
+                    {engagementData && engagementPostId === viewingMetrics.post?.id ? (engagementData.metrics.views || '—') : getMockMetrics(viewingMetrics.post).reach}
                   </p>
                   <p className="text-xs text-gray-500 mt-1">Unique people who saw this post</p>
                 </div>
@@ -2164,7 +2282,7 @@ const Content: React.FC = () => {
                 <div className="bg-white dark:bg-slate-800 p-5 rounded-xl border border-gray-200 dark:border-slate-700">
                   <p className="text-xs font-bold text-gray-400 uppercase mb-2">Impressions</p>
                   <p className="text-2xl font-black text-gray-900 dark:text-white">
-                    {getMockMetrics(viewingMetrics.post).impressions}
+                    {engagementData && engagementPostId === viewingMetrics.post?.id ? (engagementData.metrics.views || '—') : getMockMetrics(viewingMetrics.post).impressions}
                   </p>
                   <p className="text-xs text-gray-500 mt-1">Total times post was shown</p>
                 </div>
@@ -2172,14 +2290,19 @@ const Content: React.FC = () => {
                 <div className="bg-white dark:bg-slate-800 p-5 rounded-xl border border-gray-200 dark:border-slate-700">
                   <p className="text-xs font-bold text-gray-400 uppercase mb-2">Engagement Rate</p>
                   <p className="text-2xl font-black text-gray-900 dark:text-white">
-                    {(() => {
-                      const m = getMockMetrics(viewingMetrics.post);
-                      return ((m.likes + m.comments + m.shares) / m.reach * 100).toFixed(1);
-                    })()}%
+                    {engagementData && engagementPostId === viewingMetrics.post?.id
+                      ? (engagementData.metrics.views > 0
+                          ? ((engagementData.metrics.likes + engagementData.metrics.comments + engagementData.metrics.shares) / engagementData.metrics.views * 100).toFixed(1)
+                          : '0') + '%'
+                      : (() => {
+                          const m = getMockMetrics(viewingMetrics.post);
+                          return ((m.likes + m.comments + m.shares) / m.reach * 100).toFixed(1) + '%';
+                        })()}
                   </p>
                   <p className="text-xs text-gray-500 mt-1">Likes + Comments + Shares / Reach</p>
                 </div>
               </div>
+              )}
 
               {/* Platform-Specific Metrics */}
               {viewingMetrics.platform === 'facebook' && (
@@ -2252,34 +2375,58 @@ const Content: React.FC = () => {
                 </div>
               )}
 
-              {/* Engagement Timeline */}
+              {/* Engagement Timeline - real activity from API when available (e.g. YouTube comments/likes) */}
               <div className="bg-white dark:bg-slate-800 p-5 rounded-xl border border-gray-200 dark:border-slate-700">
                 <h3 className="text-sm font-bold text-gray-900 dark:text-white mb-4">Recent Engagement Activity</h3>
                 <div className="space-y-3">
-                  {[
-                    { time: '1 hour ago', action: 'New comment', user: '@user123', type: 'comment' },
-                    { time: '2 hours ago', action: 'Liked by', user: '@user456', type: 'like' },
-                    { time: '3 hours ago', action: 'Shared by', user: '@user789', type: 'share' },
-                    { time: '5 hours ago', action: 'New comment', user: '@user321', type: 'comment' },
-                    { time: '6 hours ago', action: 'Liked by', user: '@user654', type: 'like' },
-                  ].map((activity, idx) => (
-                    <div key={idx} className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-slate-700 rounded-lg">
-                      <div className={`w-8 h-8 rounded-full flex items-center justify-center ${activity.type === 'comment' ? 'bg-purple-100 text-purple-600' :
-                        activity.type === 'like' ? 'bg-blue-100 text-blue-600' :
-                          'bg-green-100 text-green-600'
-                        }`}>
-                        {activity.type === 'comment' ? <MessageCircle size={16} /> :
-                          activity.type === 'like' ? <CheckCircle2 size={16} /> :
-                            <Share2 size={16} />}
+                  {engagementData && engagementPostId === viewingMetrics.post?.id && engagementData.recentActivity.length > 0 ? (
+                    engagementData.recentActivity.slice(0, 15).map((activity, idx) => (
+                      <div key={idx} className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-slate-700 rounded-lg">
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center ${activity.type === 'comment' ? 'bg-purple-100 text-purple-600' :
+                          activity.type === 'like' ? 'bg-blue-100 text-blue-600' :
+                            'bg-green-100 text-green-600'
+                          }`}>
+                          {activity.type === 'comment' ? <MessageCircle size={16} /> :
+                            activity.type === 'like' ? <CheckCircle2 size={16} /> :
+                              <Share2 size={16} />}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-bold text-gray-900 dark:text-white">
+                            {activity.type === 'comment' ? 'New comment' : 'Liked by'} <span className="text-blue-600">{activity.user}</span>
+                          </p>
+                          {activity.text && <p className="text-xs text-gray-600 dark:text-slate-300 truncate mt-0.5">"{activity.text}"</p>}
+                          <p className="text-xs text-gray-500">{activity.time}</p>
+                        </div>
                       </div>
-                      <div className="flex-1">
-                        <p className="text-sm font-bold text-gray-900 dark:text-white">
-                          {activity.action} <span className="text-blue-600">{activity.user}</span>
-                        </p>
-                        <p className="text-xs text-gray-500">{activity.time}</p>
+                    ))
+                  ) : engagementLoading && engagementPostId === viewingMetrics.post?.id ? (
+                    <p className="text-sm text-gray-500">Loading activity…</p>
+                  ) : (
+                    [
+                      { time: '1 hour ago', action: 'New comment', user: '@user123', type: 'comment' },
+                      { time: '2 hours ago', action: 'Liked by', user: '@user456', type: 'like' },
+                      { time: '3 hours ago', action: 'Shared by', user: '@user789', type: 'share' },
+                      { time: '5 hours ago', action: 'New comment', user: '@user321', type: 'comment' },
+                      { time: '6 hours ago', action: 'Liked by', user: '@user654', type: 'like' },
+                    ].map((activity, idx) => (
+                      <div key={idx} className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-slate-700 rounded-lg">
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center ${activity.type === 'comment' ? 'bg-purple-100 text-purple-600' :
+                          activity.type === 'like' ? 'bg-blue-100 text-blue-600' :
+                            'bg-green-100 text-green-600'
+                          }`}>
+                          {activity.type === 'comment' ? <MessageCircle size={16} /> :
+                            activity.type === 'like' ? <CheckCircle2 size={16} /> :
+                              <Share2 size={16} />}
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-sm font-bold text-gray-900 dark:text-white">
+                            {activity.action} <span className="text-blue-600">{activity.user}</span>
+                          </p>
+                          <p className="text-xs text-gray-500">{activity.time}</p>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    ))
+                  )}
                 </div>
               </div>
             </div>

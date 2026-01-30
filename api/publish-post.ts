@@ -10,7 +10,7 @@ async function publishOne(
   account: { account_id: string; access_token: string },
   content: string,
   mediaUrls: string[]
-): Promise<{ ok: boolean; platform: string; error?: string }> {
+): Promise<{ ok: boolean; platform: string; error?: string; platformPostId?: string }> {
   const p = (platform || '').toLowerCase();
   if (!account?.access_token) return { ok: false, platform: p, error: 'No token' };
   try {
@@ -137,7 +137,9 @@ async function publishOne(
         const msg = (errData as any)?.error?.message || putRes.statusText;
         return { ok: false, platform: p, error: msg || 'YouTube upload failed.' };
       }
-      return { ok: true, platform: p };
+      const videoResource = await putRes.json().catch(() => ({}));
+      const videoId = (videoResource as any)?.id || null;
+      return { ok: true, platform: p, platformPostId: videoId || undefined };
     }
     if (p === 'instagram') {
       const publicUrl = (mediaUrls || []).find((u) => typeof u === 'string' && (u.startsWith('http://') || u.startsWith('https://')));
@@ -224,6 +226,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const succeeded = results.filter((r) => r.ok).map((r) => r.platform);
   const failed = results.filter((r) => !r.ok).map((r) => ({ platform: r.platform, error: r.error }));
+  const platformPostIds: Record<string, string> = {};
+  results.forEach((r) => {
+    if (r.ok && r.platformPostId) platformPostIds[r.platform] = r.platformPostId;
+  });
 
-  return res.status(200).json({ succeeded, failed });
+  return res.status(200).json({ succeeded, failed, platformPostIds });
 }
