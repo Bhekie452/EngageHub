@@ -4,7 +4,7 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY;
 
-/** Publish content to one platform (server-side, no CORS). Facebook: Page or personal profile (me/feed). */
+/** Publish content to one platform (server-side, no CORS). Facebook: Pages only (Meta removed API posting to personal timelines). */
 async function publishOne(
   platform: string,
   account: { account_id: string; access_token: string },
@@ -15,13 +15,12 @@ async function publishOne(
   if (!account?.access_token) return { ok: false, platform: p, error: 'No token' };
   try {
     if (p === 'facebook') {
-      const isProfile = (account.account_id || '').startsWith('profile_');
-      const feedUrl = isProfile
-        ? 'https://graph.facebook.com/v21.0/me/feed'
-        : `https://graph.facebook.com/v21.0/${account.account_id}/feed`;
+      if ((account.account_id || '').startsWith('profile_')) {
+        return { ok: false, platform: p, error: "Facebook no longer lets apps post to personal timelines. Connect a Facebook Page to publish (create one at facebook.com/pages/create)." };
+      }
       const body: Record<string, string> = { message: content, access_token: account.access_token };
       if (mediaUrls[0]) body.link = mediaUrls[0];
-      const res = await fetch(feedUrl, {
+      const res = await fetch(`https://graph.facebook.com/v21.0/${account.account_id}/feed`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
@@ -81,7 +80,63 @@ async function publishOne(
       return { ok: true, platform: p };
     }
     if (p === 'youtube') {
-      return { ok: false, platform: p, error: 'YouTube video upload is not yet supported in Post Now.' };
+      const videoUrl = (mediaUrls || []).find((u) => typeof u === 'string' && (u.startsWith('http://') || u.startsWith('https://')));
+      if (!videoUrl) return { ok: false, platform: p, error: 'YouTube requires a public video URL. Paste a link to your video (e.g. from Storage or a CDN) in the link field, or upload the video to Storage first and paste its URL.' };
+      if (videoUrl.startsWith('data:')) return { ok: false, platform: p, error: 'YouTube needs a public URL, not an in-browser file. Upload the video to Storage and paste the public URL, or use the Link field for a video URL.' };
+      const MAX_VIDEO_BYTES = 50 * 1024 * 1024;
+      let videoBuffer: ArrayBuffer;
+      try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 90000);
+        const vidRes = await fetch(videoUrl, { signal: controller.signal, redirect: 'follow' });
+        clearTimeout(timeout);
+        if (!vidRes.ok) return { ok: false, platform: p, error: `Could not fetch video: ${vidRes.status} ${vidRes.statusText}` };
+        const contentLength = Number(vidRes.headers.get('content-length') || 0);
+        if (contentLength > MAX_VIDEO_BYTES) return { ok: false, platform: p, error: `Video too large (max ${Math.round(MAX_VIDEO_BYTES / 1024 / 1024)}MB). Use a smaller file or shorter clip.` };
+        videoBuffer = await vidRes.arrayBuffer();
+        if (videoBuffer.byteLength > MAX_VIDEO_BYTES) return { ok: false, platform: p, error: `Video too large (max ${Math.round(MAX_VIDEO_BYTES / 1024 / 1024)}MB).` };
+      } catch (e: any) {
+        return { ok: false, platform: p, error: e?.name === 'AbortError' ? 'Video fetch timed out.' : (e?.message || 'Could not fetch video URL.') };
+      }
+      const title = content.split(/\n/)[0]?.trim().slice(0, 100) || 'Upload from EngageHub';
+      const description = content.slice(0, 5000);
+      const initRes = await fetch(
+        `https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${account.access_token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            snippet: { title, description },
+            status: { privacyStatus: 'public' },
+          }),
+        }
+      );
+      if (!initRes.ok) {
+        const errData = await initRes.json().catch(() => ({}));
+        const msg = (errData as any)?.error?.message || initRes.statusText;
+        return { ok: false, platform: p, error: msg || 'Failed to start YouTube upload.' };
+      }
+      const uploadUrl = initRes.headers.get('location');
+      if (!uploadUrl) return { ok: false, platform: p, error: 'No upload URL from YouTube.' };
+      const len = videoBuffer.byteLength;
+      const putRes = await fetch(uploadUrl, {
+        method: 'PUT',
+        headers: {
+          'Content-Length': String(len),
+          'Content-Range': `bytes 0-${len - 1}/${len}`,
+          'Content-Type': 'application/octet-stream',
+        },
+        body: videoBuffer,
+      });
+      if (!putRes.ok) {
+        const errData = await putRes.json().catch(() => ({}));
+        const msg = (errData as any)?.error?.message || putRes.statusText;
+        return { ok: false, platform: p, error: msg || 'YouTube upload failed.' };
+      }
+      return { ok: true, platform: p };
     }
     if (p === 'instagram') {
       const publicUrl = (mediaUrls || []).find((u) => typeof u === 'string' && (u.startsWith('http://') || u.startsWith('https://')));
@@ -152,7 +207,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const results = await Promise.all(
     (platforms || []).map((platform) => {
-      const account = accounts.find((a: any) => (a.platform || '').toLowerCase() === (platform || '').toLowerCase());
+      const plat = (platform || '').toLowerCase();
+      let account = accounts.find((a: any) => (a.platform || '').toLowerCase() === plat);
+      if (plat === 'facebook' && accounts.length > 0) {
+        const pageAccount = accounts.find((a: any) => (a.platform || '').toLowerCase() === 'facebook' && !(a.account_id || '').startsWith('profile_'));
+        if (pageAccount) account = pageAccount;
+      }
       return publishOne(platform, account || { account_id: '', access_token: '' }, content, urls);
     })
   );

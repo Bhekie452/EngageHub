@@ -686,6 +686,9 @@ const Content: React.FC = () => {
         if (url.startsWith('data:')) return url.length <= MAX_DATA_URL_LENGTH;
         return true;
       });
+      if (selectedPlatforms.some((plat) => (plat || '').toLowerCase() === 'youtube') && linkUrl && (linkUrl.startsWith('http://') || linkUrl.startsWith('https://')) && !mediaForDb.includes(linkUrl)) {
+        mediaForDb.push(linkUrl);
+      }
       const skippedLarge = allMedia.length - mediaForDb.length;
 
       // 2. Prepare data matching schema
@@ -739,12 +742,12 @@ const Content: React.FC = () => {
       }
 
       // 4. Actual Social Publishing (if 'Post Now') – via API to avoid CORS and Facebook profile errors
-      let youtubeSkipped = false;
       if (scheduleMode === 'now') {
+        const platformsToPublish = [...selectedPlatforms];
         const mediaUrls = [...uploadedImages, ...uploadedVideos];
-        // YouTube video upload is not supported in Post Now; omit so we don't report a "failure"
-        const platformsToPublish = selectedPlatforms.filter((p) => (p || '').toLowerCase() !== 'youtube');
-        youtubeSkipped = selectedPlatforms.some((p) => (p || '').toLowerCase() === 'youtube');
+        if (platformsToPublish.some((plat) => (plat || '').toLowerCase() === 'youtube') && linkUrl && (linkUrl.startsWith('http://') || linkUrl.startsWith('https://'))) {
+          mediaUrls.push(linkUrl);
+        }
         try {
           // Fetch tokens client-side (user session allows RLS) so the API can publish when server has no service-role key
           const { data: accountRows } = await supabase
@@ -785,7 +788,13 @@ const Content: React.FC = () => {
               }
             }
             if (accessToken) {
-              accountTokens[platform] = { account_id: row.account_id || '', access_token: accessToken };
+              const isFacebookPage = platform === 'facebook' && !(row.account_id || '').startsWith('profile_');
+              const existing = accountTokens[platform];
+              if (platform !== 'facebook') {
+                accountTokens[platform] = { account_id: row.account_id || '', access_token: accessToken };
+              } else if (isFacebookPage || !existing) {
+                accountTokens[platform] = { account_id: row.account_id || '', access_token: accessToken };
+              }
             }
           }
 
@@ -822,7 +831,6 @@ const Content: React.FC = () => {
 
       let successMsg = `Post ${editingPost ? 'updated' : scheduleMode === 'now' ? 'published' : 'scheduled'} successfully! 🎉`;
       if (skippedLarge > 0) successMsg += ` Large media (e.g. video) was not saved to the database; upload to Storage for publishing.`;
-      if (scheduleMode === 'now' && youtubeSkipped) successMsg += ` YouTube was skipped for Post Now (video upload coming soon).`;
       alert(successMsg);
       await fetchPosts();
 
@@ -1050,9 +1058,12 @@ const Content: React.FC = () => {
                               type="url"
                               value={linkUrl}
                               onChange={(e) => setLinkUrl(e.target.value)}
-                              placeholder="https://example.com"
+                              placeholder={selectedPlatforms.some((p) => (p || '').toLowerCase() === 'youtube') ? 'https://your-video-url.mp4' : 'https://example.com'}
                               className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                             />
+                            {selectedPlatforms.some((p) => (p || '').toLowerCase() === 'youtube') && (
+                              <p className="text-xs text-gray-500">For YouTube: paste a public video URL and it will be uploaded to your channel.</p>
+                            )}
                             <button
                               onClick={handleInsertLink}
                               disabled={!linkUrl}
@@ -1269,8 +1280,8 @@ const Content: React.FC = () => {
                         <span className="text-sm font-medium text-gray-700">Post Now</span>
                       </label>
                       {scheduleMode === 'now' && selectedPlatforms.some((p) => (p || '').toLowerCase() === 'youtube') && (
-                        <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2">
-                          YouTube won&apos;t be published with Post Now (video upload coming soon). The post will be saved and published to your other selected platforms.
+                        <p className="text-xs text-blue-700 bg-blue-50 border border-blue-200 rounded px-3 py-2">
+                          YouTube: add a video or video URL so it can be uploaded to your channel.
                         </p>
                       )}
 

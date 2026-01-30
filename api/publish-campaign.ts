@@ -4,7 +4,7 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY;
 
-/** Publish message to one social account (server-side, no CORS). Facebook: Page or personal profile (me/feed). */
+/** Publish message to one social account (server-side, no CORS). Facebook: Pages only (no personal timeline posting via API). */
 async function publishOne(
   platform: string,
   account: { account_id: string; access_token: string },
@@ -14,11 +14,10 @@ async function publishOne(
   if (!account?.access_token) return { ok: false, platform: p, error: 'No token' };
   try {
     if (p === 'facebook') {
-      const isProfile = (account.account_id || '').startsWith('profile_');
-      const feedUrl = isProfile
-        ? 'https://graph.facebook.com/v21.0/me/feed'
-        : `https://graph.facebook.com/v21.0/${account.account_id}/feed`;
-      const res = await fetch(feedUrl, {
+      if ((account.account_id || '').startsWith('profile_')) {
+        return { ok: false, platform: p, error: "Facebook no longer lets apps post to personal timelines. Connect a Facebook Page to publish (create one at facebook.com/pages/create)." };
+      }
+      const res = await fetch(`https://graph.facebook.com/v21.0/${account.account_id}/feed`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: content, access_token: account.access_token }),
@@ -94,7 +93,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     .in('id', accountIds)
     .eq('is_active', true);
 
-  const results = await Promise.all((accounts || []).map((acc: any) => publishOne(acc.platform, acc, message)));
+  const accountsList = accounts || [];
+  const hasFacebookPage = accountsList.some((a: any) => (a.platform || '').toLowerCase() === 'facebook' && !(a.account_id || '').startsWith('profile_'));
+  const toPublish = hasFacebookPage
+    ? accountsList.filter((a: any) => (a.platform || '').toLowerCase() !== 'facebook' || !(a.account_id || '').startsWith('profile_'))
+    : accountsList;
+
+  const results = await Promise.all(toPublish.map((acc: any) => publishOne(acc.platform, acc, message)));
   const succeeded = results.filter((r) => r.ok).map((r) => r.platform);
   const failed = results.filter((r) => !r.ok).map((r) => ({ platform: r.platform, error: r.error }));
 

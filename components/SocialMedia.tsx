@@ -171,7 +171,7 @@ const SocialMedia: React.FC = () => {
           connection_status: 'connected',
         }, { onConflict: 'workspace_id,platform,account_id' });
         if (error) throw error;
-        alert(`✅ Connected to Facebook as ${profile.name}. You can post to your timeline.`);
+        alert(`✅ Connected to Facebook as ${profile.name}. To publish posts from EngageHub, connect a Facebook Page (Facebook no longer allows apps to post to personal timelines). Create a Page at facebook.com/pages/create`);
       }
       fetchConnectedAccounts();
     } catch (err: any) {
@@ -229,7 +229,7 @@ const SocialMedia: React.FC = () => {
           connection_status: 'connected',
         }, { onConflict: 'workspace_id,platform,account_id' });
         if (error) throw error;
-        alert(`✅ Connected to Facebook as ${profile.name}. You can post to your timeline.`);
+        alert(`✅ Connected to Facebook as ${profile.name}. To publish posts from EngageHub, connect a Facebook Page (Facebook no longer allows apps to post to personal timelines). Create a Page at facebook.com/pages/create`);
       }
       fetchConnectedAccounts();
       // #region agent log
@@ -1266,6 +1266,11 @@ const SocialMedia: React.FC = () => {
                       <p className="text-xs text-gray-500 truncate">
                         {connectedSubtitle}
                       </p>
+                      {isConnected && account.platform === 'facebook' && connectedAccount?.account_type === 'profile' && (
+                        <p className="text-[11px] text-amber-700 mt-0.5">
+                          Can&apos;t publish—disconnect and connect again, then pick your Page.
+                        </p>
+                      )}
                     </div>
                   </div>
                   <div className="flex flex-col items-end gap-2 shrink-0">

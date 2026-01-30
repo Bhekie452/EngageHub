@@ -31,13 +31,12 @@ async function publishToPlatform(
   const p = (platform || '').toLowerCase();
   try {
     if (p === 'facebook') {
-      const isProfile = (account.account_id || '').startsWith('profile_');
-      const feedUrl = isProfile
-        ? 'https://graph.facebook.com/v21.0/me/feed'
-        : `https://graph.facebook.com/v21.0/${account.account_id}/feed`;
+      if ((account.account_id || '').startsWith('profile_')) {
+        return { ok: false, error: "Facebook no longer lets apps post to personal timelines. Connect a Facebook Page to publish (create one at facebook.com/pages/create)." };
+      }
       const body: Record<string, string> = { message: content, access_token: account.access_token };
       if (mediaUrls[0]) body.link = mediaUrls[0];
-      const res = await fetch(feedUrl, {
+      const res = await fetch(`https://graph.facebook.com/v21.0/${account.account_id}/feed`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
@@ -98,6 +97,52 @@ async function publishToPlatform(
       if (publishData?.error) return { ok: false, error: publishData.error.message };
       return { ok: true };
     }
+    if (p === 'youtube') {
+      const videoUrl = (mediaUrls || []).find((u) => typeof u === 'string' && (u.startsWith('http://') || u.startsWith('https://')));
+      if (!videoUrl) return { ok: false, error: 'YouTube requires a public video URL in the post.' };
+      const MAX_VIDEO_BYTES = 50 * 1024 * 1024;
+      let videoBuffer: ArrayBuffer;
+      try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 90000);
+        const vidRes = await fetch(videoUrl, { signal: controller.signal, redirect: 'follow' });
+        clearTimeout(timeout);
+        if (!vidRes.ok) return { ok: false, error: `Could not fetch video: ${vidRes.status}` };
+        const contentLength = Number(vidRes.headers.get('content-length') || 0);
+        if (contentLength > MAX_VIDEO_BYTES) return { ok: false, error: `Video too large (max ${Math.round(MAX_VIDEO_BYTES / 1024 / 1024)}MB).` };
+        videoBuffer = await vidRes.arrayBuffer();
+        if (videoBuffer.byteLength > MAX_VIDEO_BYTES) return { ok: false, error: `Video too large.` };
+      } catch (e: any) {
+        return { ok: false, error: e?.name === 'AbortError' ? 'Video fetch timed out.' : (e?.message || 'Could not fetch video.') };
+      }
+      const title = content.split(/\n/)[0]?.trim().slice(0, 100) || 'Upload from EngageHub';
+      const description = content.slice(0, 5000);
+      const initRes = await fetch(
+        `https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status`,
+        {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${account.access_token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ snippet: { title, description }, status: { privacyStatus: 'public' } }),
+        }
+      );
+      if (!initRes.ok) {
+        const errData = await initRes.json().catch(() => ({}));
+        return { ok: false, error: (errData as any)?.error?.message || 'Failed to start YouTube upload.' };
+      }
+      const uploadUrl = initRes.headers.get('location');
+      if (!uploadUrl) return { ok: false, error: 'No upload URL from YouTube.' };
+      const len = videoBuffer.byteLength;
+      const putRes = await fetch(uploadUrl, {
+        method: 'PUT',
+        headers: { 'Content-Length': String(len), 'Content-Range': `bytes 0-${len - 1}/${len}`, 'Content-Type': 'application/octet-stream' },
+        body: videoBuffer,
+      });
+      if (!putRes.ok) {
+        const errData = await putRes.json().catch(() => ({}));
+        return { ok: false, error: (errData as any)?.error?.message || 'YouTube upload failed.' };
+      }
+      return { ok: true };
+    }
     return { ok: false, error: 'Unsupported platform' };
   } catch (e: any) {
     return { ok: false, error: e?.message || 'Request failed' };
@@ -142,7 +187,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       .in('platform', platforms);
 
     for (const platform of platforms) {
-      const account = (accounts || []).find((a: any) => (a.platform || '').toLowerCase() === (platform || '').toLowerCase());
+      const plat = (platform || '').toLowerCase();
+      let account = (accounts || []).find((a: any) => (a.platform || '').toLowerCase() === plat);
+      if (plat === 'facebook' && (accounts || []).length > 0) {
+        const pageAccount = (accounts || []).find((a: any) => (a.platform || '').toLowerCase() === 'facebook' && !(a.account_id || '').startsWith('profile_'));
+        if (pageAccount) account = pageAccount;
+      }
       if (account?.access_token) await publishToPlatform(platform, account, content, mediaUrls);
     }
 
