@@ -1071,8 +1071,10 @@ const SocialMedia: React.FC = () => {
 
       if (!channelData.channels || channelData.channels.length === 0) {
         alert(
-          'No YouTube channels found. Your Google account needs a YouTube channel.\n\n' +
-          'Create one: sign in at youtube.com, click your profile picture → Create a channel (or go to youtube.com/create_channel). Then try connecting again.'
+          'No YouTube channels found. Usually an account setup issue:\n\n' +
+          '1. Check channel: youtube.com/channel_switcher (same Google account). If you see "Create a channel", create it.\n' +
+          '2. Brand Account? Use a personal channel or ensure you\'re Owner/Manager of the Brand account.\n' +
+          '3. Re-authorize: myaccount.google.com/permissions → remove this app → connect YouTube again and accept all permissions.'
         );
         setIsLoading(false);
         return;
@@ -1125,8 +1127,10 @@ const SocialMedia: React.FC = () => {
 
       if (!channelData.channels || channelData.channels.length === 0) {
         alert(
-          'No YouTube channels found. Your Google account needs a YouTube channel.\n\n' +
-          'Create one: sign in at youtube.com, click your profile picture → Create a channel (or go to youtube.com/create_channel). Then try connecting again.'
+          'No YouTube channels found. Usually an account setup issue:\n\n' +
+          '1. Check channel: youtube.com/channel_switcher (same Google account). If you see "Create a channel", create it.\n' +
+          '2. Brand Account? Use a personal channel or ensure you\'re Owner/Manager of the Brand account.\n' +
+          '3. Re-authorize: myaccount.google.com/permissions → remove this app → connect YouTube again and accept all permissions.'
         );
         setIsLoading(false);
         return;

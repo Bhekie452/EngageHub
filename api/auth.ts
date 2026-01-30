@@ -252,11 +252,13 @@ async function handleYouTube(req: VercelRequest, res: VercelResponse, action: st
 
     if (action === 'channel') {
         const { accessToken } = req.body;
-        const response = await fetch('https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics&mine=true', {
+        const response = await fetch('https://www.googleapis.com/youtube/v3/channels?part=snippet,contentDetails,statistics&mine=true', {
             headers: { Authorization: `Bearer ${accessToken}` },
         });
         const data = await response.json();
-        return res.status(response.ok ? 200 : response.status).json(data);
+        if (!response.ok) return res.status(response.status).json(data);
+        // Frontend expects { channels: [...] }; YouTube returns { items: [...] }
+        return res.status(200).json({ channels: data.items || [] });
     }
 
     return res.status(400).json({ error: 'Invalid action for YouTube' });
