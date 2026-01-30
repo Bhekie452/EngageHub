@@ -4,7 +4,7 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY;
 
-/** Publish content to one platform (server-side, no CORS). Facebook: only Pages (skip profile_). */
+/** Publish content to one platform (server-side, no CORS). Facebook: Page or personal profile (me/feed). */
 async function publishOne(
   platform: string,
   account: { account_id: string; access_token: string },
@@ -15,11 +15,16 @@ async function publishOne(
   if (!account?.access_token) return { ok: false, platform: p, error: 'No token' };
   try {
     if (p === 'facebook') {
-      if ((account.account_id || '').startsWith('profile_')) return { ok: false, platform: p, error: 'Connect a Facebook Page to post (profiles not supported)' };
-      const res = await fetch(`https://graph.facebook.com/v21.0/${account.account_id}/feed`, {
+      const isProfile = (account.account_id || '').startsWith('profile_');
+      const feedUrl = isProfile
+        ? 'https://graph.facebook.com/v21.0/me/feed'
+        : `https://graph.facebook.com/v21.0/${account.account_id}/feed`;
+      const body: Record<string, string> = { message: content, access_token: account.access_token };
+      if (mediaUrls[0]) body.link = mediaUrls[0];
+      const res = await fetch(feedUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: content, access_token: account.access_token, link: mediaUrls[0] }),
+        body: JSON.stringify(body),
       });
       const data = await res.json();
       if (data?.error) return { ok: false, platform: p, error: data.error.message };

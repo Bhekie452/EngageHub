@@ -102,9 +102,6 @@ const SocialMedia: React.FC = () => {
       }
 
       if (code && state === 'facebook_oauth') {
-        // #region agent log
-        fetch('http://127.0.0.1:7243/ingest/6077bdfd-a86e-4561-b354-d446ad749d41',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'SocialMedia.tsx:useEffect:facebookCallbackDetected',message:'Effect detected Facebook callback in URL',data:{codeLen:code?.length,hasUser:!!user},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H3,H5'})}).catch(()=>{});
-        // #endregion
         handleFacebookCallback(code);
       } else if (code && state === 'instagram_oauth') {
         handleInstagramCallback(code);
@@ -174,7 +171,7 @@ const SocialMedia: React.FC = () => {
           connection_status: 'connected',
         }, { onConflict: 'workspace_id,platform,account_id' });
         if (error) throw error;
-        alert(`✅ Connected to Facebook as ${profile.name}. (Page posting not available — Meta's APIs require separate Page permissions.)`);
+        alert(`✅ Connected to Facebook as ${profile.name}. You can post to your timeline.`);
       }
       fetchConnectedAccounts();
     } catch (err: any) {
@@ -186,9 +183,6 @@ const SocialMedia: React.FC = () => {
   }
 
   async function handleFacebookCallback(code: string) {
-    // #region agent log
-    fetch('http://127.0.0.1:7243/ingest/6077bdfd-a86e-4561-b354-d446ad749d41',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'SocialMedia.tsx:handleFacebookCallback:entry',message:'Facebook callback handler entered',data:{codeLen:code?.length,hasUser:!!user},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H3,H5'})}).catch(()=>{});
-    // #endregion
     setIsOAuthRedirect(false); // Reset flag - we're back from redirect
     setIsLoading(true);
     try {
@@ -235,7 +229,7 @@ const SocialMedia: React.FC = () => {
           connection_status: 'connected',
         }, { onConflict: 'workspace_id,platform,account_id' });
         if (error) throw error;
-        alert(`✅ Connected to Facebook as ${profile.name}. (Page posting not available — Meta's APIs require separate Page permissions.)`);
+        alert(`✅ Connected to Facebook as ${profile.name}. You can post to your timeline.`);
       }
       fetchConnectedAccounts();
       // #region agent log
@@ -279,9 +273,6 @@ const SocialMedia: React.FC = () => {
         }
       }
     } catch (err: any) {
-      // #region agent log
-      fetch('http://127.0.0.1:7243/ingest/6077bdfd-a86e-4561-b354-d446ad749d41',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'SocialMedia.tsx:handleFacebookCallback:error',message:'Facebook callback failed',data:{errorMessage:err?.message||String(err)},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H3,H4'})}).catch(()=>{});
-      // #endregion
       console.error('Facebook callback error:', err);
       alert(`Failed to connect to Facebook: ${err.message || 'Unknown error'}`);
     } finally {

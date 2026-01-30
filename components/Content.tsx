@@ -1,4 +1,4 @@
-﻿import React, { useState, useRef, useMemo } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import {
   PenTool,
   FileText,
@@ -739,8 +739,12 @@ const Content: React.FC = () => {
       }
 
       // 4. Actual Social Publishing (if 'Post Now') – via API to avoid CORS and Facebook profile errors
+      let youtubeSkipped = false;
       if (scheduleMode === 'now') {
         const mediaUrls = [...uploadedImages, ...uploadedVideos];
+        // YouTube video upload is not supported in Post Now; omit so we don't report a "failure"
+        const platformsToPublish = selectedPlatforms.filter((p) => (p || '').toLowerCase() !== 'youtube');
+        youtubeSkipped = selectedPlatforms.some((p) => (p || '').toLowerCase() === 'youtube');
         try {
           // Fetch tokens client-side (user session allows RLS) so the API can publish when server has no service-role key
           const { data: accountRows } = await supabase
@@ -748,7 +752,7 @@ const Content: React.FC = () => {
             .select('platform, account_id, access_token, refresh_token')
             .eq('workspace_id', workspaceId)
             .eq('is_active', true)
-            .in('platform', selectedPlatforms.map((p) => (p || '').toLowerCase()));
+            .in('platform', platformsToPublish.map((p) => (p || '').toLowerCase()));
           const accountTokens: Record<string, { account_id: string; access_token: string }> = {};
           for (const row of accountRows || []) {
             const platform = (row.platform || '').toLowerCase();
@@ -791,7 +795,7 @@ const Content: React.FC = () => {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               content: postContent,
-              platforms: selectedPlatforms,
+              platforms: platformsToPublish,
               mediaUrls,
               workspaceId,
               accountTokens: Object.keys(accountTokens).length ? accountTokens : undefined,
@@ -803,14 +807,11 @@ const Content: React.FC = () => {
             const names = [...new Set(failed.map((f: any) => f?.platform).filter(Boolean))];
             const firstError = failed.find((f: any) => f?.error)?.error;
             const onlyYoutube = names.length === 1 && String(names[0] ?? '').toLowerCase() === 'youtube';
-            const onlyFacebookHint = !firstError && failed.some((f: any) => (f?.platform || '').toLowerCase() === 'facebook');
             const hint = firstError
               ? ` ${firstError}`
               : onlyYoutube
                 ? ' YouTube video upload is not yet supported.'
-                : onlyFacebookHint
-                  ? ' In Connected Accounts, connect a Facebook Page (not a personal profile) to post.'
-                  : ' Check your connected accounts.';
+                : ' Check your connected accounts.';
             alert(`Post saved. Failed to publish to: ${names.join(', ')}.${hint}`);
           }
         } catch (e) {
@@ -821,6 +822,7 @@ const Content: React.FC = () => {
 
       let successMsg = `Post ${editingPost ? 'updated' : scheduleMode === 'now' ? 'published' : 'scheduled'} successfully! 🎉`;
       if (skippedLarge > 0) successMsg += ` Large media (e.g. video) was not saved to the database; upload to Storage for publishing.`;
+      if (scheduleMode === 'now' && youtubeSkipped) successMsg += ` YouTube was skipped for Post Now (video upload coming soon).`;
       alert(successMsg);
       await fetchPosts();
 
@@ -1266,6 +1268,11 @@ const Content: React.FC = () => {
                         </div>
                         <span className="text-sm font-medium text-gray-700">Post Now</span>
                       </label>
+                      {scheduleMode === 'now' && selectedPlatforms.some((p) => (p || '').toLowerCase() === 'youtube') && (
+                        <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2">
+                          YouTube won&apos;t be published with Post Now (video upload coming soon). The post will be saved and published to your other selected platforms.
+                        </p>
+                      )}
 
                       <div className="flex flex-col sm:flex-row sm:items-center gap-4">
                         <label className="flex items-center gap-3 cursor-pointer">
