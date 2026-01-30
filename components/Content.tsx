@@ -808,6 +808,32 @@ const Content: React.FC = () => {
                 // use existing access_token; publish may still work or return 401
               }
             }
+            // YouTube/Google access tokens expire (~1h); refresh so publish doesn't get 401
+            if (platform === 'youtube' && row.refresh_token) {
+              try {
+                const refreshRes = await fetch(`${window.location.origin}/api/auth?provider=youtube&action=refresh`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ refresh_token: row.refresh_token }),
+                });
+                const refreshData = await refreshRes.json().catch(() => ({}));
+                if (refreshRes.ok && refreshData.access_token) {
+                  accessToken = refreshData.access_token;
+                  await supabase
+                    .from('social_accounts')
+                    .update({
+                      access_token: refreshData.access_token,
+                      ...(refreshData.refresh_token && { refresh_token: refreshData.refresh_token }),
+                      ...(refreshData.expires_in && { token_expires_at: new Date(Date.now() + refreshData.expires_in * 1000).toISOString() }),
+                    })
+                    .eq('workspace_id', workspaceId)
+                    .eq('platform', 'youtube')
+                    .eq('account_id', row.account_id);
+                }
+              } catch (_) {
+                // use existing access_token; publish may still work or return 401
+              }
+            }
             if (accessToken) {
               const isFacebookPage = platform === 'facebook' && !(row.account_id || '').startsWith('profile_');
               const existing = accountTokens[platform];
