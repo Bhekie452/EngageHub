@@ -83,6 +83,7 @@ async function publishOne(
       const videoUrl = (mediaUrls || []).find((u) => typeof u === 'string' && (u.startsWith('http://') || u.startsWith('https://')));
       if (!videoUrl) return { ok: false, platform: p, error: 'YouTube requires a public video URL. Paste a link to your video (e.g. from Storage or a CDN) in the link field, or upload the video to Storage first and paste its URL.' };
       if (videoUrl.startsWith('data:')) return { ok: false, platform: p, error: 'YouTube needs a public URL, not an in-browser file. Upload the video to Storage and paste the public URL, or use the Link field for a video URL.' };
+      if (/youtube\.com\/(shorts|watch)/i.test(videoUrl)) return { ok: false, platform: p, error: "That's a YouTube page link, not a video file. We need a direct link to the video file (e.g. https://your-storage.com/video.mp4) so we can upload it to your channel. Upload your video to Supabase Storage or a CDN, then paste that URL." };
       const MAX_VIDEO_BYTES = 50 * 1024 * 1024;
       let videoBuffer: ArrayBuffer;
       try {

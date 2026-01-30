@@ -100,6 +100,7 @@ async function publishToPlatform(
     if (p === 'youtube') {
       const videoUrl = (mediaUrls || []).find((u) => typeof u === 'string' && (u.startsWith('http://') || u.startsWith('https://')));
       if (!videoUrl) return { ok: false, error: 'YouTube requires a public video URL in the post.' };
+      if (/youtube\.com\/(shorts|watch)/i.test(videoUrl)) return { ok: false, error: "That's a YouTube page link, not a video file. Use a direct link to the video file (e.g. from Storage or a CDN)." };
       const MAX_VIDEO_BYTES = 50 * 1024 * 1024;
       let videoBuffer: ArrayBuffer;
       try {

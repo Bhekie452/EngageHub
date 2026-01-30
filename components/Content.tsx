@@ -357,31 +357,51 @@ const Content: React.FC = () => {
     );
   };
 
-  // Handler functions for icon actions
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (files) {
-      Array.from(files).forEach(file => {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          setUploadedImages(prev => [...prev, reader.result as string]);
-        };
-        reader.readAsDataURL(file as Blob);
-      });
+  const BUCKET_POST_MEDIA = 'post-media';
+
+  const uploadFileToStorage = async (file: File, folder: 'images' | 'videos'): Promise<string | null> => {
+    if (!user?.id) return null;
+    const ext = file.name.split('.').pop() || (folder === 'videos' ? 'mp4' : 'jpg');
+    const path = `${folder}/${user.id}/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
+    const { error } = await supabase.storage.from(BUCKET_POST_MEDIA).upload(path, file, { upsert: false });
+    if (error) {
+      console.warn('Storage upload failed:', error);
+      return null;
     }
+    const { data } = supabase.storage.from(BUCKET_POST_MEDIA).getPublicUrl(path);
+    return data?.publicUrl || null;
   };
 
-  const handleVideoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
-    if (files) {
-      Array.from(files).forEach(file => {
+    if (!files) return;
+    for (const file of Array.from(files) as File[]) {
+      const publicUrl = await uploadFileToStorage(file, 'images');
+      if (publicUrl) {
+        setUploadedImages(prev => [...prev, publicUrl]);
+      } else {
         const reader = new FileReader();
-        reader.onloadend = () => {
-          setUploadedVideos(prev => [...prev, reader.result as string]);
-        };
+        reader.onloadend = () => setUploadedImages(prev => [...prev, reader.result as string]);
         reader.readAsDataURL(file as Blob);
-      });
+      }
     }
+    e.target.value = '';
+  };
+
+  const handleVideoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files) return;
+    for (const file of Array.from(files) as File[]) {
+      const publicUrl = await uploadFileToStorage(file, 'videos');
+      if (publicUrl) {
+        setUploadedVideos(prev => [...prev, publicUrl]);
+      } else {
+        const reader = new FileReader();
+        reader.onloadend = () => setUploadedVideos(prev => [...prev, reader.result as string]);
+        reader.readAsDataURL(file as Blob);
+      }
+    }
+    e.target.value = '';
   };
 
   const insertEmoji = (emoji: string) => {
@@ -744,9 +764,10 @@ const Content: React.FC = () => {
       // 4. Actual Social Publishing (if 'Post Now') – via API to avoid CORS and Facebook profile errors
       if (scheduleMode === 'now') {
         const platformsToPublish = [...selectedPlatforms];
-        const mediaUrls = [...uploadedImages, ...uploadedVideos];
+        const allMedia = [...uploadedImages, ...uploadedVideos];
+        const publicUrls = allMedia.filter((u) => typeof u === 'string' && (u.startsWith('http://') || u.startsWith('https://')));
         if (platformsToPublish.some((plat) => (plat || '').toLowerCase() === 'youtube') && linkUrl && (linkUrl.startsWith('http://') || linkUrl.startsWith('https://'))) {
-          mediaUrls.push(linkUrl);
+          if (!publicUrls.includes(linkUrl)) publicUrls.push(linkUrl);
         }
         try {
           // Fetch tokens client-side (user session allows RLS) so the API can publish when server has no service-role key
@@ -805,11 +826,15 @@ const Content: React.FC = () => {
             body: JSON.stringify({
               content: postContent,
               platforms: platformsToPublish,
-              mediaUrls,
+              mediaUrls: publicUrls,
               workspaceId,
               accountTokens: Object.keys(accountTokens).length ? accountTokens : undefined,
             }),
           });
+          if (r.status === 413) {
+            alert('Request too large. Use a public video URL (upload to Storage and paste the link) instead of attaching the file directly.');
+            return;
+          }
           const payload = await r.json().catch(() => ({}));
           const failed = payload.failed || [];
           if (failed.length > 0) {
@@ -1062,7 +1087,7 @@ const Content: React.FC = () => {
                               className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                             />
                             {selectedPlatforms.some((p) => (p || '').toLowerCase() === 'youtube') && (
-                              <p className="text-xs text-gray-500">For YouTube: paste a public video URL and it will be uploaded to your channel.</p>
+                              <p className="text-xs text-gray-500">For YouTube: paste a direct video file URL (e.g. https://your-storage.com/video.mp4), not a YouTube watch/shorts link.</p>
                             )}
                             <button
                               onClick={handleInsertLink}
@@ -1281,7 +1306,7 @@ const Content: React.FC = () => {
                       </label>
                       {scheduleMode === 'now' && selectedPlatforms.some((p) => (p || '').toLowerCase() === 'youtube') && (
                         <p className="text-xs text-blue-700 bg-blue-50 border border-blue-200 rounded px-3 py-2">
-                          YouTube: add a video or video URL so it can be uploaded to your channel.
+                          YouTube: paste a <strong>direct video file URL</strong> (e.g. from Storage or a CDN), not a YouTube watch/shorts page link.
                         </p>
                       )}
 
