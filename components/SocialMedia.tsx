@@ -102,6 +102,9 @@ const SocialMedia: React.FC = () => {
       }
 
       if (code && state === 'facebook_oauth') {
+        // #region agent log
+        fetch('http://127.0.0.1:7243/ingest/6077bdfd-a86e-4561-b354-d446ad749d41',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'SocialMedia.tsx:useEffect:facebookCallbackDetected',message:'Effect detected Facebook callback in URL',data:{codeLen:code?.length,hasUser:!!user},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H3,H5'})}).catch(()=>{});
+        // #endregion
         handleFacebookCallback(code);
       } else if (code && state === 'instagram_oauth') {
         handleInstagramCallback(code);
@@ -183,6 +186,9 @@ const SocialMedia: React.FC = () => {
   }
 
   async function handleFacebookCallback(code: string) {
+    // #region agent log
+    fetch('http://127.0.0.1:7243/ingest/6077bdfd-a86e-4561-b354-d446ad749d41',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'SocialMedia.tsx:handleFacebookCallback:entry',message:'Facebook callback handler entered',data:{codeLen:code?.length,hasUser:!!user},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H3,H5'})}).catch(()=>{});
+    // #endregion
     setIsOAuthRedirect(false); // Reset flag - we're back from redirect
     setIsLoading(true);
     try {
@@ -232,6 +238,9 @@ const SocialMedia: React.FC = () => {
         alert(`✅ Connected to Facebook as ${profile.name}. (Page posting not available — Meta's APIs require separate Page permissions.)`);
       }
       fetchConnectedAccounts();
+      // #region agent log
+      fetch('http://127.0.0.1:7243/ingest/6077bdfd-a86e-4561-b354-d446ad749d41',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'SocialMedia.tsx:handleFacebookCallback:success',message:'Facebook callback completed successfully',data:{},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H3'})}).catch(()=>{});
+      // #endregion
 
       // If user was connecting Instagram, try to save Instagram from same token (we already have pages)
       const instagramReturn = sessionStorage.getItem('instagram_oauth_return');
@@ -270,6 +279,9 @@ const SocialMedia: React.FC = () => {
         }
       }
     } catch (err: any) {
+      // #region agent log
+      fetch('http://127.0.0.1:7243/ingest/6077bdfd-a86e-4561-b354-d446ad749d41',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'SocialMedia.tsx:handleFacebookCallback:error',message:'Facebook callback failed',data:{errorMessage:err?.message||String(err)},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H3,H4'})}).catch(()=>{});
+      // #endregion
       console.error('Facebook callback error:', err);
       alert(`Failed to connect to Facebook: ${err.message || 'Unknown error'}`);
     } finally {
@@ -1058,7 +1070,10 @@ const SocialMedia: React.FC = () => {
       const channelData = await getYouTubeChannel(authResponse.accessToken);
 
       if (!channelData.channels || channelData.channels.length === 0) {
-        alert('No YouTube channels found. Please make sure you have a YouTube channel associated with your Google account.');
+        alert(
+          'No YouTube channels found. Your Google account needs a YouTube channel.\n\n' +
+          'Create one: sign in at youtube.com, click your profile picture → Create a channel (or go to youtube.com/create_channel). Then try connecting again.'
+        );
         setIsLoading(false);
         return;
       }
@@ -1109,7 +1124,10 @@ const SocialMedia: React.FC = () => {
       const channelData = await getYouTubeChannel(accessToken);
 
       if (!channelData.channels || channelData.channels.length === 0) {
-        alert('No YouTube channels found. Please make sure you have a YouTube channel associated with your Google account.');
+        alert(
+          'No YouTube channels found. Your Google account needs a YouTube channel.\n\n' +
+          'Create one: sign in at youtube.com, click your profile picture → Create a channel (or go to youtube.com/create_channel). Then try connecting again.'
+        );
         setIsLoading(false);
         return;
       }

@@ -170,6 +170,9 @@ export const loginWithFacebook = () => {
         const code = urlParams.get('code');
         const state = urlParams.get('state');
         const error = urlParams.get('error');
+        // #region agent log
+        fetch('http://127.0.0.1:7243/ingest/6077bdfd-a86e-4561-b354-d446ad749d41',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'facebook.ts:loginWithFacebook:entry',message:'Facebook login entry',data:{hasCode:!!code,codeLen:code?.length,state,hasError:!!error,error,appId:FB_APP_ID,redirectUri:getRedirectURI(),pathname:typeof window!=='undefined'?window.location.pathname:''},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H1,H2,H4'})}).catch(()=>{});
+        // #endregion
 
         if (error) {
             reject(`Facebook login error: ${error}`);
@@ -177,6 +180,9 @@ export const loginWithFacebook = () => {
         }
 
         if (code && state === 'facebook_oauth') {
+            // #region agent log
+            fetch('http://127.0.0.1:7243/ingest/6077bdfd-a86e-4561-b354-d446ad749d41',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'facebook.ts:loginWithFacebook:callbackBranch',message:'Taking callback branch (exchange code)',data:{codeLen:code.length},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H3,H5'})}).catch(()=>{});
+            // #endregion
             // Exchange code for access token
             exchangeCodeForToken(code)
                 .then(resolve)
@@ -205,6 +211,9 @@ export const loginWithFacebook = () => {
         const redirectUri = getRedirectURI();
         const authUrl = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${FB_APP_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}&state=${oauthState}&response_type=code`;
 
+        // #region agent log
+        fetch('http://127.0.0.1:7243/ingest/6077bdfd-a86e-4561-b354-d446ad749d41',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'facebook.ts:loginWithFacebook:redirecting',message:'Storing and redirecting to Facebook',data:{redirectUriStored:redirectUri,returnUrlStored:window.location.href},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H1,H2'})}).catch(()=>{});
+        // #endregion
         sessionStorage.setItem('facebook_oauth_return', window.location.href);
         sessionStorage.setItem('facebook_oauth_redirect_uri', redirectUri);
         window.location.href = authUrl;
@@ -218,9 +227,13 @@ export const loginWithFacebook = () => {
  */
 export const exchangeCodeForToken = async (code: string): Promise<any> => {
     try {
+        const fromStorage = typeof window !== 'undefined' ? sessionStorage.getItem('facebook_oauth_redirect_uri') : null;
         const redirectUri = typeof window !== 'undefined'
-            ? (sessionStorage.getItem('facebook_oauth_redirect_uri') || getRedirectURI())
+            ? (fromStorage || getRedirectURI())
             : getRedirectURI();
+        // #region agent log
+        fetch('http://127.0.0.1:7243/ingest/6077bdfd-a86e-4561-b354-d446ad749d41',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'facebook.ts:exchangeCodeForToken:beforeRequest',message:'Token exchange redirect_uri',data:{redirectUriUsed:redirectUri,fromStorage:!!fromStorage,currentOrigin:typeof window!=='undefined'?window.location.origin:'',currentPathname:typeof window!=='undefined'?window.location.pathname:''},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H1,H2'})}).catch(()=>{});
+        // #endregion
         if (typeof window !== 'undefined') sessionStorage.removeItem('facebook_oauth_redirect_uri');
 
         const response = await fetch(`/api/auth?provider=facebook&action=token`, {
@@ -230,6 +243,10 @@ export const exchangeCodeForToken = async (code: string): Promise<any> => {
         });
 
         const data = await response.json().catch(() => ({}));
+
+        // #region agent log
+        fetch('http://127.0.0.1:7243/ingest/6077bdfd-a86e-4561-b354-d446ad749d41',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'facebook.ts:exchangeCodeForToken:afterResponse',message:'Token exchange response',data:{ok:response.ok,status:response.status,hasAccessToken:!!(data&&data.access_token),errorMessage:data?.error?.message||data?.message||null},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H3,H4'})}).catch(()=>{});
+        // #endregion
 
         if (!response.ok) {
             const msg = data?.error?.message ?? data?.message ?? data?.error ?? (typeof data === 'string' ? data : 'Token exchange failed');
