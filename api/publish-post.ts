@@ -174,15 +174,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   if (!supabaseUrl || !supabaseServiceKey) return res.status(500).json({ error: 'Supabase not configured' });
 
-  const { content, platforms, mediaUrls, workspaceId, accountTokens } = (req.body || {}) as {
+  const body = (req.body || {}) as {
     content?: string;
     platforms?: string[];
     mediaUrls?: string[];
     workspaceId?: string;
     accountTokens?: Record<string, { account_id: string; access_token: string }>;
   };
-  if (!content?.trim() || !Array.isArray(platforms) || !platforms.length || !workspaceId) {
-    return res.status(400).json({ error: 'Missing content, platforms, or workspaceId' });
+  const { platforms, mediaUrls, workspaceId, accountTokens } = body;
+  const content = typeof body.content === 'string' ? body.content : '';
+  const hasContent = content.trim().length > 0;
+  const hasMedia = Array.isArray(mediaUrls) && mediaUrls.length > 0;
+  if ((!hasContent && !hasMedia) || !Array.isArray(platforms) || !platforms.length || !workspaceId) {
+    return res.status(400).json({ error: 'Missing content or media, platforms, or workspaceId' });
   }
 
   const supabase = createClient(supabaseUrl, supabaseServiceKey);

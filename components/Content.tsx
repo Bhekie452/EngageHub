@@ -836,6 +836,11 @@ const Content: React.FC = () => {
             return;
           }
           const payload = await r.json().catch(() => ({}));
+          if (!r.ok) {
+            const msg = payload?.error || payload?.message || `Publish failed (${r.status}).`;
+            alert(`Post saved but could not publish: ${msg}`);
+            return;
+          }
           const failed = payload.failed || [];
           if (failed.length > 0) {
             const names = [...new Set(failed.map((f: any) => f?.platform).filter(Boolean))];
