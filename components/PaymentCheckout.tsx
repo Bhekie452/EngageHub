@@ -207,7 +207,7 @@ export const PaymentCheckout: React.FC<PaymentCheckoutProps> = ({
           return;
         }
 
-        const response = await fetch('/api/stripe/create-checkout-session', {
+        const response = await fetch('/api/payment/checkout-session', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
