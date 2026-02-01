@@ -207,25 +207,26 @@ export const PaymentCheckout: React.FC<PaymentCheckoutProps> = ({
           return;
         }
 
-        const response = await fetch('/api/payment/checkout-session', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            planTier,
-            userId: user.id,
-            email: user.email,
-            origin: window.location.origin,
-            trialDays,
-          }),
+        // Use the new paymentsApi client
+        const { data, error } = await paymentsApi.createCheckoutSession({
+          priceId: planTier,
+          userId: user.id,
+          successUrl: `${window.location.origin}/dashboard?payment=success`,
+          cancelUrl: `${window.location.origin}/pricing?payment=cancelled`
         });
 
-        if (!response.ok) {
-          const data = await response.json().catch(() => null);
-          throw new Error(data?.error || 'Failed to create Stripe checkout session.');
+        if (error) {
+          throw new Error(error);
         }
 
-        const { sessionId } = await response.json();
-        const { error: stripeError } = await stripe.redirectToCheckout({ sessionId });
+        if (!data?.sessionId) {
+          throw new Error('Failed to create Stripe checkout session: No session ID returned');
+        }
+
+        // Redirect to Stripe Checkout
+        const { error: stripeError } = await stripe.redirectToCheckout({ 
+          sessionId: data.sessionId 
+        });
 
         if (stripeError) {
           throw new Error(stripeError.message);

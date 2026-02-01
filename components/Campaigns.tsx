@@ -271,22 +271,28 @@ const CreateCampaignModal: React.FC<{ isOpen: boolean; onClose: () => void; onSu
 
         if (linkError) console.error('Error linking social accounts:', linkError);
 
-        // Publish via API (avoids CORS; Facebook Page-only, Twitter/LinkedIn server-side)
+        // Publish campaign using the new contentApi client
         const message = [data.name, data.description].filter(Boolean).join('\n\n').trim() || data.name;
         try {
-          const origin = window.location.origin;
-          const r = await fetch(`${origin}/api/publish-campaign`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ campaignId: campaign.id, message }),
-          });
-          const payload = await r.json().catch(() => ({}));
-          const succeeded = payload.succeeded || [];
-          const failed = payload.failed || [];
-          if (succeeded.length) alert(`Campaign created and published to: ${[...new Set(succeeded)].join(', ')}.`);
-          if (failed.length && failed.some((f: any) => f?.error)) console.warn('Publish failures:', failed);
-        } catch (e) {
-          console.warn('Publish API call failed:', e);
+          const { data: publishResult, error } = await contentApi.publishCampaign(campaign.id, message);
+          
+          if (error) {
+            console.warn('Publish API error:', error);
+            return;
+          }
+          
+          const succeeded = publishResult?.succeeded || [];
+          const failed = publishResult?.failed || [];
+          
+          if (succeeded.length) {
+            alert(`Campaign created and published to: ${[...new Set(succeeded)].join(', ')}.`);
+          }
+          
+          if (failed.length && failed.some((f: any) => f?.error)) {
+            console.warn('Publish failures:', failed);
+          }
+        } catch (error) {
+          console.warn('Publish API call failed:', error);
         }
       }
 

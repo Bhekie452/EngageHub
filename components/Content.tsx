@@ -72,8 +72,10 @@ const Content: React.FC = () => {
     if (!['all', 'all_list', 'drafts', 'scheduled', 'published'].includes(activeTab) || !user) return;
     const run = async () => {
       try {
-        await fetch(`${window.location.origin}/api/process-scheduled-posts`, { method: 'GET' });
-      } catch {
+        // Use the new contentApi client to process scheduled posts
+        await contentApi.processScheduledPosts();
+      } catch (error) {
+        console.error('Error processing scheduled posts:', error);
         // API may not be deployed; scheduled posts will run when cron hits the endpoint
       }
       fetchPosts();
