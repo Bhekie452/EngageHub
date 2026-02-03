@@ -56,6 +56,8 @@ const Content: React.FC = () => {
 
   const [posts, setPosts] = useState<any[]>([]);
   const [isLoadingPosts, setIsLoadingPosts] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const [campaigns, setCampaigns] = useState<any[]>([]);
   const [postCampaignMap, setPostCampaignMap] = useState<Record<string, { id: string; name: string }>>({});
   const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null);
@@ -82,6 +84,15 @@ const Content: React.FC = () => {
     };
     run();
   }, [activeTab, user]);
+
+  React.useEffect(() => {
+    setCurrentPage(1);
+  }, [activeTab, pageSize]);
+
+  React.useEffect(() => {
+    const totalPages = Math.max(1, Math.ceil(posts.length / pageSize));
+    if (currentPage > totalPages) setCurrentPage(totalPages);
+  }, [currentPage, pageSize, posts.length]);
 
   React.useEffect(() => {
     if (user) {
@@ -1002,6 +1013,112 @@ const Content: React.FC = () => {
     { id: 'templates', label: 'Templates', icon: <Copy size={16} /> },
   ];
 
+  const totalItems = posts.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+  const pageStart = (currentPage - 1) * pageSize;
+  const pageEnd = Math.min(pageStart + pageSize, totalItems);
+  const paginatedPosts = posts.slice(pageStart, pageEnd);
+
+  const visiblePages = (() => {
+    const start = Math.max(1, currentPage - 2);
+    const end = Math.min(totalPages, start + 4);
+    const adjustedStart = Math.max(1, end - 4);
+    const pages: number[] = [];
+    for (let p = adjustedStart; p <= end; p++) pages.push(p);
+    return pages;
+  })();
+
+  const PaginationBar = ({ className = '' }: { className?: string }) => {
+    if (isLoadingPosts || totalItems === 0) return null;
+    return (
+      <div className={`flex flex-col md:flex-row md:items-center md:justify-between gap-3 px-5 py-4 border-t border-gray-100 bg-white ${className}`}>
+        <div className="flex items-center justify-between md:justify-start gap-3">
+          <p className="text-[11px] text-gray-500 font-semibold">
+            Showing <span className="font-black text-gray-700">{totalItems === 0 ? 0 : pageStart + 1}</span>–
+            <span className="font-black text-gray-700">{pageEnd}</span> of{' '}
+            <span className="font-black text-gray-700">{totalItems}</span>
+          </p>
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-bold text-gray-500">Rows</span>
+            <select
+              value={pageSize}
+              onChange={(e) => setPageSize(Number(e.target.value))}
+              className="px-2 py-1 text-[11px] font-bold bg-white border border-gray-200 rounded-lg shadow-sm outline-none focus:ring-4 focus:ring-blue-50"
+            >
+              {[10, 25, 50].map((n) => (
+                <option key={n} value={n}>{n}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between md:justify-end gap-2">
+          <button
+            onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+            disabled={currentPage === 1}
+            className={`px-3 py-1.5 text-[11px] font-black uppercase tracking-widest rounded-lg border transition-all ${
+              currentPage === 1 ? 'text-gray-300 border-gray-200 bg-gray-50 cursor-not-allowed' : 'text-gray-600 border-gray-200 bg-white hover:bg-gray-50'
+            }`}
+          >
+            Prev
+          </button>
+
+          <div className="flex items-center gap-1">
+            {visiblePages[0] > 1 && (
+              <>
+                <button
+                  onClick={() => setCurrentPage(1)}
+                  className={`w-8 h-8 rounded-lg text-[11px] font-black border transition-all ${
+                    currentPage === 1 ? 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-100' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+                  }`}
+                >
+                  1
+                </button>
+                {visiblePages[0] > 2 && <span className="px-1 text-gray-300 font-black">…</span>}
+              </>
+            )}
+
+            {visiblePages.map((p) => (
+              <button
+                key={p}
+                onClick={() => setCurrentPage(p)}
+                className={`w-8 h-8 rounded-lg text-[11px] font-black border transition-all ${
+                  currentPage === p ? 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-100' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+                }`}
+              >
+                {p}
+              </button>
+            ))}
+
+            {visiblePages[visiblePages.length - 1] < totalPages && (
+              <>
+                {visiblePages[visiblePages.length - 1] < totalPages - 1 && <span className="px-1 text-gray-300 font-black">…</span>}
+                <button
+                  onClick={() => setCurrentPage(totalPages)}
+                  className={`w-8 h-8 rounded-lg text-[11px] font-black border transition-all ${
+                    currentPage === totalPages ? 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-100' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+                  }`}
+                >
+                  {totalPages}
+                </button>
+              </>
+            )}
+          </div>
+
+          <button
+            onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+            disabled={currentPage === totalPages}
+            className={`px-3 py-1.5 text-[11px] font-black uppercase tracking-widest rounded-lg border transition-all ${
+              currentPage === totalPages ? 'text-gray-300 border-gray-200 bg-gray-50 cursor-not-allowed' : 'text-gray-600 border-gray-200 bg-white hover:bg-gray-50'
+            }`}
+          >
+            Next
+          </button>
+        </div>
+      </div>
+    );
+  };
+
   const renderTabContent = () => {
     switch (activeTab) {
       case 'calendar':
@@ -1906,7 +2023,7 @@ const Content: React.FC = () => {
               ) : posts.length === 0 ? (
                 <div className="p-10 text-center text-gray-400">No posts found.</div>
               ) : (
-                posts.map((post) => (
+                paginatedPosts.map((post) => (
                   <div key={post.id} className="p-5 flex items-start gap-4 hover:bg-gray-50 transition-all group">
                     <div className="w-20 h-20 rounded-xl bg-gray-100 flex items-center justify-center text-gray-300 shrink-0 border border-gray-100 overflow-hidden">
                       {post.media_urls && post.media_urls.length > 0 ? (
@@ -1978,6 +2095,7 @@ const Content: React.FC = () => {
                 ))
               )}
             </div>
+            <PaginationBar />
           </div>
         );
 
@@ -1991,88 +2109,119 @@ const Content: React.FC = () => {
                 <button onClick={() => setActiveTab('create')} className="px-3 py-1.5 text-xs font-bold text-white bg-blue-600 rounded-lg shadow-md shadow-blue-100">+ New</button>
               </div>
             </div>
-            <div className="divide-y divide-gray-100">
+            <div className="p-3 bg-gray-50/40">
               {isLoadingPosts ? (
-                <div className="p-10 text-center text-gray-400">Loading posts...</div>
+                <div className="p-10 text-center text-gray-400 bg-white rounded-xl border border-gray-200">Loading posts...</div>
               ) : posts.length === 0 ? (
-                <div className="p-10 text-center text-gray-400">No posts found.</div>
+                <div className="p-10 text-center text-gray-400 bg-white rounded-xl border border-gray-200">No posts found.</div>
               ) : (
-                posts.map((post) => (
-                  <div key={post.id} className="p-4 flex items-center gap-4 hover:bg-gray-50 transition-all group">
-                    {/* Thumbnail */}
-                    <div className="w-16 h-16 rounded-lg bg-gray-100 flex items-center justify-center text-gray-300 shrink-0 border border-gray-200 overflow-hidden">
-                      {post.media_urls && post.media_urls.length > 0 ? (
-                        <img src={post.media_urls[0]} alt="Post media" className="w-full h-full object-cover" />
-                      ) : (
-                        <FileText size={20} />
-                      )}
-                    </div>
-
-                    {/* Platforms */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1 mb-1 flex-wrap">
-                        {post.platforms && post.platforms.map((platform: string, idx: number) => (
-                          <React.Fragment key={idx}>
-                            <span className="text-[10px] font-black text-blue-600 uppercase tracking-widest">
-                              {platform}
-                            </span>
-                            {idx < post.platforms.length - 1 && (
-                              <span className="text-[10px] text-blue-600 font-black">+</span>
+                <div className="space-y-2">
+                  {paginatedPosts.map((post) => (
+                    <div
+                      key={post.id}
+                      className="group bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md hover:border-gray-300 transition-all"
+                    >
+                      <div className="p-4 md:p-5 grid grid-cols-12 gap-4 items-center">
+                        {/* Thumbnail */}
+                        <div className="col-span-12 sm:col-span-2 flex items-center gap-3">
+                          <div className="w-14 h-14 rounded-xl bg-gray-100 flex items-center justify-center text-gray-300 shrink-0 border border-gray-200 overflow-hidden">
+                            {post.media_urls && post.media_urls.length > 0 ? (
+                              <img src={post.media_urls[0]} alt="Post media" className="w-full h-full object-cover" />
+                            ) : (
+                              <FileText size={18} />
                             )}
-                          </React.Fragment>
-                        ))}
+                          </div>
+                          <div className="sm:hidden min-w-0">
+                            <p className="text-xs font-black text-gray-900 line-clamp-1">
+                              {post.content || '(No text content)'}
+                            </p>
+                            <p className="text-[10px] font-bold text-gray-500 mt-1">
+                              {new Date(post.created_at).toLocaleDateString()}
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Main */}
+                        <div className="col-span-12 sm:col-span-7 min-w-0 hidden sm:block">
+                          <div className="flex items-center gap-2 flex-wrap mb-1.5">
+                            {post.platforms && post.platforms.map((platform: string, idx: number) => (
+                              <span
+                                key={`${post.id}-${platform}-${idx}`}
+                                className="text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-lg bg-blue-50 text-blue-700 border border-blue-100"
+                              >
+                                {platform}
+                              </span>
+                            ))}
+                            <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">
+                              {new Date(post.created_at).toLocaleDateString()}
+                            </span>
+                            {postCampaignMap[post.id] && (
+                              <span className="text-[10px] font-black uppercase tracking-widest bg-green-50 text-green-700 px-2 py-1 rounded-lg border border-green-100">
+                                {postCampaignMap[post.id].name}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-sm font-bold text-gray-900 line-clamp-1 leading-snug">
+                            {post.content || '(No text content)'}
+                          </p>
+                        </div>
+
+                        {/* Status */}
+                        <div className="col-span-6 sm:col-span-1 flex sm:justify-center">
+                          <span
+                            className={`inline-flex items-center px-2 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border ${
+                              post.status === 'published'
+                                ? 'bg-green-50 text-green-700 border-green-200'
+                                : post.status === 'scheduled'
+                                  ? 'bg-blue-50 text-blue-700 border-blue-200'
+                                  : 'bg-gray-50 text-gray-600 border-gray-200'
+                            }`}
+                          >
+                            {post.status}
+                          </span>
+                        </div>
+
+                        {/* Actions */}
+                        <div className="col-span-6 sm:col-span-2 flex justify-end gap-1.5">
+                          <button
+                            onClick={() => setViewingPost(post)}
+                            className="px-2.5 py-2 rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-purple-50 hover:text-purple-700 hover:border-purple-200 transition-all"
+                            aria-label="View"
+                            title="View"
+                          >
+                            <Eye size={16} />
+                          </button>
+                          <button
+                            onClick={() => handleEditPost(post)}
+                            className="px-2.5 py-2 rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-200 transition-all"
+                            aria-label="Edit"
+                            title="Edit"
+                          >
+                            <Edit3 size={16} />
+                          </button>
+                          <button
+                            onClick={() => handleDeletePost(post.id)}
+                            className="px-2.5 py-2 rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-red-50 hover:text-red-700 hover:border-red-200 transition-all"
+                            aria-label="Delete"
+                            title="Delete"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                          <button
+                            className="px-2.5 py-2 rounded-lg border border-transparent text-gray-300 hover:text-gray-600 hover:bg-gray-50 transition-all"
+                            aria-label="More"
+                            title="More"
+                          >
+                            <MoreVertical size={18} />
+                          </button>
+                        </div>
                       </div>
-
-                      {/* Date */}
-                      <div className="text-[10px] text-gray-500 font-medium mb-1">
-                        {new Date(post.created_at).toLocaleDateString()}
-                      </div>
-
-                      {/* Campaign Tag */}
-                      {postCampaignMap[post.id] && (
-                        <span className="inline-block text-[10px] font-black uppercase tracking-widest bg-green-50 text-green-700 px-2 py-0.5 rounded mb-1">
-                          {postCampaignMap[post.id].name}
-                        </span>
-                      )}
-
-                      {/* Title/Content */}
-                      <p className="text-sm font-semibold text-gray-900 line-clamp-1 mt-1">
-                        {post.content || '(No text content)'}
-                      </p>
                     </div>
-
-                    {/* Actions */}
-                    <div className="flex items-center gap-3 shrink-0">
-                      <button
-                        onClick={() => setViewingPost(post)}
-                        className="flex items-center gap-1 text-[10px] font-bold text-gray-600 hover:text-purple-600 transition-all uppercase tracking-wider"
-                      >
-                        <Eye size={14} /> VIEW
-                      </button>
-                      <button
-                        onClick={() => handleEditPost(post)}
-                        className="flex items-center gap-1 text-[10px] font-bold text-gray-600 hover:text-blue-600 transition-all uppercase tracking-wider"
-                      >
-                        <Edit3 size={14} /> EDIT
-                      </button>
-                      <button
-                        onClick={() => handleDeletePost(post.id)}
-                        className="flex items-center gap-1 text-[10px] font-bold text-gray-600 hover:text-red-500 transition-all uppercase tracking-wider"
-                      >
-                        <Trash2 size={14} /> DELETE
-                      </button>
-
-                      {/* Status */}
-                      <span className={`text-[10px] font-bold px-2 py-1 rounded uppercase tracking-tighter ml-2 ${post.status === 'published' ? 'text-green-600' :
-                        post.status === 'scheduled' ? 'text-blue-600' : 'text-gray-500'
-                        }`}>
-                        {post.status}
-                      </span>
-                    </div>
-                  </div>
-                ))
+                  ))}
+                </div>
               )}
             </div>
+            <PaginationBar className="bg-white" />
           </div>
         );
 
