@@ -16,7 +16,8 @@ import {
   Download,
   Activity,
   Zap,
-  ArrowRight
+  ArrowRight,
+  Youtube
 } from 'lucide-react';
 import { 
   AreaChart, Area, 
@@ -32,6 +33,7 @@ import { useAnalyticsDaily, useAnalyticsRollupDay } from '../src/hooks/useAnalyt
 import { useDeals } from '../src/hooks/useDeals';
 import { useCustomers } from '../src/hooks/useCustomers';
 import { usePosts } from '../src/hooks/usePosts';
+import { YouTubeContextualConnect, useYouTubeConnection } from './YouTubeContextualConnect';
 
 type AnalyticsTab = 'overview' | 'social' | 'campaigns' | 'crm' | 'revenue' | 'engagement';
 
@@ -42,6 +44,8 @@ function toDayString(d: Date) {
 const Analytics: React.FC = () => {
   const [activeTab, setActiveTab] = useState<AnalyticsTab>('overview');
   const [rangeDays, setRangeDays] = useState<7 | 14 | 30>(7);
+
+  const { isConnected: youtubeConnected, loading: youtubeLoading } = useYouTubeConnection();
 
   const today = useMemo(() => new Date(), []);
   const toDay = useMemo(() => toDayString(today), [today]);
@@ -232,6 +236,42 @@ const Analytics: React.FC = () => {
       case 'social':
         return (
           <div className="space-y-6">
+            {/* YouTube Connection Prompt */}
+            <YouTubeContextualConnect 
+              context="analytics"
+              compact={false}
+              showSkip={true}
+            />
+
+            {/* YouTube Analytics Section */}
+            {youtubeConnected && (
+              <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm">
+                <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-red-50 rounded-lg">
+                      <Youtube className="w-5 h-5 text-red-600" />
+                    </div>
+                    <h4 className="text-sm font-black text-gray-800 uppercase tracking-widest">YouTube Performance</h4>
+                  </div>
+                  <span className="text-[10px] font-black text-green-600 bg-green-50 px-2 py-0.5 rounded-full">Connected</span>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="text-center p-4 bg-gray-50 rounded-lg">
+                    <p className="text-2xl font-bold text-gray-900">2.4K</p>
+                    <p className="text-xs text-gray-600 font-medium">Total Views</p>
+                  </div>
+                  <div className="text-center p-4 bg-gray-50 rounded-lg">
+                    <p className="text-2xl font-bold text-gray-900">145</p>
+                    <p className="text-xs text-gray-600 font-medium">Subscribers</p>
+                  </div>
+                  <div className="text-center p-4 bg-gray-50 rounded-lg">
+                    <p className="text-2xl font-bold text-gray-900">8.2%</p>
+                    <p className="text-xs text-gray-600 font-medium">Engagement Rate</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm">
                <h4 className="text-sm font-black text-gray-800 uppercase tracking-widest mb-8">Platform Engagement Distribution</h4>
                <div className="h-80 w-full">
@@ -249,25 +289,37 @@ const Analytics: React.FC = () => {
                   </ResponsiveContainer>
                </div>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {[
                 { platform: 'LinkedIn', reach: '12.5k', change: '+14%', topPost: 'Reflecting on 3 years of solo business...' },
-                { platform: 'Instagram', reach: '8.2k', change: '+21%', topPost: 'Why minimalism in UI leads to higher...' }
+                { platform: 'Instagram', reach: '8.2k', change: '+21%', topPost: 'Why minimalism in UI leads to higher...' },
+                { platform: 'YouTube', reach: '2.4k', change: '+8%', topPost: 'How to build a scalable API architecture...', connected: youtubeConnected }
               ].map((p, idx) => (
                 <div key={idx} className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm group hover:border-blue-300 transition-all">
                   <div className="flex justify-between items-center mb-6">
                     <h5 className="text-sm font-black text-gray-900 uppercase tracking-widest">{p.platform} Highlights</h5>
-                    <span className="text-[10px] font-black text-green-600 bg-green-50 px-2 py-0.5 rounded-full">{p.change} Reach</span>
+                    <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
+                      p.connected ? 'bg-green-50 text-green-600' : 'bg-blue-50 text-blue-600'
+                    }`}>
+                      {p.connected ? 'Connected' : p.change} Reach
+                    </span>
                   </div>
                   <div className="space-y-4">
                     <div>
                       <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Top Performing Post</p>
                       <p className="text-sm font-bold text-gray-800 line-clamp-1 italic">"{p.topPost}"</p>
                     </div>
-                    {/* Fixed ArrowRight missing icon name */}
-                    <button className="flex items-center gap-1.5 text-[10px] font-black text-blue-600 uppercase tracking-widest group-hover:gap-2 transition-all">
-                      View Platform Report <ArrowRight className="w-3 h-3" />
-                    </button>
+                    {!p.connected && p.platform === 'YouTube' ? (
+                      <YouTubeContextualConnect 
+                        context="analytics"
+                        compact={true}
+                        showSkip={false}
+                      />
+                    ) : (
+                      <button className="flex items-center gap-1.5 text-[10px] font-black text-blue-600 uppercase tracking-widest group-hover:gap-2 transition-all">
+                        View Platform Report <ArrowRight className="w-3 h-3" />
+                      </button>
+                    )}
                   </div>
                 </div>
               ))}

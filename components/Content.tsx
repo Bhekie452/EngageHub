@@ -43,9 +43,11 @@ import { initFacebookSDK, loginWithFacebook, getPageTokens } from '../src/lib/fa
 import { useAuth } from '../src/hooks/useAuth';
 import { supabase } from '../src/lib/supabase';
 import { trackEventSafe } from '../src/lib/analytics';
+import { analyticsService } from '../src/services/api/analytics.service';
 import AIStudio from './AIStudio';
 import ContentCalendar from './ContentCalendar';
 import ContentTemplates from './ContentTemplates';
+import { YouTubeContextualConnect, useYouTubeConnection } from './YouTubeContextualConnect';
 
 // Added 'all_list' to the allowed tabs to fix the assignment error on line 66
 type ContentTab = 'all' | 'all_list' | 'create' | 'drafts' | 'scheduled' | 'published' | 'calendar' | 'templates' | 'hashtags' | 'ai';
@@ -54,13 +56,59 @@ const Content: React.FC = () => {
   const { user } = useAuth(); // Get authenticated user
   const [activeTab, setActiveTab] = useState<ContentTab>('create');
 
+  const { isConnected: youtubeAccountConnected, loading: youtubeLoading } = useYouTubeConnection();
+
   const [posts, setPosts] = useState<any[]>([]);
   const [isLoadingPosts, setIsLoadingPosts] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+  const [filterQuery, setFilterQuery] = useState('');
+  const [filterPlatform, setFilterPlatform] = useState<string>('all');
+  const [filterCampaignId, setFilterCampaignId] = useState<string>('all');
+  const [filterStatus, setFilterStatus] = useState<string>('all');
   const [campaigns, setCampaigns] = useState<any[]>([]);
   const [postCampaignMap, setPostCampaignMap] = useState<Record<string, { id: string; name: string }>>({});
   const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null);
+
+  const platformOptions = React.useMemo(() => {
+    const set = new Set<string>();
+    for (const p of posts) {
+      const plats = Array.isArray(p?.platforms) ? p.platforms : [];
+      for (const pl of plats) set.add(String(pl));
+    }
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [posts]);
+
+  const filteredPosts = React.useMemo(() => {
+    const q = filterQuery.trim().toLowerCase();
+    return posts.filter((post) => {
+      // Platform filter
+      if (filterPlatform !== 'all') {
+        const plats = Array.isArray(post?.platforms) ? post.platforms : [];
+        if (!plats.some((p: string) => String(p).toLowerCase() === filterPlatform.toLowerCase())) return false;
+      }
+
+      // Campaign filter
+      if (filterCampaignId !== 'all') {
+        const c = postCampaignMap[post.id];
+        if (!c || c.id !== filterCampaignId) return false;
+      }
+
+      // Status filter (only meaningful in "all" / "all_list")
+      if (filterStatus !== 'all' && (activeTab === 'all' || activeTab === 'all_list')) {
+        if (String(post.status).toLowerCase() !== filterStatus.toLowerCase()) return false;
+      }
+
+      // Text search
+      if (!q) return true;
+      const title = String(post?.title ?? '');
+      const content = String(post?.content ?? '');
+      const campaignName = String(postCampaignMap[post.id]?.name ?? '');
+      const plats = (Array.isArray(post?.platforms) ? post.platforms : []).join(' ');
+      const haystack = `${title} ${content} ${campaignName} ${plats}`.toLowerCase();
+      return haystack.includes(q);
+    });
+  }, [activeTab, filterCampaignId, filterPlatform, filterQuery, filterStatus, postCampaignMap, posts]);
 
   // Basic analytics tracking for content page usage
   React.useEffect(() => {
@@ -74,8 +122,8 @@ const Content: React.FC = () => {
     if (!['all', 'all_list', 'drafts', 'scheduled', 'published'].includes(activeTab) || !user) return;
     const run = async () => {
       try {
-        // Use the new contentApi client to process scheduled posts
-        await contentApi.processScheduledPosts();
+        // TODO: Re-enable when contentApi is available
+        // await contentApi.processScheduledPosts();
       } catch (error) {
         console.error('Error processing scheduled posts:', error);
         // API may not be deployed; scheduled posts will run when cron hits the endpoint
@@ -87,12 +135,12 @@ const Content: React.FC = () => {
 
   React.useEffect(() => {
     setCurrentPage(1);
-  }, [activeTab, pageSize]);
+  }, [activeTab, pageSize, filterQuery, filterPlatform, filterCampaignId, filterStatus]);
 
   React.useEffect(() => {
-    const totalPages = Math.max(1, Math.ceil(posts.length / pageSize));
+    const totalPages = Math.max(1, Math.ceil(filteredPosts.length / pageSize));
     if (currentPage > totalPages) setCurrentPage(totalPages);
-  }, [currentPage, pageSize, posts.length]);
+  }, [currentPage, pageSize, filteredPosts.length]);
 
   React.useEffect(() => {
     if (user) {
@@ -286,10 +334,24 @@ const Content: React.FC = () => {
   const [viewingMetrics, setViewingMetrics] = useState<{ post: any; platform: string } | null>(null);
   const [engagementPostId, setEngagementPostId] = useState<string | null>(null);
   const [engagementLoading, setEngagementLoading] = useState(false);
+  const [engagementActionLoading, setEngagementActionLoading] = useState(false);
+  const [engagementCommentText, setEngagementCommentText] = useState('');
   const [engagementData, setEngagementData] = useState<{
     metrics: { likes: number; comments: number; views: number; shares: number };
     recentActivity: { type: string; user: string; text?: string; time: string }[];
+    metricsSource?: 'youtube' | 'engagehub';
   } | null>(null);
+  const [youtubeConnected, setYoutubeConnected] = useState(false);
+  const [currentWorkspaceId, setCurrentWorkspaceId] = useState<string | null>(null);
+
+  // Load current workspaceId once on mount
+  useEffect(() => {
+    if (!user) return;
+    (async () => {
+      const { data: workspaces } = await supabase.from('workspaces').select('id').eq('owner_id', user.id).limit(1);
+      if (workspaces?.length) setCurrentWorkspaceId(workspaces[0].id);
+    })();
+  }, [user]);
 
   // Fetch real engagement when viewing/editing a post (YouTube stats + comments)
   const engagementPostIdSource = viewingMetrics?.post?.id ?? editingPost?.id;
@@ -303,13 +365,18 @@ const Content: React.FC = () => {
     setEngagementPostId(engagementPostIdSource);
     setEngagementLoading(true);
     setEngagementData(null);
-    fetch(`${window.location.origin}/api/get-post-engagement?postId=${engagementPostIdSource}`)
-      .then((r) => r.json())
+    analyticsService
+      .getPostEngagementSummary(
+        String(engagementPostIdSource),
+        viewingMetrics?.platform ? String(viewingMetrics.platform) : null,
+        viewingMetrics?.post?.link_url ? String(viewingMetrics.post.link_url) : null
+      )
       .then((data) => {
-        if (!cancelled && data?.metrics) {
+        if (!cancelled) {
           setEngagementData({
             metrics: data.metrics,
-            recentActivity: Array.isArray(data.recentActivity) ? data.recentActivity : [],
+            recentActivity: data.recentActivity,
+            metricsSource: (data as any).metricsSource,
           });
         }
       })
@@ -323,6 +390,85 @@ const Content: React.FC = () => {
       cancelled = true;
     };
   }, [engagementPostIdSource]);
+
+  // Check YouTube connection for the current workspace
+  useEffect(() => {
+    if (!viewingMetrics?.post?.id || viewingMetrics.platform !== 'youtube') {
+      setYoutubeConnected(false);
+      return;
+    }
+    // Simple check: if metricsSource is youtube, assume connected for now
+    // TODO: call a helper Edge Function to check youtube_accounts table
+    setYoutubeConnected(engagementData?.metricsSource === 'youtube');
+  }, [viewingMetrics, engagementData]);
+
+  const recordEngagement = async (type: 'post_like' | 'post_share' | 'post_comment', text?: string) => {
+    if (!viewingMetrics?.post?.id) return;
+    if (type === 'post_comment' && !text?.trim()) return;
+
+    setEngagementActionLoading(true);
+    try {
+      const isYouTube = viewingMetrics.platform === 'youtube' && youtubeConnected;
+      const videoId = viewingMetrics.post.link_url ? extractYouTubeId(viewingMetrics.post.link_url) : null;
+
+      // Route to YouTube Edge Functions if connected and applicable
+      if (isYouTube && videoId) {
+        const baseUrl = 'https://zourlqrkoyugzymxkbgn.functions.supabase.co';
+        if (type === 'post_like') {
+          await fetch(`${baseUrl}/youtube-like`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ videoId })
+          });
+        } else if (type === 'post_comment' && text) {
+          await fetch(`${baseUrl}/youtube-comment`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ videoId, text })
+          });
+        }
+      }
+
+      // Always record in EngageHub for audit/history
+      await trackEventSafe({
+        event_type: type,
+        entity_type: 'post',
+        entity_id: viewingMetrics.post.id,
+        platform: viewingMetrics.platform,
+        metadata: {
+          actor: user?.email ?? (user?.id ? `@${String(user.id).slice(0, 8)}` : '@user'),
+          text: text?.trim() || undefined,
+        },
+      });
+
+      // Refresh summary
+      const summary = await analyticsService.getPostEngagementSummary(
+        String(viewingMetrics.post.id),
+        String(viewingMetrics.platform),
+        viewingMetrics?.post?.link_url ? String(viewingMetrics.post.link_url) : null
+      );
+      setEngagementData({
+        metrics: summary.metrics,
+        recentActivity: summary.recentActivity,
+        metricsSource: (summary as any).metricsSource,
+      });
+      if (type === 'post_comment') setEngagementCommentText('');
+    } finally {
+      setEngagementActionLoading(false);
+    }
+  };
+
+  // Helper: extract YouTube video ID from URL
+  const extractYouTubeId = (url: string) => {
+    const patterns = [
+      /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/shorts\/)([a-zA-Z0-9_-]{11})/,
+    ];
+    for (const p of patterns) {
+      const m = url.match(p);
+      if (m) return m[1];
+    }
+    return null;
+  };
 
   // Generate stable mock metrics based on post ID - COMBINED from currently selected platforms
   const getMockMetrics = (post: any, currentSelectedPlatforms?: string[]) => {
@@ -1013,11 +1159,11 @@ const Content: React.FC = () => {
     { id: 'templates', label: 'Templates', icon: <Copy size={16} /> },
   ];
 
-  const totalItems = posts.length;
+  const totalItems = filteredPosts.length;
   const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
   const pageStart = (currentPage - 1) * pageSize;
   const pageEnd = Math.min(pageStart + pageSize, totalItems);
-  const paginatedPosts = posts.slice(pageStart, pageEnd);
+  const paginatedPosts = filteredPosts.slice(pageStart, pageEnd);
 
   const visiblePages = (() => {
     const start = Math.max(1, currentPage - 2);
@@ -1114,6 +1260,80 @@ const Content: React.FC = () => {
           >
             Next
           </button>
+        </div>
+      </div>
+    );
+  };
+
+  const FiltersBar = ({ showStatus }: { showStatus: boolean }) => {
+    return (
+      <div className="px-6 py-3 border-b border-gray-100 bg-white">
+        <div className="flex flex-col lg:flex-row lg:items-center gap-3">
+          <div className="flex-1">
+            <div className="relative">
+              <Search size={14} className="absolute left-3 top-2.5 text-gray-400" />
+              <input
+                value={filterQuery}
+                onChange={(e) => setFilterQuery(e.target.value)}
+                type="text"
+                placeholder="Search posts, campaigns, platforms..."
+                className="w-full pl-9 pr-3 py-2 bg-white border border-gray-200 rounded-xl text-[12px] font-semibold outline-none focus:ring-4 focus:ring-blue-50 transition-all shadow-sm"
+              />
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            {showStatus && (
+              <select
+                value={filterStatus}
+                onChange={(e) => setFilterStatus(e.target.value)}
+                className="px-3 py-2 text-[12px] font-bold bg-white border border-gray-200 rounded-xl shadow-sm outline-none focus:ring-4 focus:ring-blue-50"
+                title="Filter by status"
+              >
+                <option value="all">All statuses</option>
+                <option value="draft">Draft</option>
+                <option value="scheduled">Scheduled</option>
+                <option value="published">Published</option>
+              </select>
+            )}
+
+            <select
+              value={filterPlatform}
+              onChange={(e) => setFilterPlatform(e.target.value)}
+              className="px-3 py-2 text-[12px] font-bold bg-white border border-gray-200 rounded-xl shadow-sm outline-none focus:ring-4 focus:ring-blue-50"
+              title="Filter by platform"
+            >
+              <option value="all">All platforms</option>
+              {platformOptions.map((p) => (
+                <option key={p} value={p}>{p}</option>
+              ))}
+            </select>
+
+            <select
+              value={filterCampaignId}
+              onChange={(e) => setFilterCampaignId(e.target.value)}
+              className="px-3 py-2 text-[12px] font-bold bg-white border border-gray-200 rounded-xl shadow-sm outline-none focus:ring-4 focus:ring-blue-50"
+              title="Filter by campaign"
+            >
+              <option value="all">All campaigns</option>
+              {campaigns.map((c: any) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+
+            <button
+              onClick={() => {
+                setFilterQuery('');
+                setFilterPlatform('all');
+                setFilterCampaignId('all');
+                setFilterStatus('all');
+              }}
+              className="px-3 py-2 text-[12px] font-black text-gray-600 bg-white border border-gray-200 rounded-xl shadow-sm hover:bg-gray-50 transition-all"
+              title="Clear filters"
+            >
+              Clear
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -1425,7 +1645,7 @@ const Content: React.FC = () => {
                     </div>
                     <div className="flex flex-wrap gap-3">
                       {platforms.map(p => {
-                        const isConnected = socialAccounts[p.id] === true;
+                        const isConnected = p.id === 'youtube' ? youtubeAccountConnected : socialAccounts[p.id] === true;
                         const isSelected = selectedPlatforms.includes(p.id);
 
                         return (
@@ -1464,7 +1684,13 @@ const Content: React.FC = () => {
                                 title="Not connected - Click to connect"
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  window.dispatchEvent(new CustomEvent('navigate', { detail: { section: 'Social Media' } }));
+                                  if (p.id === 'youtube') {
+                                    // Show YouTube connection prompt
+                                    const element = document.getElementById('youtube-connect-prompt');
+                                    element?.scrollIntoView({ behavior: 'smooth' });
+                                  } else {
+                                    window.dispatchEvent(new CustomEvent('navigate', { detail: { section: 'Social Media' } }));
+                                  }
                                 }}
                               >
                                 <AlertCircle size={12} className="text-white" strokeWidth={3} />
@@ -1474,6 +1700,18 @@ const Content: React.FC = () => {
                         );
                       })}
                     </div>
+
+                    {/* YouTube Connection Prompt */}
+                    {selectedPlatforms.includes('youtube') && !youtubeAccountConnected && (
+                      <div id="youtube-connect-prompt">
+                        <YouTubeContextualConnect 
+                          context="create-post"
+                          compact={false}
+                          showSkip={false}
+                        />
+                      </div>
+                    )}
+
                     <div className="flex justify-between items-center">
                       <span className="text-xs font-medium text-gray-500">
                         Accounts Selected: {selectedPlatforms.length} {selectedPlatforms.length === 1 ? 'Account' : 'Accounts'}
@@ -2017,82 +2255,138 @@ const Content: React.FC = () => {
                 <button onClick={() => setActiveTab('create')} className="px-3 py-1.5 text-xs font-bold text-white bg-blue-600 rounded-lg shadow-md shadow-blue-100">+ New</button>
               </div>
             </div>
-            <div className="divide-y divide-gray-50">
+            <FiltersBar showStatus={activeTab === 'all'} />
+            <div className="p-3 bg-gray-50/40">
               {isLoadingPosts ? (
-                <div className="p-10 text-center text-gray-400">Loading posts...</div>
-              ) : posts.length === 0 ? (
-                <div className="p-10 text-center text-gray-400">No posts found.</div>
+                <div className="p-10 text-center text-gray-400 bg-white rounded-xl border border-gray-200">Loading posts...</div>
+              ) : filteredPosts.length === 0 ? (
+                <div className="p-10 text-center text-gray-400 bg-white rounded-xl border border-gray-200">No posts found.</div>
               ) : (
-                paginatedPosts.map((post) => (
-                  <div key={post.id} className="p-5 flex items-start gap-4 hover:bg-gray-50 transition-all group">
-                    <div className="w-20 h-20 rounded-xl bg-gray-100 flex items-center justify-center text-gray-300 shrink-0 border border-gray-100 overflow-hidden">
-                      {post.media_urls && post.media_urls.length > 0 ? (
-                        <img src={post.media_urls[0]} alt="Post media" className="w-full h-full object-cover" />
-                      ) : (
-                        <FileText size={24} />
-                      )}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1 flex-wrap">
-                        {post.platforms && post.platforms.map((platform: string, idx: number) => (
-                          <React.Fragment key={idx}>
-                            <button
-                              onClick={() => setViewingMetrics({ post, platform })}
-                              className="text-[10px] font-black text-blue-600 hover:text-blue-700 uppercase tracking-widest cursor-pointer hover:underline transition-all"
-                            >
-                              {platform}
-                            </button>
-                            {idx < post.platforms.length - 1 && (
-                              <span className="text-[10px] text-blue-600">+</span>
-                            )}
-                          </React.Fragment>
+                <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full">
+                      <thead className="bg-gray-50/70">
+                        <tr className="text-[10px] font-black uppercase tracking-widest text-gray-500">
+                          <th className="px-4 py-3 text-left whitespace-nowrap">Social Media</th>
+                          <th className="px-4 py-3 text-left whitespace-nowrap">Title</th>
+                          <th className="px-4 py-3 text-left whitespace-nowrap">Campaign</th>
+                          <th className="px-4 py-3 text-left whitespace-nowrap">Date</th>
+                          <th className="px-4 py-3 text-left whitespace-nowrap">Status</th>
+                          <th className="px-4 py-3 text-right whitespace-nowrap">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {paginatedPosts.map((post) => (
+                          <tr key={post.id} className="hover:bg-gray-50 transition-colors">
+                            {/* Social Media */}
+                            <td className="px-4 py-3">
+                              <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center text-gray-300 border border-gray-200 overflow-hidden shrink-0">
+                                  {post.media_urls && post.media_urls.length > 0 ? (
+                                    <img src={post.media_urls[0]} alt="Post media" className="w-full h-full object-cover" />
+                                  ) : (
+                                    <FileText size={16} />
+                                  )}
+                                </div>
+                                <div className="min-w-0">
+                                  <div className="flex flex-wrap items-center gap-1.5">
+                                    {(post.platforms || []).slice(0, 3).map((platform: string, idx: number) => (
+                                      <button
+                                        key={`${post.id}-platform-${platform}-${idx}`}
+                                        onClick={() => setViewingMetrics({ post, platform })}
+                                        className="text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-lg bg-blue-50 text-blue-700 border border-blue-100 hover:bg-blue-100 transition-colors"
+                                        title={`View ${platform} metrics`}
+                                      >
+                                        {platform}
+                                      </button>
+                                    ))}
+                                    {(post.platforms || []).length > 3 && (
+                                      <span className="text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-lg bg-gray-50 text-gray-600 border border-gray-200">
+                                        +{(post.platforms || []).length - 3}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <p className="text-[11px] text-gray-500 font-semibold mt-1">
+                                    {(post.platforms || []).length === 0 ? '—' : 'Click a platform for metrics'}
+                                  </p>
+                                </div>
+                              </div>
+                            </td>
+
+                            {/* Title */}
+                            <td className="px-4 py-3">
+                              <div className="min-w-0">
+                                <p className="text-sm font-bold text-gray-900 line-clamp-1">
+                                  {post.title || (post.content ? String(post.content).split('\n')[0] : '') || '(Untitled)'}
+                                </p>
+                                <p className="text-[11px] text-gray-500 font-medium line-clamp-1 mt-1">
+                                  {post.content || '(No text content)'}
+                                </p>
+                              </div>
+                            </td>
+
+                            {/* Campaign */}
+                            <td className="px-4 py-3">
+                              {postCampaignMap[post.id] ? (
+                                <span className="inline-flex items-center text-[10px] font-black uppercase tracking-widest bg-green-50 text-green-700 px-2 py-1 rounded-lg border border-green-100">
+                                  {postCampaignMap[post.id].name}
+                                </span>
+                              ) : (
+                                <span className="text-[11px] text-gray-400 font-semibold">—</span>
+                              )}
+                            </td>
+
+                            {/* Date */}
+                            <td className="px-4 py-3">
+                              <span className="text-[11px] text-gray-600 font-semibold whitespace-nowrap">
+                                {new Date(post.created_at).toLocaleDateString()}
+                              </span>
+                            </td>
+
+                            {/* Status */}
+                            <td className="px-4 py-3">
+                              <span
+                                className={`inline-flex items-center px-2 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border ${
+                                  post.status === 'published'
+                                    ? 'bg-green-50 text-green-700 border-green-200'
+                                    : post.status === 'scheduled'
+                                      ? 'bg-blue-50 text-blue-700 border-blue-200'
+                                      : 'bg-gray-50 text-gray-600 border-gray-200'
+                                }`}
+                              >
+                                {post.status}
+                              </span>
+                            </td>
+
+                            {/* Actions */}
+                            <td className="px-4 py-3">
+                              <div className="flex items-center justify-end gap-2">
+                                <button
+                                  onClick={() => setViewingPost(post)}
+                                  className="px-3 py-2 rounded-lg border border-gray-200 bg-white text-gray-700 hover:bg-purple-50 hover:text-purple-700 hover:border-purple-200 transition-all text-[11px] font-black uppercase tracking-widest inline-flex items-center gap-2"
+                                >
+                                  <Eye size={14} /> View
+                                </button>
+                                <button
+                                  onClick={() => handleEditPost(post)}
+                                  className="px-3 py-2 rounded-lg border border-gray-200 bg-white text-gray-700 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-200 transition-all text-[11px] font-black uppercase tracking-widest inline-flex items-center gap-2"
+                                >
+                                  <Edit3 size={14} /> Edit
+                                </button>
+                                <button
+                                  onClick={() => handleDeletePost(post.id)}
+                                  className="px-3 py-2 rounded-lg border border-gray-200 bg-white text-gray-700 hover:bg-red-50 hover:text-red-700 hover:border-red-200 transition-all text-[11px] font-black uppercase tracking-widest inline-flex items-center gap-2"
+                                >
+                                  <Trash2 size={14} /> Delete
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
                         ))}
-                        <span className="w-1 h-1 bg-gray-300 rounded-full"></span>
-                        <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">
-                          {new Date(post.created_at).toLocaleDateString()}
-                        </span>
-                        {postCampaignMap[post.id] && (
-                          <span className="text-[10px] font-black uppercase tracking-widest bg-green-50 text-green-700 px-2 py-0.5 rounded">
-                            {postCampaignMap[post.id].name}
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-sm font-bold text-gray-800 line-clamp-2 leading-relaxed">
-                        {post.content || '(No text content)'}
-                      </p>
-                      <div className="flex gap-3 mt-3">
-                        <button
-                          onClick={() => setViewingPost(post)}
-                          className="flex items-center gap-1.5 text-[10px] font-bold text-gray-400 hover:text-purple-600 transition-all uppercase tracking-wider cursor-pointer"
-                        >
-                          <Eye size={12} /> View
-                        </button>
-                        <button
-                          onClick={() => handleEditPost(post)}
-                          className="flex items-center gap-1.5 text-[10px] font-bold text-gray-400 hover:text-blue-600 transition-all uppercase tracking-wider cursor-pointer"
-                        >
-                          <Edit3 size={12} /> Edit
-                        </button>
-                        <button
-                          onClick={() => handleDeletePost(post.id)}
-                          className="flex items-center gap-1.5 text-[10px] font-bold text-gray-400 hover:text-red-500 transition-all uppercase tracking-wider cursor-pointer"
-                        >
-                          <Trash2 size={12} /> Delete
-                        </button>
-                      </div>
-                    </div>
-                    <div className="shrink-0 flex flex-col items-end gap-2">
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-tighter ${post.status === 'published' ? 'bg-green-50 text-green-600' :
-                        post.status === 'scheduled' ? 'bg-blue-50 text-blue-600' : 'bg-gray-100 text-gray-500'
-                        }`}>
-                        {post.status}
-                      </span>
-                      <button className="p-2 text-gray-300 hover:text-gray-600 opacity-0 group-hover:opacity-100 transition-all">
-                        <MoreVertical size={18} />
-                      </button>
-                    </div>
+                      </tbody>
+                    </table>
                   </div>
-                ))
+                </div>
               )}
             </div>
             <PaginationBar />
@@ -2109,115 +2403,135 @@ const Content: React.FC = () => {
                 <button onClick={() => setActiveTab('create')} className="px-3 py-1.5 text-xs font-bold text-white bg-blue-600 rounded-lg shadow-md shadow-blue-100">+ New</button>
               </div>
             </div>
+            <FiltersBar showStatus={true} />
             <div className="p-3 bg-gray-50/40">
               {isLoadingPosts ? (
                 <div className="p-10 text-center text-gray-400 bg-white rounded-xl border border-gray-200">Loading posts...</div>
-              ) : posts.length === 0 ? (
+              ) : filteredPosts.length === 0 ? (
                 <div className="p-10 text-center text-gray-400 bg-white rounded-xl border border-gray-200">No posts found.</div>
               ) : (
-                <div className="space-y-2">
-                  {paginatedPosts.map((post) => (
-                    <div
-                      key={post.id}
-                      className="group bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md hover:border-gray-300 transition-all"
-                    >
-                      <div className="p-4 md:p-5 grid grid-cols-12 gap-4 items-center">
-                        {/* Thumbnail */}
-                        <div className="col-span-12 sm:col-span-2 flex items-center gap-3">
-                          <div className="w-14 h-14 rounded-xl bg-gray-100 flex items-center justify-center text-gray-300 shrink-0 border border-gray-200 overflow-hidden">
-                            {post.media_urls && post.media_urls.length > 0 ? (
-                              <img src={post.media_urls[0]} alt="Post media" className="w-full h-full object-cover" />
-                            ) : (
-                              <FileText size={18} />
-                            )}
-                          </div>
-                          <div className="sm:hidden min-w-0">
-                            <p className="text-xs font-black text-gray-900 line-clamp-1">
-                              {post.content || '(No text content)'}
-                            </p>
-                            <p className="text-[10px] font-bold text-gray-500 mt-1">
-                              {new Date(post.created_at).toLocaleDateString()}
-                            </p>
-                          </div>
-                        </div>
+                <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full">
+                      <thead className="bg-gray-50/70">
+                        <tr className="text-[10px] font-black uppercase tracking-widest text-gray-500">
+                          <th className="px-4 py-3 text-left whitespace-nowrap">Social Media</th>
+                          <th className="px-4 py-3 text-left whitespace-nowrap">Title</th>
+                          <th className="px-4 py-3 text-left whitespace-nowrap">Campaign</th>
+                          <th className="px-4 py-3 text-left whitespace-nowrap">Date</th>
+                          <th className="px-4 py-3 text-left whitespace-nowrap">Status</th>
+                          <th className="px-4 py-3 text-right whitespace-nowrap">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {paginatedPosts.map((post) => (
+                          <tr key={post.id} className="hover:bg-gray-50 transition-colors">
+                            {/* Social Media */}
+                            <td className="px-4 py-3">
+                              <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center text-gray-300 border border-gray-200 overflow-hidden shrink-0">
+                                  {post.media_urls && post.media_urls.length > 0 ? (
+                                    <img src={post.media_urls[0]} alt="Post media" className="w-full h-full object-cover" />
+                                  ) : (
+                                    <FileText size={16} />
+                                  )}
+                                </div>
+                                <div className="min-w-0">
+                                  <div className="flex flex-wrap items-center gap-1.5">
+                                    {(post.platforms || []).slice(0, 3).map((platform: string, idx: number) => (
+                                      <span
+                                        key={`${post.id}-platform-${platform}-${idx}`}
+                                        className="text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-lg bg-blue-50 text-blue-700 border border-blue-100"
+                                      >
+                                        {platform}
+                                      </span>
+                                    ))}
+                                    {(post.platforms || []).length > 3 && (
+                                      <span className="text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-lg bg-gray-50 text-gray-600 border border-gray-200">
+                                        +{(post.platforms || []).length - 3}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <p className="text-[11px] text-gray-500 font-semibold mt-1">
+                                    {(post.platforms || []).length === 0 ? '—' : 'Published to platforms'}
+                                  </p>
+                                </div>
+                              </div>
+                            </td>
 
-                        {/* Main */}
-                        <div className="col-span-12 sm:col-span-7 min-w-0 hidden sm:block">
-                          <div className="flex items-center gap-2 flex-wrap mb-1.5">
-                            {post.platforms && post.platforms.map((platform: string, idx: number) => (
+                            {/* Title */}
+                            <td className="px-4 py-3">
+                              <div className="min-w-0">
+                                <p className="text-sm font-bold text-gray-900 line-clamp-1">
+                                  {post.title || (post.content ? String(post.content).split('\n')[0] : '') || '(Untitled)'}
+                                </p>
+                                <p className="text-[11px] text-gray-500 font-medium line-clamp-1 mt-1">
+                                  {post.content || '(No text content)'}
+                                </p>
+                              </div>
+                            </td>
+
+                            {/* Campaign */}
+                            <td className="px-4 py-3">
+                              {postCampaignMap[post.id] ? (
+                                <span className="inline-flex items-center text-[10px] font-black uppercase tracking-widest bg-green-50 text-green-700 px-2 py-1 rounded-lg border border-green-100">
+                                  {postCampaignMap[post.id].name}
+                                </span>
+                              ) : (
+                                <span className="text-[11px] text-gray-400 font-semibold">—</span>
+                              )}
+                            </td>
+
+                            {/* Date */}
+                            <td className="px-4 py-3">
+                              <span className="text-[11px] text-gray-600 font-semibold whitespace-nowrap">
+                                {new Date(post.created_at).toLocaleDateString()}
+                              </span>
+                            </td>
+
+                            {/* Status */}
+                            <td className="px-4 py-3">
                               <span
-                                key={`${post.id}-${platform}-${idx}`}
-                                className="text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-lg bg-blue-50 text-blue-700 border border-blue-100"
+                                className={`inline-flex items-center px-2 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border ${
+                                  post.status === 'published'
+                                    ? 'bg-green-50 text-green-700 border-green-200'
+                                    : post.status === 'scheduled'
+                                      ? 'bg-blue-50 text-blue-700 border-blue-200'
+                                      : 'bg-gray-50 text-gray-600 border-gray-200'
+                                }`}
                               >
-                                {platform}
+                                {post.status}
                               </span>
-                            ))}
-                            <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">
-                              {new Date(post.created_at).toLocaleDateString()}
-                            </span>
-                            {postCampaignMap[post.id] && (
-                              <span className="text-[10px] font-black uppercase tracking-widest bg-green-50 text-green-700 px-2 py-1 rounded-lg border border-green-100">
-                                {postCampaignMap[post.id].name}
-                              </span>
-                            )}
-                          </div>
-                          <p className="text-sm font-bold text-gray-900 line-clamp-1 leading-snug">
-                            {post.content || '(No text content)'}
-                          </p>
-                        </div>
+                            </td>
 
-                        {/* Status */}
-                        <div className="col-span-6 sm:col-span-1 flex sm:justify-center">
-                          <span
-                            className={`inline-flex items-center px-2 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border ${
-                              post.status === 'published'
-                                ? 'bg-green-50 text-green-700 border-green-200'
-                                : post.status === 'scheduled'
-                                  ? 'bg-blue-50 text-blue-700 border-blue-200'
-                                  : 'bg-gray-50 text-gray-600 border-gray-200'
-                            }`}
-                          >
-                            {post.status}
-                          </span>
-                        </div>
-
-                        {/* Actions */}
-                        <div className="col-span-6 sm:col-span-2 flex justify-end gap-1.5">
-                          <button
-                            onClick={() => setViewingPost(post)}
-                            className="px-2.5 py-2 rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-purple-50 hover:text-purple-700 hover:border-purple-200 transition-all"
-                            aria-label="View"
-                            title="View"
-                          >
-                            <Eye size={16} />
-                          </button>
-                          <button
-                            onClick={() => handleEditPost(post)}
-                            className="px-2.5 py-2 rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-200 transition-all"
-                            aria-label="Edit"
-                            title="Edit"
-                          >
-                            <Edit3 size={16} />
-                          </button>
-                          <button
-                            onClick={() => handleDeletePost(post.id)}
-                            className="px-2.5 py-2 rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-red-50 hover:text-red-700 hover:border-red-200 transition-all"
-                            aria-label="Delete"
-                            title="Delete"
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                          <button
-                            className="px-2.5 py-2 rounded-lg border border-transparent text-gray-300 hover:text-gray-600 hover:bg-gray-50 transition-all"
-                            aria-label="More"
-                            title="More"
-                          >
-                            <MoreVertical size={18} />
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
+                            {/* Actions */}
+                            <td className="px-4 py-3">
+                              <div className="flex items-center justify-end gap-2">
+                                <button
+                                  onClick={() => setViewingPost(post)}
+                                  className="px-3 py-2 rounded-lg border border-gray-200 bg-white text-gray-700 hover:bg-purple-50 hover:text-purple-700 hover:border-purple-200 transition-all text-[11px] font-black uppercase tracking-widest inline-flex items-center gap-2"
+                                >
+                                  <Eye size={14} /> View
+                                </button>
+                                <button
+                                  onClick={() => handleEditPost(post)}
+                                  className="px-3 py-2 rounded-lg border border-gray-200 bg-white text-gray-700 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-200 transition-all text-[11px] font-black uppercase tracking-widest inline-flex items-center gap-2"
+                                >
+                                  <Edit3 size={14} /> Edit
+                                </button>
+                                <button
+                                  onClick={() => handleDeletePost(post.id)}
+                                  className="px-3 py-2 rounded-lg border border-gray-200 bg-white text-gray-700 hover:bg-red-50 hover:text-red-700 hover:border-red-200 transition-all text-[11px] font-black uppercase tracking-widest inline-flex items-center gap-2"
+                                >
+                                  <Trash2 size={14} /> Delete
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               )}
             </div>
@@ -2344,6 +2658,62 @@ const Content: React.FC = () => {
                 </p>
               </div>
 
+              {/* Engagement Actions */}
+              {viewingMetrics.platform === 'youtube' && !youtubeConnected ? (
+                <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-xl p-4">
+                  <p className="text-sm font-bold text-yellow-800 dark:text-yellow-200 mb-2">Connect YouTube to enable two-way actions</p>
+                  <button
+                    onClick={() => {
+                      if (!currentWorkspaceId) {
+                        alert('No workspace found. Please create a workspace first.');
+                        return;
+                      }
+                      const returnUrl = window.location.origin;
+                      const oauthUrl = `https://zourlqrkoyugzymxkbgn.functions.supabase.co/youtube-oauth/start?workspaceId=${currentWorkspaceId}&returnUrl=${encodeURIComponent(returnUrl)}`;
+                      window.open(oauthUrl, '_blank');
+                    }}
+                    className="px-4 py-2 bg-red-600 text-white font-bold rounded-lg hover:bg-red-700 transition-colors text-xs"
+                  >
+                    Connect YouTube
+                  </button>
+                </div>
+              ) : (
+                <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-gray-200 dark:border-slate-700 flex flex-col md:flex-row md:items-center gap-3">
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => recordEngagement('post_like')}
+                      disabled={engagementActionLoading}
+                      className="px-3 py-2 rounded-lg border border-gray-200 bg-white dark:bg-slate-900 dark:border-slate-700 text-gray-700 dark:text-slate-200 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:border-blue-200 transition-all text-[11px] font-black uppercase tracking-widest inline-flex items-center gap-2 disabled:opacity-60"
+                    >
+                      <CheckCircle2 size={14} /> Like
+                    </button>
+                    <button
+                      onClick={() => recordEngagement('post_share')}
+                      disabled={engagementActionLoading}
+                      className="px-3 py-2 rounded-lg border border-gray-200 bg-white dark:bg-slate-900 dark:border-slate-700 text-gray-700 dark:text-slate-200 hover:bg-green-50 dark:hover:bg-green-900/20 hover:border-green-200 transition-all text-[11px] font-black uppercase tracking-widest inline-flex items-center gap-2 disabled:opacity-60"
+                    >
+                      <Share2 size={14} /> Share
+                    </button>
+                  </div>
+
+                  <div className="flex-1 flex items-center gap-2">
+                    <input
+                      value={engagementCommentText}
+                      onChange={(e) => setEngagementCommentText(e.target.value)}
+                      placeholder="Write a comment…"
+                      className="flex-1 px-3 py-2 rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm text-gray-900 dark:text-white outline-none focus:ring-4 focus:ring-blue-50 dark:focus:ring-blue-900/30"
+                    />
+                    <button
+                      onClick={() => recordEngagement('post_comment', engagementCommentText)}
+                      disabled={engagementActionLoading || !engagementCommentText.trim()}
+                      className="px-3 py-2 rounded-lg border border-gray-200 bg-white dark:bg-slate-900 dark:border-slate-700 text-gray-700 dark:text-slate-200 hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:border-purple-200 transition-all text-[11px] font-black uppercase tracking-widest disabled:opacity-60"
+                    >
+                      Comment
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {/* Key Metrics Grid - real data when available (e.g. YouTube) */}
               {engagementLoading && engagementPostId === viewingMetrics.post?.id ? (
                 <div className="py-8 text-center text-gray-500">Loading engagement…</div>
@@ -2357,13 +2727,11 @@ const Content: React.FC = () => {
                     <p className="text-xs font-bold text-blue-600 dark:text-blue-400 uppercase">Likes</p>
                   </div>
                   <p className="text-3xl font-black text-blue-900 dark:text-blue-100">
-                    {engagementData && engagementPostId === viewingMetrics.post?.id ? engagementData.metrics.likes.toLocaleString() : getMockMetrics(viewingMetrics.post).likes}
+                    {(engagementData && engagementPostId === viewingMetrics.post?.id ? engagementData.metrics.likes : 0).toLocaleString()}
                   </p>
-                  {!(engagementData && engagementPostId === viewingMetrics.post?.id) && (
-                    <p className="text-xs text-blue-600 dark:text-blue-400 mt-1 font-medium">
-                      +{getMockMetrics(viewingMetrics.post).likesGrowth}% from last week
-                    </p>
-                  )}
+                  <p className="text-xs text-blue-600 dark:text-blue-400 mt-1 font-medium">
+                    {engagementData && engagementPostId === viewingMetrics.post?.id ? (engagementData.metricsSource === 'youtube' ? 'From YouTube' : 'Tracked in EngageHub') : 'No data yet'}
+                  </p>
                 </div>
 
                 <div className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 p-6 rounded-xl border border-green-200 dark:border-green-800">
@@ -2374,13 +2742,11 @@ const Content: React.FC = () => {
                     <p className="text-xs font-bold text-green-600 dark:text-green-400 uppercase">Shares</p>
                   </div>
                   <p className="text-3xl font-black text-green-900 dark:text-green-100">
-                    {engagementData && engagementPostId === viewingMetrics.post?.id ? engagementData.metrics.shares.toLocaleString() : getMockMetrics(viewingMetrics.post).shares}
+                    {(engagementData && engagementPostId === viewingMetrics.post?.id ? engagementData.metrics.shares : 0).toLocaleString()}
                   </p>
-                  {!(engagementData && engagementPostId === viewingMetrics.post?.id) && (
-                    <p className="text-xs text-green-600 dark:text-green-400 mt-1 font-medium">
-                      +{getMockMetrics(viewingMetrics.post).sharesGrowth}% from last week
-                    </p>
-                  )}
+                  <p className="text-xs text-green-600 dark:text-green-400 mt-1 font-medium">
+                    {engagementData && engagementPostId === viewingMetrics.post?.id ? (engagementData.metricsSource === 'youtube' ? 'From YouTube' : 'Tracked in EngageHub') : 'No data yet'}
+                  </p>
                 </div>
 
                 <div className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 p-6 rounded-xl border border-purple-200 dark:border-purple-800">
@@ -2391,13 +2757,11 @@ const Content: React.FC = () => {
                     <p className="text-xs font-bold text-purple-600 dark:text-purple-400 uppercase">Comments</p>
                   </div>
                   <p className="text-3xl font-black text-purple-900 dark:text-purple-100">
-                    {engagementData && engagementPostId === viewingMetrics.post?.id ? engagementData.metrics.comments.toLocaleString() : getMockMetrics(viewingMetrics.post).comments}
+                    {(engagementData && engagementPostId === viewingMetrics.post?.id ? engagementData.metrics.comments : 0).toLocaleString()}
                   </p>
-                  {!(engagementData && engagementPostId === viewingMetrics.post?.id) && (
-                    <p className="text-xs text-purple-600 dark:text-purple-400 mt-1 font-medium">
-                      +{getMockMetrics(viewingMetrics.post).commentsGrowth}% from last week
-                    </p>
-                  )}
+                  <p className="text-xs text-purple-600 dark:text-purple-400 mt-1 font-medium">
+                    {engagementData && engagementPostId === viewingMetrics.post?.id ? (engagementData.metricsSource === 'youtube' ? 'From YouTube' : 'Tracked in EngageHub') : 'No data yet'}
+                  </p>
                 </div>
 
                 <div className="bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-900/20 dark:to-orange-800/20 p-6 rounded-xl border border-orange-200 dark:border-orange-800">
@@ -2408,24 +2772,22 @@ const Content: React.FC = () => {
                     <p className="text-xs font-bold text-orange-600 dark:text-orange-400 uppercase">Views</p>
                   </div>
                   <p className="text-3xl font-black text-orange-900 dark:text-orange-100">
-                    {engagementData && engagementPostId === viewingMetrics.post?.id ? engagementData.metrics.views.toLocaleString() : getMockMetrics(viewingMetrics.post).views}
+                    {(engagementData && engagementPostId === viewingMetrics.post?.id ? engagementData.metrics.views : 0).toLocaleString()}
                   </p>
-                  {!(engagementData && engagementPostId === viewingMetrics.post?.id) && (
-                    <p className="text-xs text-orange-600 dark:text-orange-400 mt-1 font-medium">
-                      +{getMockMetrics(viewingMetrics.post).viewsGrowth}% from last week
-                    </p>
-                  )}
+                  <p className="text-xs text-orange-600 dark:text-orange-400 mt-1 font-medium">
+                    {engagementData && engagementPostId === viewingMetrics.post?.id ? (engagementData.metricsSource === 'youtube' ? 'From YouTube' : 'Tracked in EngageHub') : 'No data yet'}
+                  </p>
                 </div>
               </div>
               )}
 
-              {/* Additional Metrics - reach/impressions from mock when no API data */}
+              {/* Additional Metrics (computed from tracked events) */}
               {!(engagementLoading && engagementPostId === viewingMetrics.post?.id) && (
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="bg-white dark:bg-slate-800 p-5 rounded-xl border border-gray-200 dark:border-slate-700">
                   <p className="text-xs font-bold text-gray-400 uppercase mb-2">Reach</p>
                   <p className="text-2xl font-black text-gray-900 dark:text-white">
-                    {engagementData && engagementPostId === viewingMetrics.post?.id ? (engagementData.metrics.views || '—') : getMockMetrics(viewingMetrics.post).reach}
+                    —
                   </p>
                   <p className="text-xs text-gray-500 mt-1">Unique people who saw this post</p>
                 </div>
@@ -2433,7 +2795,7 @@ const Content: React.FC = () => {
                 <div className="bg-white dark:bg-slate-800 p-5 rounded-xl border border-gray-200 dark:border-slate-700">
                   <p className="text-xs font-bold text-gray-400 uppercase mb-2">Impressions</p>
                   <p className="text-2xl font-black text-gray-900 dark:text-white">
-                    {engagementData && engagementPostId === viewingMetrics.post?.id ? (engagementData.metrics.views || '—') : getMockMetrics(viewingMetrics.post).impressions}
+                    —
                   </p>
                   <p className="text-xs text-gray-500 mt-1">Total times post was shown</p>
                 </div>
@@ -2445,86 +2807,16 @@ const Content: React.FC = () => {
                       ? (engagementData.metrics.views > 0
                           ? ((engagementData.metrics.likes + engagementData.metrics.comments + engagementData.metrics.shares) / engagementData.metrics.views * 100).toFixed(1)
                           : '0') + '%'
-                      : (() => {
-                          const m = getMockMetrics(viewingMetrics.post);
-                          return ((m.likes + m.comments + m.shares) / m.reach * 100).toFixed(1) + '%';
-                        })()}
+                      : '—'}
                   </p>
                   <p className="text-xs text-gray-500 mt-1">Likes + Comments + Shares / Reach</p>
                 </div>
               </div>
               )}
 
-              {/* Platform-Specific Metrics */}
-              {viewingMetrics.platform === 'facebook' && (
-                <div className="bg-blue-50 dark:bg-blue-900/20 p-5 rounded-xl border border-blue-200 dark:border-blue-800">
-                  <h3 className="text-sm font-bold text-blue-900 dark:text-blue-100 mb-4 flex items-center gap-2">
-                    <Facebook className="text-[#1877F2]" size={18} />
-                    Facebook-Specific Metrics
-                  </h3>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <div>
-                      <p className="text-xs text-blue-600 dark:text-blue-400 font-medium">Reactions</p>
-                      <p className="text-lg font-black text-blue-900 dark:text-blue-100">
-                        {getMockMetrics(viewingMetrics.post).reactions}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-blue-600 dark:text-blue-400 font-medium">Clicks</p>
-                      <p className="text-lg font-black text-blue-900 dark:text-blue-100">
-                        {getMockMetrics(viewingMetrics.post).clicks}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-blue-600 dark:text-blue-400 font-medium">Saves</p>
-                      <p className="text-lg font-black text-blue-900 dark:text-blue-100">
-                        {getMockMetrics(viewingMetrics.post).saves}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-blue-600 dark:text-blue-400 font-medium">Video Views</p>
-                      <p className="text-lg font-black text-blue-900 dark:text-blue-100">
-                        {getMockMetrics(viewingMetrics.post).videoViews || 'N/A'}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {viewingMetrics.platform === 'instagram' && (
-                <div className="bg-pink-50 dark:bg-pink-900/20 p-5 rounded-xl border border-pink-200 dark:border-pink-800">
-                  <h3 className="text-sm font-bold text-pink-900 dark:text-pink-100 mb-4 flex items-center gap-2">
-                    <Instagram className="text-[#E4405F]" size={18} />
-                    Instagram-Specific Metrics
-                  </h3>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <div>
-                      <p className="text-xs text-pink-600 dark:text-pink-400 font-medium">Saves</p>
-                      <p className="text-lg font-black text-pink-900 dark:text-pink-100">
-                        {getMockMetrics(viewingMetrics.post).instagramSaves}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-pink-600 dark:text-pink-400 font-medium">Profile Visits</p>
-                      <p className="text-lg font-black text-pink-900 dark:text-pink-100">
-                        {getMockMetrics(viewingMetrics.post).instagramProfileVisits}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-pink-600 dark:text-pink-400 font-medium">Website Clicks</p>
-                      <p className="text-lg font-black text-pink-900 dark:text-pink-100">
-                        {getMockMetrics(viewingMetrics.post).instagramWebsiteClicks || 'N/A'}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-pink-600 dark:text-pink-400 font-medium">Reach</p>
-                      <p className="text-lg font-black text-pink-900 dark:text-pink-100">
-                        {getMockMetrics(viewingMetrics.post).instagramReach}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
+              {/* Platform-specific metrics are no longer hardcoded here.
+                  If you want true YouTube/Facebook/Instagram metrics, we can integrate each platform API and
+                  populate real platform-specific fields instead of mocks. */}
 
               {/* Engagement Timeline - real activity from API when available (e.g. YouTube comments/likes) */}
               <div className="bg-white dark:bg-slate-800 p-5 rounded-xl border border-gray-200 dark:border-slate-700">
@@ -2553,30 +2845,9 @@ const Content: React.FC = () => {
                   ) : engagementLoading && engagementPostId === viewingMetrics.post?.id ? (
                     <p className="text-sm text-gray-500">Loading activity…</p>
                   ) : (
-                    [
-                      { time: '1 hour ago', action: 'New comment', user: '@user123', type: 'comment' },
-                      { time: '2 hours ago', action: 'Liked by', user: '@user456', type: 'like' },
-                      { time: '3 hours ago', action: 'Shared by', user: '@user789', type: 'share' },
-                      { time: '5 hours ago', action: 'New comment', user: '@user321', type: 'comment' },
-                      { time: '6 hours ago', action: 'Liked by', user: '@user654', type: 'like' },
-                    ].map((activity, idx) => (
-                      <div key={idx} className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-slate-700 rounded-lg">
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center ${activity.type === 'comment' ? 'bg-purple-100 text-purple-600' :
-                          activity.type === 'like' ? 'bg-blue-100 text-blue-600' :
-                            'bg-green-100 text-green-600'
-                          }`}>
-                          {activity.type === 'comment' ? <MessageCircle size={16} /> :
-                            activity.type === 'like' ? <CheckCircle2 size={16} /> :
-                              <Share2 size={16} />}
-                        </div>
-                        <div className="flex-1">
-                          <p className="text-sm font-bold text-gray-900 dark:text-white">
-                            {activity.action} <span className="text-blue-600">{activity.user}</span>
-                          </p>
-                          <p className="text-xs text-gray-500">{activity.time}</p>
-                        </div>
-                      </div>
-                    ))
+                    <div className="p-4 rounded-lg bg-gray-50 dark:bg-slate-700 text-sm text-gray-600 dark:text-slate-200">
+                      No engagement activity yet. Use Like/Share/Comment above to record real events.
+                    </div>
                   )}
                 </div>
               </div>

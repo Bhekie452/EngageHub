@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { 
   Calendar, 
   MessageSquare, 
@@ -15,6 +15,7 @@ import {
   PenTool
 } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { useYouTubeOAuthCallback } from './YouTubeConnection';
 
 const chartData = [
   { name: 'Mon', revenue: 4000 },
@@ -53,6 +54,9 @@ const SectionHeader = ({ title, linkText }: { title: string, linkText?: string }
 );
 
 const Dashboard: React.FC = () => {
+  // Handle YouTube OAuth callback
+  useYouTubeOAuthCallback();
+
   return (
     <div className="space-y-6">
       {/* 1. Today Overview Header */}

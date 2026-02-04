@@ -1,0 +1,5 @@
+[functions.youtube-oauth]
+enabled = true
+verify_jwt = false
+import_map = "./functions/youtube-oauth/deno.json"
+entrypoint = "./functions/youtube-oauth/index.ts"

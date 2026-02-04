@@ -1,30 +1,41 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
-  Plug, 
-  Share2, 
+  Facebook, 
+  Instagram, 
+  Linkedin, 
+  Twitter, 
+  Youtube, 
   Mail, 
-  MessageSquare, 
-  Calculator, 
-  Calendar, 
-  CreditCard, 
-  Webhook, 
-  Key, 
-  Plus, 
-  MoreVertical, 
-  CheckCircle2, 
-  ExternalLink, 
+  MessageCircle, 
+  Zap,
+  CheckCircle2,
   AlertCircle,
+  ExternalLink,
+  Share2,
+  MessageSquare,
+  Calculator,
+  Calendar,
+  CreditCard,
+  Webhook,
+  Key,
   RefreshCw,
-  Copy,
   ChevronRight,
+  Copy,
+  MoreVertical,
   ShieldCheck
 } from 'lucide-react';
+import { YouTubeConnectionStatus, useYouTubeOAuthCallback } from './YouTubeConnection';
+import { useWorkspace } from '../src/hooks/useWorkspace';
 
 type IntegrationTab = 'social' | 'email' | 'whatsapp' | 'accounting' | 'calendar' | 'payments' | 'webhooks' | 'api';
 
 const Integrations: React.FC = () => {
   const [activeTab, setActiveTab] = useState<IntegrationTab>('social');
+  const { workspaceId } = useWorkspace();
+
+  // Handle YouTube OAuth callback
+  useYouTubeOAuthCallback();
 
   const tabs: { id: IntegrationTab; label: string; icon: React.ReactNode }[] = [
     { id: 'social', label: 'Social platforms', icon: <Share2 size={16} /> },
@@ -42,6 +53,22 @@ const Integrations: React.FC = () => {
       case 'social':
         return (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            {/* YouTube Integration */}
+            <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm group hover:border-blue-300 transition-all">
+              <div className="flex justify-between items-start mb-6">
+                <div className="p-3 bg-gray-50 rounded-xl group-hover:bg-blue-50 transition-all">
+                  <Share2 className="text-red-600" />
+                </div>
+                <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-gray-50 text-gray-600">
+                  YouTube API
+                </span>
+              </div>
+              <h4 className="text-sm font-black text-gray-900 mb-1">YouTube</h4>
+              <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-4">Google OAuth Integration</p>
+              <YouTubeConnectionStatus workspaceId={workspaceId} />
+            </div>
+
+            {/* Other Social Platforms */}
             {[
               { name: 'Instagram Business', status: 'Connected', lastSync: '12m ago', icon: <Share2 className="text-pink-600" /> },
               { name: 'LinkedIn API', status: 'Connected', lastSync: '1h ago', icon: <Share2 className="text-blue-700" /> },
