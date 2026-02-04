@@ -188,7 +188,7 @@ export function YouTubeContextualConnect({
         }}
       >
         <Youtube className="w-4 h-4" />
-        <span>Connect YouTube</span>
+        <span>Connect to YouTube</span>
       </button>
       <button
         className="text-xs text-blue-600 underline"
