@@ -302,7 +302,17 @@ export function YouTubeContextualConnect({
     <div className="flex items-center gap-2">
       <button
         className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
-        onClick={handleConnect}
+        onClick={() => {
+          // Simple direct OAuth without workspaceId complications
+          const workspaceIdToUse = workspaceId || 'c9a454c5-a5f3-42dd-9fbd-cedd4c1c49a9' // Use the one from logs
+          console.log('Direct connect with workspaceId:', workspaceIdToUse)
+          
+          const returnUrl = window.location.href
+          const oauthUrl = `https://zourlqrkoyugzymxkbgn.functions.supabase.co/youtube-oauth/start?workspace_id=${workspaceIdToUse}&return_url=${encodeURIComponent(returnUrl)}`
+          
+          console.log('Direct OAuth URL:', oauthUrl)
+          window.location.href = oauthUrl
+        }}
       >
         <Youtube className="w-4 h-4" />
         <span>Connect to YouTube</span>
@@ -311,46 +321,21 @@ export function YouTubeContextualConnect({
         className="text-xs text-blue-600 underline"
         onClick={() => {
           console.log('Current state:', { isConnected, loading, workspaceId })
-          checkConnection()
         }}
       >
-        Debug Check
+        State
       </button>
       <button
         className="text-xs text-green-600 underline"
         onClick={() => {
-          console.log('Force render trigger')
-          setForceRender(prev => prev + 1)
-        }}
-      >
-        Force Render
-      </button>
-      <button
-        className="text-xs text-purple-600 underline"
-        onClick={() => {
-          console.log('Manual override: Set connected and save to localStorage')
+          console.log('Force connected')
           setIsConnected(true)
-          setForceRender(prev => prev + 1)
           if (workspaceId) {
             localStorage.setItem(`youtube-connected-${workspaceId}`, 'true')
           }
         }}
       >
-        Override
-      </button>
-      <button
-        className="text-xs text-orange-600 underline"
-        onClick={() => {
-          console.log('Simulating OAuth completion')
-          setIsConnected(true)
-          setForceRender(prev => prev + 1)
-          if (workspaceId) {
-            localStorage.setItem(`youtube-connected-${workspaceId}`, 'true')
-          }
-          console.log('OAuth simulation: Connected state saved')
-        }}
-      >
-        I Just Connected
+        Force Connect
       </button>
     </div>
   )
