@@ -58,6 +58,26 @@ export function YouTubeContextualConnect({
     return () => clearTimeout(timer)
   }, [workspaceId])
 
+  // Handle OAuth callback - immediately set connected state
+  useEffect(() => {
+    if (window.location.href.includes('youtube-oauth') && workspaceId) {
+      const timer = setTimeout(() => {
+        console.log('Detected OAuth callback, setting connected state immediately...')
+        // Immediately set connected state for better UX
+        setIsConnected(true)
+        setForceRender(prev => prev + 1)
+        if (workspaceId) {
+          localStorage.setItem(`youtube-connected-${workspaceId}`, 'true')
+          console.log('Saved connected state to localStorage')
+        }
+        // Then verify with database
+        checkConnection()
+      }, 2000) // Wait 2 seconds for OAuth completion
+
+      return () => clearTimeout(timer)
+    }
+  }, [workspaceId])
+
   // Check connection when window gains focus (user returns to tab)
   useEffect(() => {
     const handleFocus = () => {
@@ -389,9 +409,16 @@ export function useYouTubeConnection() {
   useEffect(() => {
     if (window.location.href.includes('youtube-oauth') && workspaceId) {
       const timer = setTimeout(() => {
-        console.log('Detected OAuth callback, re-checking connection...')
+        console.log('Detected OAuth callback, setting connected state and checking connection...')
+        // Immediately set connected state for better UX
+        setIsConnected(true)
+        setForceRender(prev => prev + 1)
+        if (workspaceId) {
+          localStorage.setItem(`youtube-connected-${workspaceId}`, 'true')
+        }
+        // Then verify with database
         checkConnection()
-      }, 3000) // Wait 3 seconds for OAuth completion
+      }, 2000) // Wait 2 seconds for OAuth completion
 
       return () => clearTimeout(timer)
     }
