@@ -162,12 +162,10 @@ export function YouTubeContextualConnect({
     console.log('User ID:', workspaceId)
     
     const returnUrl = window.location.href
-    const oauthUrl = `https://zourlqrkoyugzymxkbgn.functions.supabase.co/youtube-oauth/start?workspaceId=${workspaceId}&returnUrl=${encodeURIComponent(returnUrl)}`
+    const oauthUrl = `https://zourlqrkoyugzymxkbgn.functions.supabase.co/youtube-oauth/start?workspace_id=${workspaceId}&return_url=${encodeURIComponent(returnUrl)}`
     
     console.log('OAuth URL:', oauthUrl)
-    
     window.location.href = oauthUrl
-    onConnect?.()
   }
 
   const getContextMessage = () => {
@@ -242,14 +240,7 @@ export function YouTubeContextualConnect({
     <div className="flex items-center gap-2">
       <button
         className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
-        onClick={() => {
-          console.log('Force setting connected state to true')
-          setIsConnected(true)
-          setForceRender(prev => prev + 1) // Force re-render
-          if (workspaceId) {
-            localStorage.setItem(`youtube-connected-${workspaceId}`, 'true')
-          }
-        }}
+        onClick={handleConnect}
       >
         <Youtube className="w-4 h-4" />
         <span>Connect to YouTube</span>
