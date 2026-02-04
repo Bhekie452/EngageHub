@@ -175,31 +175,29 @@ export function YouTubeContextualConnect({
   }
 
   // Debug: Add temporary force-connected button for testing
-  if (process.env.NODE_ENV === 'development') {
-    return (
-      <div className="flex items-center gap-2">
-        <button
-          className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
-          onClick={() => {
-            console.log('Force setting connected state to true')
-            setIsConnected(true)
-          }}
-        >
-          <Youtube className="w-4 h-4" />
-          <span>Connect YouTube</span>
-        </button>
-        <button
-          className="text-xs text-blue-600 underline"
-          onClick={() => {
-            console.log('Current state:', { isConnected, loading, workspaceId })
-            checkConnection()
-          }}
-        >
-          Debug Check
-        </button>
-      </div>
-    )
-  }
+  return (
+    <div className="flex items-center gap-2">
+      <button
+        className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+        onClick={() => {
+          console.log('Force setting connected state to true')
+          setIsConnected(true)
+        }}
+      >
+        <Youtube className="w-4 h-4" />
+        <span>Connect YouTube</span>
+      </button>
+      <button
+        className="text-xs text-blue-600 underline"
+        onClick={() => {
+          console.log('Current state:', { isConnected, loading, workspaceId })
+          checkConnection()
+        }}
+      >
+        Debug Check
+      </button>
+    </div>
+  )
 
   const message = getContextMessage()
 
