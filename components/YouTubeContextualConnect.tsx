@@ -25,6 +25,21 @@ export function YouTubeContextualConnect({
   const [disconnecting, setDisconnecting] = useState(false)
   const [forceRender, setForceRender] = useState(0)
 
+  // Initialize connection state from localStorage
+  useEffect(() => {
+    if (workspaceId) {
+      const cachedState = localStorage.getItem(`youtube-connected-${workspaceId}`)
+      if (cachedState === 'true') {
+        console.log('Restored YouTube connection from localStorage')
+        setIsConnected(true)
+      } else if (cachedState === 'false') {
+        setIsConnected(false)
+      }
+      // Check actual connection state regardless
+      checkConnection()
+    }
+  }, [workspaceId])
+
   useEffect(() => {
     if (workspaceId) {
       checkConnection()
@@ -38,9 +53,22 @@ export function YouTubeContextualConnect({
         console.log('Re-checking YouTube connection after delay...')
         checkConnection()
       }
-    }, 2000) // Wait 2 seconds for database to update
+    }, 1000) // Reduced delay for faster response
 
     return () => clearTimeout(timer)
+  }, [workspaceId])
+
+  // Check connection when window gains focus (user returns to tab)
+  useEffect(() => {
+    const handleFocus = () => {
+      if (workspaceId) {
+        console.log('Window focused, checking YouTube connection...')
+        checkConnection()
+      }
+    }
+
+    window.addEventListener('focus', handleFocus)
+    return () => window.removeEventListener('focus', handleFocus)
   }, [workspaceId])
 
   const checkConnection = async () => {
@@ -51,11 +79,20 @@ export function YouTubeContextualConnect({
       const status = await checkYouTubeConnectionStatus(workspaceId)
       console.log('YouTube connection status result:', status)
       
-      // Force update the state and trigger re-render
-      setIsConnected(status.connected)
-      setForceRender(prev => prev + 1) // Force re-render
-      
-      console.log('Connection state updated to:', status.connected)
+      // Only update state if we get a definitive response
+      if (status && typeof status.connected === 'boolean') {
+        setIsConnected(status.connected)
+        setForceRender(prev => prev + 1) // Force re-render
+        
+        // Save to localStorage for persistence
+        if (workspaceId) {
+          localStorage.setItem(`youtube-connected-${workspaceId}`, status.connected.toString())
+        }
+        
+        console.log('Connection state updated to:', status.connected)
+      } else {
+        console.log('Invalid status response, keeping current state')
+      }
       
       // Show prompt if not connected and this is the first check
       if (!status.connected && !compact) {
@@ -63,7 +100,8 @@ export function YouTubeContextualConnect({
       }
     } catch (error) {
       console.error('Error checking YouTube connection:', error)
-      setIsConnected(false)
+      // Don't immediately set to false on error - might be network issue
+      console.log('Network error detected, keeping current connection state')
     } finally {
       setLoading(false)
     }
@@ -81,6 +119,9 @@ export function YouTubeContextualConnect({
       
       setIsConnected(false)
       setShowPrompt(true)
+      
+      // Clear localStorage cache
+      localStorage.removeItem(`youtube-connected-${workspaceId}`)
       
       console.log('YouTube account disconnected successfully')
     } catch (error) {
