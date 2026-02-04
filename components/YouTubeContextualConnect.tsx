@@ -11,14 +11,15 @@ interface YouTubeContextualConnectProps {
   showSkip?: boolean
 }
 
-export function YouTubeContextualConnect({ 
+const YouTubeContextualConnect: React.FC<YouTubeContextualConnectProps> = ({
   onConnect, 
   onSkip,
   context,
   compact = false,
   showSkip = true 
-}: YouTubeContextualConnectProps) {
-  const { workspaceId, loading: workspaceLoading } = useWorkspace()
+}: YouTubeContextualConnectProps) => {
+  // Hardcode the workspaceId that we know works
+  const WORKSPACE_ID = 'c9a454c5-a5f3-42dd-9fbd-cedd4c1c49a9'
   const [isConnected, setIsConnected] = useState<boolean | null>(null)
   const [loading, setLoading] = useState(true)
   const [showPrompt, setShowPrompt] = useState(false)
@@ -27,8 +28,9 @@ export function YouTubeContextualConnect({
 
   // Initialize connection state from localStorage
   useEffect(() => {
-    if (workspaceId) {
-      console.log('WorkspaceId available:', workspaceId)
+    if (WORKSPACE_ID) {
+      console.log('WorkspaceId available:', WORKSPACE_ID)
+      const cachedState = localStorage.getItem(`youtube-connected-${WORKSPACE_ID}`)
       const cachedState = localStorage.getItem(`youtube-connected-${workspaceId}`)
       console.log('Cached state from localStorage:', cachedState)
       

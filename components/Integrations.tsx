@@ -24,7 +24,7 @@ import {
   MoreVertical,
   ShieldCheck
 } from 'lucide-react';
-import { YouTubeContextualConnect } from './YouTubeContextualConnect';
+import YouTubeSimpleConnect from './YouTubeSimpleConnect';
 import { useWorkspace } from '../src/hooks/useWorkspace';
 
 type IntegrationTab = 'social' | 'email' | 'whatsapp' | 'accounting' | 'calendar' | 'payments' | 'webhooks' | 'api';
@@ -61,7 +61,7 @@ const Integrations: React.FC = () => {
               </div>
               <h4 className="text-sm font-black text-gray-900 mb-1">YouTube</h4>
               <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-4">Google OAuth Integration</p>
-              <YouTubeContextualConnect context="general" compact={false} />
+              <YouTubeSimpleConnect />
             </div>
 
             {/* Other Social Platforms */}
