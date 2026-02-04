@@ -48,6 +48,7 @@ import AIStudio from './AIStudio';
 import ContentCalendar from './ContentCalendar';
 import ContentTemplates from './ContentTemplates';
 import YouTubeSimpleConnect from './YouTubeSimpleConnect';
+import { useYouTubeConnectionSimple } from '../src/hooks/useYouTubeConnectionSimple';
 
 // Added 'all_list' to the allowed tabs to fix the assignment error on line 66
 type ContentTab = 'all' | 'all_list' | 'create' | 'drafts' | 'scheduled' | 'published' | 'calendar' | 'templates' | 'hashtags' | 'ai';
@@ -56,14 +57,8 @@ const Content: React.FC = () => {
   const { user } = useAuth(); // Get authenticated user
   const [activeTab, setActiveTab] = useState<ContentTab>('create');
 
-  // Check YouTube connection using the same localStorage key as YouTubeSimpleConnect
-  const WORKSPACE_ID = 'c9a454c5-a5f3-42dd-9fbd-cedd4c1c49a9'
-  const [youtubeAccountConnected, setYoutubeAccountConnected] = useState(false)
-  
-  useEffect(() => {
-    const cachedState = localStorage.getItem(`youtube-connected-${WORKSPACE_ID}`)
-    setYoutubeAccountConnected(cachedState === 'true')
-  }, [])
+  // Use shared YouTube connection state
+  const { isConnected: youtubeAccountConnected } = useYouTubeConnectionSimple()
 
   const [posts, setPosts] = useState<any[]>([]);
   const [isLoadingPosts, setIsLoadingPosts] = useState(false);
@@ -246,7 +241,14 @@ const Content: React.FC = () => {
 
       console.log('✅ Final linked accounts state:', linked);
       console.log('✅ Setting socialAccounts state with:', Object.keys(linked).length, 'connected platforms');
-      setSocialAccounts(linked);
+      
+      // Include YouTube connection state
+      const finalLinked = {
+        ...linked,
+        youtube: youtubeAccountConnected
+      };
+      
+      setSocialAccounts(finalLinked);
     } catch (err) {
       console.error('❌ Exception in fetchSocialAccounts:', err);
       setSocialAccounts({});
