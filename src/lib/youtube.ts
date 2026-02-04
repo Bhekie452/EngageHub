@@ -112,7 +112,8 @@ export const exchangeCodeForToken = async (code: string): Promise<any> => {
         const storedRedirectUri = sessionStorage.getItem('youtube_oauth_redirect_uri');
         const redirectUri = storedRedirectUri || getRedirectURI();
 
-        const response = await fetch(`/api/auth?provider=youtube&action=token`, {
+        // Use Supabase Edge Function instead of local API
+        const response = await fetch('https://zourlqrkoyugzymxkbgn.functions.supabase.co/youtube-oauth/callback', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ code, redirectUri })
