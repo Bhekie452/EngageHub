@@ -33,7 +33,7 @@ import { useAnalyticsDaily, useAnalyticsRollupDay } from '../src/hooks/useAnalyt
 import { useDeals } from '../src/hooks/useDeals';
 import { useCustomers } from '../src/hooks/useCustomers';
 import { usePosts } from '../src/hooks/usePosts';
-import { YouTubeContextualConnect, useYouTubeConnection } from './YouTubeContextualConnect';
+import YouTubeSimpleConnect from './YouTubeSimpleConnect';
 
 type AnalyticsTab = 'overview' | 'social' | 'campaigns' | 'crm' | 'revenue' | 'engagement';
 
@@ -237,11 +237,7 @@ const Analytics: React.FC = () => {
         return (
           <div className="space-y-6">
             {/* YouTube Connection Prompt */}
-            <YouTubeContextualConnect 
-              context="analytics"
-              compact={false}
-              showSkip={true}
-            />
+            <YouTubeSimpleConnect />
 
             {/* YouTube Analytics Section */}
             {youtubeConnected && (
@@ -310,11 +306,7 @@ const Analytics: React.FC = () => {
                       <p className="text-sm font-bold text-gray-800 line-clamp-1 italic">"{p.topPost}"</p>
                     </div>
                     {!p.connected && p.platform === 'YouTube' ? (
-                      <YouTubeContextualConnect 
-                        context="analytics"
-                        compact={true}
-                        showSkip={false}
-                      />
+                      <YouTubeSimpleConnect />
                     ) : (
                       <button className="flex items-center gap-1.5 text-[10px] font-black text-blue-600 uppercase tracking-widest group-hover:gap-2 transition-all">
                         View Platform Report <ArrowRight className="w-3 h-3" />

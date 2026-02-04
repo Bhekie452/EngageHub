@@ -47,7 +47,7 @@ import { analyticsService } from '../src/services/api/analytics.service';
 import AIStudio from './AIStudio';
 import ContentCalendar from './ContentCalendar';
 import ContentTemplates from './ContentTemplates';
-import { YouTubeContextualConnect, useYouTubeConnection } from './YouTubeContextualConnect';
+import YouTubeSimpleConnect from './YouTubeSimpleConnect';
 
 // Added 'all_list' to the allowed tabs to fix the assignment error on line 66
 type ContentTab = 'all' | 'all_list' | 'create' | 'drafts' | 'scheduled' | 'published' | 'calendar' | 'templates' | 'hashtags' | 'ai';
@@ -56,7 +56,7 @@ const Content: React.FC = () => {
   const { user } = useAuth(); // Get authenticated user
   const [activeTab, setActiveTab] = useState<ContentTab>('create');
 
-  const { isConnected: youtubeAccountConnected, loading: youtubeLoading } = useYouTubeConnection();
+  const [youtubeAccountConnected, setYoutubeAccountConnected] = useState(false)
 
   const [posts, setPosts] = useState<any[]>([]);
   const [isLoadingPosts, setIsLoadingPosts] = useState(false);
@@ -1704,11 +1704,7 @@ const Content: React.FC = () => {
                     {/* YouTube Connection Prompt */}
                     {selectedPlatforms.includes('youtube') && !youtubeAccountConnected && (
                       <div id="youtube-connect-prompt">
-                        <YouTubeContextualConnect 
-                          context="create-post"
-                          compact={false}
-                          showSkip={false}
-                        />
+                        <YouTubeSimpleConnect />
                       </div>
                     )}
 
