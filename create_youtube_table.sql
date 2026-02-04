@@ -1,7 +1,7 @@
 -- Create youtube_accounts table if it doesn't exist
 CREATE TABLE IF NOT EXISTS public.youtube_accounts (
-  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
-  workspace_id UUID NOT NULL REFERENCES public.workspaces(id) ON DELETE CASCADE,
+  id TEXT PRIMARY KEY DEFAULT (gen_random_uuid()::text),
+  workspace_id TEXT NOT NULL,
   access_token TEXT NOT NULL,
   refresh_token TEXT,
   token_expires_at TIMESTAMP WITH TIME ZONE,

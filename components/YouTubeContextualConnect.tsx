@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
-import { Youtube, ExternalLink, AlertCircle, CheckCircle2, X } from 'lucide-react'
-import { checkYouTubeConnectionStatus } from '../src/utils/youtube-client'
+import { Youtube, ExternalLink, AlertCircle, CheckCircle2, X, LogOut } from 'lucide-react'
+import { checkYouTubeConnectionStatus, disconnectYouTubeAccount } from '../src/utils/youtube-client'
 import { useWorkspace } from '../src/hooks/useWorkspace'
 
 interface YouTubeContextualConnectProps {
@@ -22,6 +22,7 @@ export function YouTubeContextualConnect({
   const [isConnected, setIsConnected] = useState<boolean | null>(null)
   const [loading, setLoading] = useState(true)
   const [showPrompt, setShowPrompt] = useState(false)
+  const [disconnecting, setDisconnecting] = useState(false)
 
   useEffect(() => {
     if (workspaceId) {
@@ -59,6 +60,25 @@ export function YouTubeContextualConnect({
       setIsConnected(false)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleDisconnect = async () => {
+    if (!workspaceId || disconnecting) return
+    
+    try {
+      setDisconnecting(true)
+      console.log('Disconnecting YouTube account for workspace:', workspaceId)
+      
+      await disconnectYouTubeAccount(workspaceId)
+      setIsConnected(false)
+      setShowPrompt(true)
+      
+      console.log('YouTube account disconnected successfully')
+    } catch (error) {
+      console.error('Error disconnecting YouTube account:', error)
+    } finally {
+      setDisconnecting(false)
     }
   }
 
@@ -123,6 +143,24 @@ export function YouTubeContextualConnect({
           title="Refresh connection status"
         >
           Refresh
+        </button>
+        <button
+          onClick={handleDisconnect}
+          disabled={disconnecting}
+          className="flex items-center gap-1 text-xs text-red-600 hover:text-red-700 underline disabled:opacity-50 disabled:cursor-not-allowed"
+          title="Disconnect YouTube account"
+        >
+          {disconnecting ? (
+            <>
+              <div className="w-3 h-3 border border-red-600 border-t-transparent rounded-full animate-spin" />
+              Disconnecting...
+            </>
+          ) : (
+            <>
+              <LogOut className="w-3 h-3" />
+              Disconnect
+            </>
+          )}
         </button>
       </div>
     )
@@ -238,7 +276,19 @@ export function useYouTubeConnection() {
     }
   }
 
-  return { isConnected, loading, refetch: checkConnection }
+  const disconnect = async () => {
+    if (!workspaceId) return
+    
+    try {
+      await disconnectYouTubeAccount(workspaceId)
+      setIsConnected(false)
+    } catch (error) {
+      console.error('Hook: Error disconnecting YouTube account:', error)
+      throw error
+    }
+  }
+
+  return { isConnected, loading, refetch: checkConnection, disconnect }
 }
 
 // Higher-order component that wraps content with YouTube connection check

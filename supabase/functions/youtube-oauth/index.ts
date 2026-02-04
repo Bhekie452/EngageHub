@@ -165,44 +165,52 @@ serve(async (req) => {
 
     // Create or verify workspace exists
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
-    
+
     console.log('Checking workspace with ID:', workspaceId)
     console.log('Workspace ID type:', typeof workspaceId)
     console.log('Workspace ID length:', workspaceId?.length)
-    
-    // For now, let's just create the workspace with the provided ID without checking first
-    // This will help us debug if the issue is with the workspace lookup or creation
+
+    // Try to check if workspace exists first
     try {
-      const { data: newWorkspace, error: createError } = await supabase
+      const { data: existingWorkspace, error: checkError } = await supabase
         .from('workspaces')
-        .upsert({
-          id: workspaceId,
-          name: 'YouTube Integration Workspace',
-          slug: `yt-${workspaceId.slice(0, 8)}`,
-          owner_id: null
-        }, {
-          onConflict: 'id'
-        })
         .select('id, name, owner_id')
+        .eq('id', workspaceId)
         .single()
-      
-      console.log('Upsert workspace result:', { data: newWorkspace, error: createError })
-      
-      if (createError) {
-        console.error('Failed to upsert workspace:', createError)
-        return new Response(`Failed to create workspace: ${createError.message}`, { status: 400 })
+
+      console.log('Existing workspace check:', { data: existingWorkspace, error: checkError })
+
+      if (existingWorkspace && !checkError) {
+        console.log('Workspace already exists:', existingWorkspace)
+      } else {
+        // Create workspace without owner_id since we don't have user info in OAuth flow
+        console.log('Creating new workspace for YouTube integration...')
+        
+        const { data: newWorkspace, error: createError } = await supabase
+          .from('workspaces')
+          .insert({
+            id: workspaceId,
+            name: 'YouTube Integration Workspace',
+            slug: `yt-${workspaceId.slice(0, 8)}`,
+            // Skip owner_id for now - it will be set when user properly authenticates
+          })
+          .select('id, name, owner_id')
+          .single()
+
+        console.log('New workspace creation result:', { data: newWorkspace, error: createError })
+
+        if (createError) {
+          console.error('Failed to create workspace:', createError)
+          // Don't fail the OAuth flow if workspace creation fails
+          console.log('Continuing with OAuth flow despite workspace creation issue...')
+        } else {
+          console.log('Workspace created successfully:', newWorkspace)
+        }
       }
-      
-      if (!newWorkspace) {
-        console.error('No workspace after upsert')
-        return new Response('Failed to create or verify workspace', { status: 400 })
-      }
-      
-      console.log('Workspace ready:', newWorkspace)
-      
-    } catch (error) {
-      console.error('Exception during workspace creation:', error)
-      return new Response(`Exception during workspace creation: ${error.message}`, { status: 500 })
+    } catch (workspaceError) {
+      console.error('Workspace check/create error:', workspaceError)
+      // Don't fail the OAuth flow
+      console.log('Continuing with OAuth flow despite workspace issue...')
     }
 
     if (!code) {
@@ -256,9 +264,9 @@ serve(async (req) => {
           .from('youtube_accounts')
           .upsert({
             workspace_id: workspaceId,
-            access_token: tokenData.access_token,
-            refresh_token: tokenData.refresh_token || null,
-            token_expires_at: tokenData.expires_in ? new Date(Date.now() + tokenData.expires_in * 1000).toISOString() : null,
+            access_token: tokens.access_token,
+            refresh_token: tokens.refresh_token || null,
+            token_expires_at: tokens.expires_in ? new Date(Date.now() + tokens.expires_in * 1000).toISOString() : null,
             channel_id: channelId,
             updated_at: new Date().toISOString()
           }, {
