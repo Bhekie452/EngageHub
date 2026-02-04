@@ -243,9 +243,6 @@ const Analytics: React.FC = () => {
       case 'social':
         return (
           <div className="space-y-6">
-            {/* YouTube Connection Prompt */}
-            <YouTubeSimpleConnect />
-
             {/* YouTube Analytics Section */}
             {youtubeConnected && (
               <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm">
@@ -256,15 +253,13 @@ const Analytics: React.FC = () => {
                     </div>
                     <h4 className="text-sm font-black text-gray-800 uppercase tracking-widest">YouTube Performance</h4>
                   </div>
-                  <span className="text-[10px] font-black text-green-600 bg-green-50 px-2 py-0.5 rounded-full">Connected</span>
+                  <span className="text-xs font-black text-green-600 uppercase px-2 py-1 rounded-full bg-green-50">
+                    Connected
+                  </span>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="text-center p-4 bg-gray-50 rounded-lg">
-                    <p className="text-2xl font-bold text-gray-900">2.4K</p>
-                    <p className="text-xs text-gray-600 font-medium">Total Views</p>
-                  </div>
-                  <div className="text-center p-4 bg-gray-50 rounded-lg">
-                    <p className="text-2xl font-bold text-gray-900">145</p>
+                {/* YouTube analytics content would go here */}
+                <div className="text-center py-8">
+                  <p className="text-gray-500">YouTube analytics data will appear here</p>
                     <p className="text-xs text-gray-600 font-medium">Subscribers</p>
                   </div>
                   <div className="text-center p-4 bg-gray-50 rounded-lg">
