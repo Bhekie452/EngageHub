@@ -76,6 +76,20 @@ export function YouTubeContextualConnect({
     
     try {
       console.log('Checking YouTube connection for workspace:', workspaceId)
+      
+      // First check localStorage for immediate response
+      const cachedState = localStorage.getItem(`youtube-connected-${workspaceId}`)
+      console.log('Cached state from localStorage:', cachedState)
+      
+      if (cachedState === 'true') {
+        console.log('Using cached state: CONNECTED')
+        setIsConnected(true)
+        setForceRender(prev => prev + 1)
+        setLoading(false)
+        return
+      }
+      
+      // Only check database if no cached state
       const status = await checkYouTubeConnectionStatus(workspaceId)
       console.log('YouTube connection status result:', status)
       
@@ -90,15 +104,6 @@ export function YouTubeContextualConnect({
         }
         
         console.log('Connection state updated to:', status.connected)
-      } else {
-        console.log('Invalid status response, checking localStorage fallback')
-        // Fallback to localStorage if database check fails
-        const cachedState = localStorage.getItem(`youtube-connected-${workspaceId}`)
-        if (cachedState === 'true') {
-          console.log('Using localStorage fallback: connected')
-          setIsConnected(true)
-          setForceRender(prev => prev + 1)
-        }
       }
       
       // Show prompt if not connected and this is the first check
