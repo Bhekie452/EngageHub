@@ -25,6 +25,7 @@ import {
   ShieldCheck
 } from 'lucide-react';
 import YouTubeSimpleConnect from './YouTubeSimpleConnect';
+import { useYouTubeSession } from '../src/hooks/useYouTubeSession';
 import { useWorkspace } from '../src/hooks/useWorkspace';
 
 type IntegrationTab = 'social' | 'email' | 'whatsapp' | 'accounting' | 'calendar' | 'payments' | 'webhooks' | 'api';
@@ -32,6 +33,7 @@ type IntegrationTab = 'social' | 'email' | 'whatsapp' | 'accounting' | 'calendar
 const Integrations: React.FC = () => {
   const [activeTab, setActiveTab] = useState<IntegrationTab>('social');
   const { workspaceId } = useWorkspace();
+  const { isConnected: youtubeConnected } = useYouTubeSession();
 
   const tabs: { id: IntegrationTab; label: string; icon: React.ReactNode }[] = [
     { id: 'social', label: 'Social platforms', icon: <Share2 size={16} /> },
@@ -60,7 +62,9 @@ const Integrations: React.FC = () => {
                 </span>
               </div>
               <h4 className="text-sm font-black text-gray-900 mb-1">YouTube</h4>
-              <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-4">Google OAuth Integration</p>
+              <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-4">
+                {youtubeConnected ? 'Connected' : 'Google OAuth Integration'}
+              </p>
               <YouTubeSimpleConnect />
             </div>
 

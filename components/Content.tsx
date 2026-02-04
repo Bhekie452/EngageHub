@@ -49,6 +49,7 @@ import ContentCalendar from './ContentCalendar';
 import ContentTemplates from './ContentTemplates';
 import YouTubeSimpleConnect from './YouTubeSimpleConnect';
 import { useYouTubeConnectionSimple } from '../src/hooks/useYouTubeConnectionSimple';
+import { useYouTubeSession } from '../src/hooks/useYouTubeSession';
 
 // Added 'all_list' to the allowed tabs to fix the assignment error on line 66
 type ContentTab = 'all' | 'all_list' | 'create' | 'drafts' | 'scheduled' | 'published' | 'calendar' | 'templates' | 'hashtags' | 'ai';
@@ -57,8 +58,8 @@ const Content: React.FC = () => {
   const { user } = useAuth(); // Get authenticated user
   const [activeTab, setActiveTab] = useState<ContentTab>('create');
 
-  // Use shared YouTube connection state
-  const { isConnected: youtubeAccountConnected } = useYouTubeConnectionSimple()
+  // Use simple session-based YouTube connection
+  const { isConnected: youtubeAccountConnected } = useYouTubeSession()
 
   // Update socialAccounts when YouTube connection state changes
   useEffect(() => {
