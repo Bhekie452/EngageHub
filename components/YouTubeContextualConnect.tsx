@@ -23,6 +23,7 @@ export function YouTubeContextualConnect({
   const [loading, setLoading] = useState(true)
   const [showPrompt, setShowPrompt] = useState(false)
   const [disconnecting, setDisconnecting] = useState(false)
+  const [forceRender, setForceRender] = useState(0)
 
   useEffect(() => {
     if (workspaceId) {
@@ -50,8 +51,9 @@ export function YouTubeContextualConnect({
       const status = await checkYouTubeConnectionStatus(workspaceId)
       console.log('YouTube connection status result:', status)
       
-      // Force update the state
+      // Force update the state and trigger re-render
       setIsConnected(status.connected)
+      setForceRender(prev => prev + 1) // Force re-render
       
       console.log('Connection state updated to:', status.connected)
       
@@ -182,6 +184,7 @@ export function YouTubeContextualConnect({
         onClick={() => {
           console.log('Force setting connected state to true')
           setIsConnected(true)
+          setForceRender(prev => prev + 1) // Force re-render
         }}
       >
         <Youtube className="w-4 h-4" />
@@ -195,6 +198,15 @@ export function YouTubeContextualConnect({
         }}
       >
         Debug Check
+      </button>
+      <button
+        className="text-xs text-green-600 underline"
+        onClick={() => {
+          console.log('Force render trigger')
+          setForceRender(prev => prev + 1)
+        }}
+      >
+        Force Render
       </button>
     </div>
   )
