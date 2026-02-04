@@ -1,13 +1,12 @@
-
 import React, { useState, useEffect } from 'react';
-import { 
-  Facebook, 
-  Instagram, 
-  Linkedin, 
-  Twitter, 
-  Youtube, 
-  Mail, 
-  MessageCircle, 
+import {
+  Facebook,
+  Instagram,
+  Linkedin,
+  Twitter,
+  Youtube,
+  Mail,
+  MessageCircle,
   Zap,
   CheckCircle2,
   AlertCircle,
@@ -25,7 +24,7 @@ import {
   MoreVertical,
   ShieldCheck
 } from 'lucide-react';
-import { YouTubeConnectionStatus, useYouTubeOAuthCallback } from './YouTubeConnection';
+import { YouTubeContextualConnect } from './YouTubeContextualConnect';
 import { useWorkspace } from '../src/hooks/useWorkspace';
 
 type IntegrationTab = 'social' | 'email' | 'whatsapp' | 'accounting' | 'calendar' | 'payments' | 'webhooks' | 'api';
@@ -33,9 +32,6 @@ type IntegrationTab = 'social' | 'email' | 'whatsapp' | 'accounting' | 'calendar
 const Integrations: React.FC = () => {
   const [activeTab, setActiveTab] = useState<IntegrationTab>('social');
   const { workspaceId } = useWorkspace();
-
-  // Handle YouTube OAuth callback
-  useYouTubeOAuthCallback();
 
   const tabs: { id: IntegrationTab; label: string; icon: React.ReactNode }[] = [
     { id: 'social', label: 'Social platforms', icon: <Share2 size={16} /> },
@@ -65,7 +61,7 @@ const Integrations: React.FC = () => {
               </div>
               <h4 className="text-sm font-black text-gray-900 mb-1">YouTube</h4>
               <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-4">Google OAuth Integration</p>
-              <YouTubeConnectionStatus workspaceId={workspaceId} />
+              <YouTubeContextualConnect context="general" compact={false} />
             </div>
 
             {/* Other Social Platforms */}
