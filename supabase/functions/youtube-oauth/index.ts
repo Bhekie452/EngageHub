@@ -2,6 +2,17 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from "@supabase/supabase-js"
 
 serve(async (req) => {
+  // Add CORS headers
+  const corsHeaders = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+    'Access-Control-Allow-Methods': 'POST, GET, OPTIONS, PUT, DELETE'
+  }
+
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders })
+  }
+
   const url = new URL(req.url)
   const pathname = url.pathname
   const getEnv = (k: string) => ((globalThis as any).Deno?.env?.get?.(k) as string | undefined) || ''
@@ -10,6 +21,103 @@ serve(async (req) => {
   const REDIRECT_URI = getEnv('YT_REDIRECT_URI') || 'https://zourlqrkoyugzymxkbgn.functions.supabase.co/youtube-oauth/callback'
   const SUPABASE_URL = getEnv('SUPABASE_URL') || ''
   const SUPABASE_SERVICE_ROLE_KEY = getEnv('SERVICE_ROLE_KEY') || ''
+
+  console.log('=== YouTube OAuth Function Called ===')
+  console.log('Method:', req.method)
+  console.log('Path:', pathname)
+  console.log('Environment check:', {
+    hasClientId: !!CLIENT_ID,
+    hasClientSecret: !!CLIENT_SECRET,
+    hasSupabaseUrl: !!SUPABASE_URL,
+    hasServiceKey: !!SUPABASE_SERVICE_ROLE_KEY
+  })
+
+  // Test endpoint for debugging database issues
+  if (pathname.includes("/test-db")) {
+    try {
+      const testWorkspaceId = 'test-workspace-' + Date.now()
+      console.log('Testing database insertion with workspace:', testWorkspaceId)
+      
+      const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
+      
+      // Test workspace creation
+      const { data: workspaceData, error: workspaceError } = await supabase
+        .from('workspaces')
+        .insert({
+          id: testWorkspaceId,
+          name: 'Test Workspace',
+          slug: `test-${testWorkspaceId.slice(0, 8)}`,
+          owner_id: null
+        })
+        .select('id')
+        .single()
+      
+      console.log('Workspace test result:', { data: workspaceData, error: workspaceError })
+      
+      if (workspaceError) {
+        return new Response(JSON.stringify({ 
+          error: 'Workspace creation failed', 
+          details: workspaceError 
+        }), { 
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        })
+      }
+      
+      // Test youtube_accounts insertion
+      const { data: youtubeData, error: youtubeError } = await supabase
+        .from('youtube_accounts')
+        .insert({
+          workspace_id: testWorkspaceId,
+          access_token: 'test-token',
+          refresh_token: 'test-refresh',
+          channel_id: 'test-channel',
+          updated_at: new Date().toISOString()
+        })
+        .select('id, workspace_id, channel_id')
+        .single()
+      
+      console.log('YouTube accounts test result:', { data: youtubeData, error: youtubeError })
+      
+      return new Response(JSON.stringify({ 
+        success: true,
+        workspace: workspaceData,
+        youtubeAccount: youtubeData,
+        errors: {
+          workspace: workspaceError,
+          youtube: youtubeError
+        }
+      }), { 
+        status: 200,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      })
+      
+    } catch (error) {
+      console.error('Test DB error:', error)
+      return new Response(JSON.stringify({ 
+        error: error.message,
+        stack: error.stack
+      }), { 
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      })
+    }
+  }
+  if (pathname.includes("/health")) {
+    return new Response(JSON.stringify({ 
+      status: 'ok', 
+      timestamp: new Date().toISOString(),
+      environment: {
+        hasClientId: !!CLIENT_ID,
+        hasClientSecret: !!CLIENT_SECRET,
+        hasSupabaseUrl: !!SUPABASE_URL,
+        hasServiceKey: !!SUPABASE_SERVICE_ROLE_KEY
+      }
+    }), { 
+      status: 200,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    })
+  }
 
   // Handle /start - redirect to Google OAuth
   if (pathname.includes("/start")) {
@@ -125,37 +233,53 @@ serve(async (req) => {
 
       // Persist tokens for later API calls
       if (SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY && workspaceId) {
+        console.log('Storing YouTube tokens in database...')
         const sb = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 
         let channelId: string | null = null
         try {
+          // Get channel ID from YouTube
           const chRes = await fetch('https://www.googleapis.com/youtube/v3/channels?part=id&mine=true', {
             headers: { Authorization: `Bearer ${String(tokens.access_token || '')}` },
           })
           if (chRes.ok) {
-            const chJson = await chRes.json()
-            channelId = chJson?.items?.[0]?.id || null
+            const chData = await chRes.json()
+            channelId = chData.items?.[0]?.id || null
+            console.log('Fetched YouTube channel ID:', channelId)
           }
-        } catch { /* ignore */ }
+        } catch (channelError) {
+          console.warn('Failed to fetch channel ID:', channelError)
+        }
 
-        console.log('Storing tokens for workspaceId:', workspaceId)
-        const { data, error } = await sb
+        // Store tokens in database
+        const { data: insertData, error: insertError } = await sb
           .from('youtube_accounts')
           .upsert({
             workspace_id: workspaceId,
-            access_token: tokens.access_token,
-            refresh_token: tokens.refresh_token,
-            token_expires_at: tokens.expires_in ? new Date(Date.now() + tokens.expires_in * 1000).toISOString() : null,
-            channel_id: null, // TODO: fetch channel if needed
-            updated_at: new Date().toISOString(),
+            access_token: tokenData.access_token,
+            refresh_token: tokenData.refresh_token || null,
+            token_expires_at: tokenData.expires_in ? new Date(Date.now() + tokenData.expires_in * 1000).toISOString() : null,
+            channel_id: channelId,
+            updated_at: new Date().toISOString()
           }, {
             onConflict: 'workspace_id'
           })
-        console.log('Upsert result:', { data, error })
-        if (error) {
-          console.error('Failed to store YouTube tokens:', error)
-          return new Response(JSON.stringify({ error: 'Failed to store tokens', details: error.message }), { status: 500 })
+          .select('id, workspace_id, channel_id, updated_at')
+          .single()
+
+        console.log('Database insert result:', { data: insertData, error: insertError })
+
+        if (insertError) {
+          console.error('Failed to store YouTube tokens:', insertError)
+          return new Response(`Failed to store YouTube tokens: ${insertError.message}`, { status: 500 })
         }
+
+        if (!insertData) {
+          console.error('No data returned from database insert')
+          return new Response('Failed to store YouTube tokens: No data returned', { status: 500 })
+        }
+
+        console.log('YouTube tokens stored successfully:', insertData)
       }
 
       // TODO: Store tokens in Supabase securely (youtube_accounts table)
@@ -164,9 +288,18 @@ serve(async (req) => {
       redir.searchParams.set('youtube_oauth', 'success')
       return new Response(null, { status: 302, headers: { Location: redir.toString() } })
     } catch (error) {
-      return new Response(JSON.stringify({ error: error.message }), { 
+      console.error('=== YouTube OAuth Error ===')
+      console.error('Error:', error)
+      console.error('Error message:', error.message)
+      console.error('Error stack:', error.stack)
+      
+      return new Response(JSON.stringify({ 
+        error: error.message,
+        type: error.constructor.name,
+        timestamp: new Date().toISOString()
+      }), { 
         status: 500,
-        headers: { "Content-Type": "application/json" }
+        headers: { ...corsHeaders, "Content-Type": "application/json" }
       })
     }
   }

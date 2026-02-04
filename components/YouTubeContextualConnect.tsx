@@ -29,11 +29,25 @@ export function YouTubeContextualConnect({
     }
   }, [workspaceId])
 
+  // Also check connection when component mounts or after OAuth callback
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (workspaceId) {
+        console.log('Re-checking YouTube connection after delay...')
+        checkConnection()
+      }
+    }, 2000) // Wait 2 seconds for database to update
+
+    return () => clearTimeout(timer)
+  }, [workspaceId])
+
   const checkConnection = async () => {
     if (!workspaceId) return
     
     try {
+      console.log('Checking YouTube connection for workspace:', workspaceId)
       const status = await checkYouTubeConnectionStatus(workspaceId)
+      console.log('YouTube connection status result:', status)
       setIsConnected(status.connected)
       
       // Show prompt if not connected and this is the first check
@@ -103,6 +117,13 @@ export function YouTubeContextualConnect({
       <div className="flex items-center gap-2 text-sm text-green-600">
         <CheckCircle2 className="w-4 h-4" />
         <span>YouTube Connected</span>
+        <button
+          onClick={checkConnection}
+          className="text-xs text-gray-500 hover:text-gray-700 underline"
+          title="Refresh connection status"
+        >
+          Refresh
+        </button>
       </div>
     )
   }
@@ -186,6 +207,18 @@ export function useYouTubeConnection() {
     checkConnection()
   }, [workspaceId])
 
+  // Also re-check after OAuth callback (when URL contains youtube-oauth)
+  useEffect(() => {
+    if (window.location.href.includes('youtube-oauth') && workspaceId) {
+      const timer = setTimeout(() => {
+        console.log('Detected OAuth callback, re-checking connection...')
+        checkConnection()
+      }, 3000) // Wait 3 seconds for OAuth completion
+
+      return () => clearTimeout(timer)
+    }
+  }, [workspaceId])
+
   const checkConnection = async () => {
     if (!workspaceId) {
       setLoading(false)
@@ -193,10 +226,12 @@ export function useYouTubeConnection() {
     }
     
     try {
+      console.log('Hook: Checking YouTube connection for workspace:', workspaceId)
       const status = await checkYouTubeConnectionStatus(workspaceId)
+      console.log('Hook: YouTube connection status result:', status)
       setIsConnected(status.connected)
     } catch (error) {
-      console.error('Error checking YouTube connection:', error)
+      console.error('Hook: Error checking YouTube connection:', error)
       setIsConnected(false)
     } finally {
       setLoading(false)
