@@ -60,6 +60,14 @@ const Content: React.FC = () => {
   // Use shared YouTube connection state
   const { isConnected: youtubeAccountConnected } = useYouTubeConnectionSimple()
 
+  // Update socialAccounts when YouTube connection state changes
+  useEffect(() => {
+    setSocialAccounts(prev => ({
+      ...prev,
+      youtube: youtubeAccountConnected
+    }))
+  }, [youtubeAccountConnected])
+
   const [posts, setPosts] = useState<any[]>([]);
   const [isLoadingPosts, setIsLoadingPosts] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
