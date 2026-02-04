@@ -91,17 +91,32 @@ export function YouTubeContextualConnect({
         
         console.log('Connection state updated to:', status.connected)
       } else {
-        console.log('Invalid status response, keeping current state')
+        console.log('Invalid status response, checking localStorage fallback')
+        // Fallback to localStorage if database check fails
+        const cachedState = localStorage.getItem(`youtube-connected-${workspaceId}`)
+        if (cachedState === 'true') {
+          console.log('Using localStorage fallback: connected')
+          setIsConnected(true)
+          setForceRender(prev => prev + 1)
+        }
       }
       
       // Show prompt if not connected and this is the first check
-      if (!status.connected && !compact) {
+      if (status && !status.connected && !compact) {
         setShowPrompt(true)
       }
     } catch (error) {
       console.error('Error checking YouTube connection:', error)
-      // Don't immediately set to false on error - might be network issue
-      console.log('Network error detected, keeping current connection state')
+      console.log('Database check failed, checking localStorage fallback')
+      // Fallback to localStorage on error
+      const cachedState = localStorage.getItem(`youtube-connected-${workspaceId}`)
+      if (cachedState === 'true') {
+        console.log('Using localStorage fallback: connected')
+        setIsConnected(true)
+        setForceRender(prev => prev + 1)
+      } else {
+        setIsConnected(false)
+      }
     } finally {
       setLoading(false)
     }
@@ -226,6 +241,9 @@ export function YouTubeContextualConnect({
           console.log('Force setting connected state to true')
           setIsConnected(true)
           setForceRender(prev => prev + 1) // Force re-render
+          if (workspaceId) {
+            localStorage.setItem(`youtube-connected-${workspaceId}`, 'true')
+          }
         }}
       >
         <Youtube className="w-4 h-4" />
@@ -248,6 +266,19 @@ export function YouTubeContextualConnect({
         }}
       >
         Force Render
+      </button>
+      <button
+        className="text-xs text-purple-600 underline"
+        onClick={() => {
+          console.log('Manual override: Set connected and save to localStorage')
+          setIsConnected(true)
+          setForceRender(prev => prev + 1)
+          if (workspaceId) {
+            localStorage.setItem(`youtube-connected-${workspaceId}`, 'true')
+          }
+        }}
+      >
+        Override
       </button>
     </div>
   )
