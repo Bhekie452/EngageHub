@@ -28,7 +28,10 @@ export function YouTubeContextualConnect({
   // Initialize connection state from localStorage
   useEffect(() => {
     if (workspaceId) {
+      console.log('WorkspaceId available:', workspaceId)
       const cachedState = localStorage.getItem(`youtube-connected-${workspaceId}`)
+      console.log('Cached state from localStorage:', cachedState)
+      
       if (cachedState === 'true') {
         console.log('Restored YouTube connection from localStorage')
         setIsConnected(true)
@@ -37,6 +40,9 @@ export function YouTubeContextualConnect({
       }
       // Check actual connection state regardless
       checkConnection()
+    } else {
+      console.log('WorkspaceId not yet available, waiting...')
+      setLoading(false)
     }
   }, [workspaceId])
 
@@ -102,7 +108,11 @@ export function YouTubeContextualConnect({
   }, [workspaceId])
 
   const checkConnection = async () => {
-    if (!workspaceId) return
+    if (!workspaceId) {
+      console.log('Missing workspaceId, cannot check connection')
+      setLoading(false)
+      return
+    }
     
     try {
       console.log('Checking YouTube connection for workspace:', workspaceId)
