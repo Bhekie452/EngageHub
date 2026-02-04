@@ -1,4 +1,4 @@
-import React, { useState, useRef, useMemo, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   PenTool,
   FileText,
@@ -56,7 +56,14 @@ const Content: React.FC = () => {
   const { user } = useAuth(); // Get authenticated user
   const [activeTab, setActiveTab] = useState<ContentTab>('create');
 
+  // Check YouTube connection using the same localStorage key as YouTubeSimpleConnect
+  const WORKSPACE_ID = 'c9a454c5-a5f3-42dd-9fbd-cedd4c1c49a9'
   const [youtubeAccountConnected, setYoutubeAccountConnected] = useState(false)
+  
+  useEffect(() => {
+    const cachedState = localStorage.getItem(`youtube-connected-${WORKSPACE_ID}`)
+    setYoutubeAccountConnected(cachedState === 'true')
+  }, [])
 
   const [posts, setPosts] = useState<any[]>([]);
   const [isLoadingPosts, setIsLoadingPosts] = useState(false);

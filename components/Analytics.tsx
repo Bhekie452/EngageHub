@@ -1,5 +1,5 @@
 
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { 
   BarChart3, 
   TrendingUp, 
@@ -44,8 +44,15 @@ function toDayString(d: Date) {
 const Analytics: React.FC = () => {
   const [activeTab, setActiveTab] = useState<AnalyticsTab>('overview');
   const [rangeDays, setRangeDays] = useState<7 | 14 | 30>(7);
-
-  const { isConnected: youtubeConnected, loading: youtubeLoading } = useYouTubeConnection();
+  
+  // Check YouTube connection using the same localStorage key as YouTubeSimpleConnect
+  const WORKSPACE_ID = 'c9a454c5-a5f3-42dd-9fbd-cedd4c1c49a9'
+  const [youtubeConnected, setYoutubeConnected] = useState(false)
+  
+  useEffect(() => {
+    const cachedState = localStorage.getItem(`youtube-connected-${WORKSPACE_ID}`)
+    setYoutubeConnected(cachedState === 'true')
+  }, [])
 
   const today = useMemo(() => new Date(), []);
   const toDay = useMemo(() => toDayString(today), [today]);
