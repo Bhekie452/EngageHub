@@ -70,13 +70,16 @@ export function YouTubeContextualConnect({
       setDisconnecting(true)
       console.log('Disconnecting YouTube account for workspace:', workspaceId)
       
-      await disconnectYouTubeAccount(workspaceId)
+      const result = await disconnectYouTubeAccount(workspaceId)
+      console.log('Disconnect result:', result)
+      
       setIsConnected(false)
       setShowPrompt(true)
       
       console.log('YouTube account disconnected successfully')
     } catch (error) {
       console.error('Error disconnecting YouTube account:', error)
+      alert('Failed to disconnect YouTube account. Please try again.')
     } finally {
       setDisconnecting(false)
     }
@@ -134,20 +137,20 @@ export function YouTubeContextualConnect({
 
   if (isConnected) {
     return (
-      <div className="flex items-center gap-2 text-sm text-green-600">
-        <CheckCircle2 className="w-4 h-4" />
-        <span>YouTube Connected</span>
+      <div className="flex items-center gap-2">
         <button
+          className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
           onClick={checkConnection}
-          className="text-xs text-gray-500 hover:text-gray-700 underline"
-          title="Refresh connection status"
+          title="YouTube Connected - Click to refresh"
         >
-          Refresh
+          <Youtube className="w-4 h-4" />
+          <span>Connected</span>
+          <CheckCircle2 className="w-4 h-4" />
         </button>
         <button
           onClick={handleDisconnect}
           disabled={disconnecting}
-          className="flex items-center gap-1 text-xs text-red-600 hover:text-red-700 underline disabled:opacity-50 disabled:cursor-not-allowed"
+          className="flex items-center gap-1 px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg border border-red-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           title="Disconnect YouTube account"
         >
           {disconnecting ? (
@@ -169,13 +172,40 @@ export function YouTubeContextualConnect({
   const message = getContextMessage()
 
   if (compact) {
+    if (isConnected) {
+      return (
+        <div className="flex items-center gap-2">
+          <button
+            className="flex items-center gap-2 px-3 py-1.5 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 transition-colors"
+            onClick={checkConnection}
+            title="YouTube Connected"
+          >
+            <Youtube className="w-3 h-3" />
+            <span>Connected</span>
+          </button>
+          <button
+            onClick={handleDisconnect}
+            disabled={disconnecting}
+            className="p-1.5 text-red-600 hover:bg-red-50 rounded border border-red-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            title="Disconnect YouTube account"
+          >
+            {disconnecting ? (
+              <div className="w-3 h-3 border border-red-600 border-t-transparent rounded-full animate-spin" />
+            ) : (
+              <LogOut className="w-3 h-3" />
+            )}
+          </button>
+        </div>
+      )
+    }
+    
     return (
       <button
         onClick={handleConnect}
-        className="flex items-center gap-2 px-3 py-1.5 bg-red-600 text-white text-xs font-medium rounded-lg hover:bg-red-700 transition-colors"
+        className="flex items-center gap-2 px-3 py-1.5 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 transition-colors"
       >
         <Youtube className="w-3 h-3" />
-        Connect YouTube
+        <span>Connect YouTube</span>
       </button>
     )
   }
