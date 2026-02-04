@@ -108,17 +108,25 @@ export function YouTubeContextualConnect({
   }, [workspaceId])
 
   const checkConnection = async () => {
-    if (!workspaceId) {
+    let currentWorkspaceId = workspaceId
+    
+    if (!currentWorkspaceId) {
+      console.log('Missing workspaceId, trying fallback from localStorage')
+      currentWorkspaceId = localStorage.getItem('current-workspace-id')
+      console.log('Fallback workspaceId:', currentWorkspaceId)
+    }
+    
+    if (!currentWorkspaceId) {
       console.log('Missing workspaceId, cannot check connection')
       setLoading(false)
       return
     }
     
     try {
-      console.log('Checking YouTube connection for workspace:', workspaceId)
+      console.log('Checking YouTube connection for workspace:', currentWorkspaceId)
       
       // First check localStorage for immediate response
-      const cachedState = localStorage.getItem(`youtube-connected-${workspaceId}`)
+      const cachedState = localStorage.getItem(`youtube-connected-${currentWorkspaceId}`)
       console.log('Cached state from localStorage:', cachedState)
       
       if (cachedState === 'true') {
@@ -130,7 +138,7 @@ export function YouTubeContextualConnect({
       }
       
       // Only check database if no cached state
-      const status = await checkYouTubeConnectionStatus(workspaceId)
+      const status = await checkYouTubeConnectionStatus(currentWorkspaceId)
       console.log('YouTube connection status result:', status)
       
       // Only update state if we get a definitive response
@@ -139,8 +147,8 @@ export function YouTubeContextualConnect({
         setForceRender(prev => prev + 1) // Force re-render
         
         // Save to localStorage for persistence
-        if (workspaceId) {
-          localStorage.setItem(`youtube-connected-${workspaceId}`, status.connected.toString())
+        if (currentWorkspaceId) {
+          localStorage.setItem(`youtube-connected-${currentWorkspaceId}`, status.connected.toString())
         }
         
         console.log('Connection state updated to:', status.connected)
@@ -154,7 +162,7 @@ export function YouTubeContextualConnect({
       console.error('Error checking YouTube connection:', error)
       console.log('Database check failed, checking localStorage fallback')
       // Fallback to localStorage on error
-      const cachedState = localStorage.getItem(`youtube-connected-${workspaceId}`)
+      const cachedState = localStorage.getItem(`youtube-connected-${currentWorkspaceId}`)
       if (cachedState === 'true') {
         console.log('Using localStorage fallback: connected')
         setIsConnected(true)
@@ -194,7 +202,21 @@ export function YouTubeContextualConnect({
 
   const handleConnect = () => {
     if (!workspaceId) {
-      alert('Workspace not available. Please try again.')
+      console.error('Workspace not available. Current workspaceId:', workspaceId)
+      // Try to get workspaceId from localStorage as fallback
+      const fallbackWorkspaceId = localStorage.getItem('current-workspace-id')
+      console.log('Fallback workspaceId from localStorage:', fallbackWorkspaceId)
+      
+      if (fallbackWorkspaceId) {
+        console.log('Using fallback workspaceId for OAuth')
+        const returnUrl = window.location.href
+        const oauthUrl = `https://zourlqrkoyugzymxkbgn.functions.supabase.co/youtube-oauth/start?workspace_id=${fallbackWorkspaceId}&return_url=${encodeURIComponent(returnUrl)}`
+        console.log('OAuth URL with fallback:', oauthUrl)
+        window.location.href = oauthUrl
+        return
+      }
+      
+      alert('Workspace not available. Please refresh the page and try again.')
       return
     }
     
