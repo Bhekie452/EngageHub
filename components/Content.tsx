@@ -1110,7 +1110,7 @@ const Content: React.FC = () => {
             }
           }
 
-          const origin = window.location.origin;
+          const origin = process.env.NODE_ENV === 'development' ? 'http://localhost:3001' : window.location.origin;
           const r = await fetch(`${origin}/api/utils?endpoint=publish-post`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },

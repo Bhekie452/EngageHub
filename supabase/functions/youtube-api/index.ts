@@ -1,5 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { createClient } from "@supabase/supabase-js"
+import { createClient } from "jsr:@supabase/supabase-js@2"
 
 // CORS headers
 const corsHeaders = {
@@ -140,36 +140,81 @@ async function refreshYouTubeToken(refreshToken: string) {
 async function uploadVideo(accessToken: string, options: any) {
   const { title, description, mediaUrl, tags = [], privacyStatus = 'private' } = options
   
-  // For now, create a simple video upload with metadata
-  // In a real implementation, you'd need to handle file upload to YouTube
-  const response = await fetch(
-    'https://www.googleapis.com/youtube/v3/videos?part=snippet,status',
-    {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        snippet: {
-          title: title || 'Uploaded from EngageHub',
-          description: description || 'Video uploaded via EngageHub platform',
-          tags: tags
-        },
-        status: {
-          privacyStatus: privacyStatus
-        }
-      })
+  try {
+    // Step 1: Download the video from mediaUrl
+    console.log('Downloading video from:', mediaUrl)
+    const videoResponse = await fetch(mediaUrl)
+    if (!videoResponse.ok) {
+      throw new Error(`Failed to download video: ${videoResponse.statusText}`)
     }
-  )
-  
-  if (!response.ok) throw new Error(`Failed to upload video: ${response.statusText}`)
-  const data = await response.json()
-  
-  return {
-    success: true,
-    videoId: data.id,
-    url: `https://youtube.com/watch?v=${data.id}`
+    
+    const videoData = await videoResponse.arrayBuffer()
+    const videoBlob = new Blob([videoData])
+    
+    // Step 2: Upload to YouTube using resumable upload
+    console.log('Starting YouTube upload...')
+    
+    // First, initiate the resumable upload
+    const initResponse = await fetch(
+      'https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status',
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+          'X-Upload-Content-Length': videoBlob.size.toString(),
+          'X-Upload-Content-Type': 'video/*'
+        },
+        body: JSON.stringify({
+          snippet: {
+            title: title || 'Uploaded from EngageHub',
+            description: description || 'Video uploaded via EngageHub platform',
+            tags: tags
+          },
+          status: {
+            privacyStatus: privacyStatus
+          }
+        })
+      }
+    )
+    
+    if (!initResponse.ok) {
+      const errorData = await initResponse.json()
+      throw new Error(`Failed to initiate upload: ${errorData.error?.message || initResponse.statusText}`)
+    }
+    
+    const uploadUrl = initResponse.headers.get('Location')
+    if (!uploadUrl) {
+      throw new Error('No upload URL received from YouTube')
+    }
+    
+    // Step 3: Upload the actual video data
+    const uploadResponse = await fetch(uploadUrl, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'video/*',
+        'Content-Length': videoBlob.size.toString()
+      },
+      body: videoBlob
+    })
+    
+    if (!uploadResponse.ok) {
+      const errorData = await uploadResponse.json()
+      throw new Error(`Failed to upload video: ${errorData.error?.message || uploadResponse.statusText}`)
+    }
+    
+    const data = await uploadResponse.json()
+    
+    console.log('YouTube upload successful:', data)
+    
+    return {
+      success: true,
+      videoId: data.id,
+      url: `https://youtube.com/watch?v=${data.id}`
+    }
+  } catch (error) {
+    console.error('YouTube upload error:', error)
+    throw error
   }
 }
 
