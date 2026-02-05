@@ -27,10 +27,33 @@ async function handlePublishPost(req, res) {
       console.log('[publish-post] Publishing to YouTube');
       
       try {
-        // For now, simulate successful YouTube upload
-        // TODO: Implement real YouTube upload after testing
-        const mockVideoId = 'yt-' + Date.now();
-        const mockUrl = `https://youtube.com/watch?v=${mockVideoId}`;
+        // Use real YouTube upload via Supabase Edge Function
+        const workspaceIdToUse = workspaceId || 'c9a454c5-a5f3-42dd-9fbd-cedd4c1c49a9';
+        
+        // Call Supabase Edge Function directly
+        const response = await fetch('https://zourlqrkoyugzymxkbgn.functions.supabase.co/youtube-api', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${process.env.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpvdXJxcXJrb3l1Z3p5bXhrYmduIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzY0ODE1MDAsImV4cCI6MjA1MjA1NzUwMH0.YMIWzqzG_hxI_3xuJcIqKQfZdYVQh6R9cLgZdYVQh6R'}`
+          },
+          body: JSON.stringify({
+            endpoint: 'upload-video',
+            workspaceId: workspaceIdToUse,
+            title: content?.substring(0, 100) || 'Video from EngageHub',
+            description: content || 'Video uploaded via EngageHub platform',
+            mediaUrl: mediaUrls?.[0],
+            tags: ['EngageHub', 'Social Media'],
+            privacyStatus: 'public'
+          })
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'YouTube upload failed');
+        }
+
+        const result = await response.json();
         
         return res.status(200).json({
           success: true,
@@ -38,8 +61,8 @@ async function handlePublishPost(req, res) {
           platforms: {
             youtube: {
               status: 'published',
-              videoId: mockVideoId,
-              url: mockUrl
+              videoId: result.videoId,
+              url: result.url
             }
           }
         });
