@@ -6,8 +6,8 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Handler for publishing posts
-app.post('/api/utils/publish-post', (req, res) => {
+// Handler for publishing posts (main function)
+function handlePublishPost(req, res) {
   try {
     console.log('[publish-post] request body keys:', Object.keys(req.body));
 
@@ -57,9 +57,30 @@ app.post('/api/utils/publish-post', (req, res) => {
     console.error('Error publishing post:', error);
     return res.status(500).json({ error: 'Failed to publish post' });
   }
+}
+
+// Handler for query endpoints (supports both formats)
+app.all('/api/utils', (req, res) => {
+  const { endpoint } = req.query;
+
+  switch (endpoint) {
+    case 'publish-post':
+      if (req.method === 'POST') {
+        return handlePublishPost(req, res);
+      } else {
+        return res.status(405).json({ error: 'Method Not Allowed' });
+      }
+    default:
+      return res.status(404).json({ error: 'Endpoint not found' });
+  }
 });
 
-// Handler for query endpoints
+// Handler for publishing posts (direct path)
+app.post('/api/utils/publish-post', (req, res) => {
+  return handlePublishPost(req, res);
+});
+
+// Handler for query endpoints (legacy)
 app.get('/api/utils/:endpoint', (req, res) => {
   const { endpoint } = req.params;
 
@@ -75,6 +96,7 @@ const PORT = 3001;
 app.listen(PORT, () => {
   console.log(`🚀 Local API server running on http://localhost:${PORT}`);
   console.log('📡 Available endpoints:');
+  console.log('  POST /api/utils?endpoint=publish-post');
   console.log('  POST /api/utils/publish-post');
   console.log('  GET  /api/utils/:endpoint');
 });
