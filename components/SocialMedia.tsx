@@ -24,6 +24,7 @@ import {
   X,
   Power
 } from 'lucide-react';
+import YouTubeContextualConnect from './YouTubeContextualConnect';
 import { useAuth } from '../src/hooks/useAuth';
 import { supabase } from '../src/lib/supabase';
 import { initFacebookSDK, loginWithFacebook, getPageTokens, getFacebookProfile, getInstagramAccount, exchangeCodeForToken as exchangeFacebookCodeForToken } from '../src/lib/facebook';
@@ -1274,35 +1275,39 @@ const SocialMedia: React.FC = () => {
                     </div>
                   </div>
                   <div className="flex flex-col items-end gap-2 shrink-0">
-                    {isConnected ? (
-                      <div className="flex flex-col items-end gap-1">
-                        <span className="flex items-center gap-1.5 text-[10px] font-black text-green-600 bg-green-50 px-2.5 py-1 rounded-full uppercase tracking-wider border border-green-100 shadow-sm">
-                          <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
-                          Live
-                        </span>
-                        <button
-                          onClick={() => handleDisconnect(connectedAccount.id)}
-                          className="p-1 text-gray-300 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-all"
-                          title="Disconnect account"
-                        >
-                          <X size={14} />
-                        </button>
-                      </div>
+                    {account.platform === 'youtube' ? (
+                      <YouTubeContextualConnect compact />
                     ) : (
-                      <button
-                        onClick={() => {
-                          if (account.platform === 'facebook') handleConnectFacebook();
-                          else if (account.platform === 'instagram') handleConnectInstagram();
-                          else if (account.platform === 'linkedin') handleConnectLinkedIn();
-                          else if (account.platform === 'youtube') handleConnectYouTube();
-                          else if (account.platform === 'twitter') handleConnectTwitter();
-                          else if (account.platform === 'tiktok') handleConnectTikTok();
-                          else alert(`${account.name} integration coming soon!`);
-                        }}
-                        className="flex items-center gap-1.5 text-[10px] font-black text-white bg-blue-600 hover:bg-blue-700 hover:scale-105 active:scale-95 px-4 py-2 rounded-full uppercase tracking-wider shadow-lg shadow-blue-200/50 transition-all"
-                      >
-                        Connect
-                      </button>
+                      isConnected ? (
+                        <div className="flex flex-col items-end gap-1">
+                          <span className="flex items-center gap-1.5 text-[10px] font-black text-green-600 bg-green-50 px-2.5 py-1 rounded-full uppercase tracking-wider border border-green-100 shadow-sm">
+                            <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
+                            Live
+                          </span>
+                          <button
+                            onClick={() => handleDisconnect(connectedAccount.id)}
+                            className="p-1 text-gray-300 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-all"
+                            title="Disconnect account"
+                          >
+                            <X size={14} />
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => {
+                            if (account.platform === 'facebook') handleConnectFacebook();
+                            else if (account.platform === 'instagram') handleConnectInstagram();
+                            else if (account.platform === 'linkedin') handleConnectLinkedIn();
+                            else if (account.platform === 'youtube') handleConnectYouTube();
+                            else if (account.platform === 'twitter') handleConnectTwitter();
+                            else if (account.platform === 'tiktok') handleConnectTikTok();
+                            else alert(`${account.name} integration coming soon!`);
+                          }}
+                          className="flex items-center gap-1.5 text-[10px] font-black text-white bg-blue-600 hover:bg-blue-700 hover:scale-105 active:scale-95 px-4 py-2 rounded-full uppercase tracking-wider shadow-lg shadow-blue-200/50 transition-all"
+                        >
+                          Connect
+                        </button>
+                      )
                     )}
                   </div>
                 </div>

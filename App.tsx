@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { ToastProvider } from './src/components/common/Toast';
 import { useTheme } from './src/hooks/useTheme';
 import { useAuth } from './src/hooks/useAuth';
 import { useCurrency } from './src/hooks/useCurrency';
@@ -155,7 +156,8 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-slate-950 flex transition-colors duration-300">
+    <ToastProvider>
+      <div className="min-h-screen bg-gray-50 dark:bg-slate-950 flex transition-colors duration-300">
       <Sidebar
         currentSection={currentSection}
         onSelect={setCurrentSection}
@@ -170,10 +172,11 @@ const App: React.FC = () => {
         </div>
       </main>
 
-      <button className="fixed bottom-6 right-6 w-14 h-14 bg-brand-600 text-white rounded-full shadow-2xl flex items-center justify-center hover:scale-110 active:scale-95 transition-all md:hidden z-50">
-        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14" /><path d="M12 5v14" /></svg>
-      </button>
-    </div>
+        <button className="fixed bottom-6 right-6 w-14 h-14 bg-brand-600 text-white rounded-full shadow-2xl flex items-center justify-center hover:scale-110 active:scale-95 transition-all md:hidden z-50">
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14" /><path d="M12 5v14" /></svg>
+        </button>
+      </div>
+    </ToastProvider>
   );
 };
 

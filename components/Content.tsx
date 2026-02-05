@@ -40,6 +40,7 @@ import {
   Music
 } from 'lucide-react';
 import { initFacebookSDK, loginWithFacebook, getPageTokens } from '../src/lib/facebook';
+import { useToast } from '../src/components/common/Toast';
 import { useAuth } from '../src/hooks/useAuth';
 import { supabase } from '../src/lib/supabase';
 import { trackEventSafe } from '../src/lib/analytics';
@@ -60,6 +61,8 @@ const Content: React.FC = () => {
 
   // Use simple session-based YouTube connection
   const { isConnected: youtubeAccountConnected } = useYouTubeSession()
+
+  const toast = useToast();
 
   // Update socialAccounts when YouTube connection state changes
   useEffect(() => {
@@ -353,6 +356,7 @@ const Content: React.FC = () => {
   const [engagementPostId, setEngagementPostId] = useState<string | null>(null);
   const [engagementLoading, setEngagementLoading] = useState(false);
   const [engagementActionLoading, setEngagementActionLoading] = useState(false);
+  const [userHasLiked, setUserHasLiked] = useState(false);
   const [engagementCommentText, setEngagementCommentText] = useState('');
   const [engagementData, setEngagementData] = useState<{
     metrics: { likes: number; comments: number; views: number; shares: number };
@@ -389,13 +393,21 @@ const Content: React.FC = () => {
         viewingMetrics?.platform ? String(viewingMetrics.platform) : null,
         viewingMetrics?.post?.link_url ? String(viewingMetrics.post.link_url) : null
       )
-      .then((data) => {
+      .then(async (data) => {
         if (!cancelled) {
           setEngagementData({
             metrics: data.metrics,
             recentActivity: data.recentActivity,
             metricsSource: (data as any).metricsSource,
           });
+          try {
+            if (String(engagementPostIdSource)) {
+              const liked = await analyticsService.hasUserLiked(String(engagementPostIdSource));
+              setUserHasLiked(Boolean(liked));
+            }
+          } catch (e) {
+            // ignore
+          }
         }
       })
       .catch(() => {
@@ -429,35 +441,61 @@ const Content: React.FC = () => {
       const isYouTube = viewingMetrics.platform === 'youtube' && youtubeConnected;
       const videoId = viewingMetrics.post.link_url ? extractYouTubeId(viewingMetrics.post.link_url) : null;
 
-      // Route to YouTube Edge Functions if connected and applicable
-      if (isYouTube && videoId) {
-        const baseUrl = 'https://zourlqrkoyugzymxkbgn.functions.supabase.co';
-        if (type === 'post_like') {
-          await fetch(`${baseUrl}/youtube-like`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ videoId })
-          });
-        } else if (type === 'post_comment' && text) {
-          await fetch(`${baseUrl}/youtube-comment`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ videoId, text })
-          });
-        }
-      }
+      // Handle likes with per-user dedup: record to DB first, then sync to YouTube
+      if (type === 'post_like') {
+        // If user already liked, short-circuit
+        if (userHasLiked) return;
 
-      // Always record in EngageHub for audit/history
-      await trackEventSafe({
-        event_type: type,
-        entity_type: 'post',
-        entity_id: viewingMetrics.post.id,
-        platform: viewingMetrics.platform,
-        metadata: {
+        // Record in DB via analytics service; it will return false if duplicate
+        const inserted = await analyticsService.recordPostLike(String(viewingMetrics.post.id), viewingMetrics.platform ?? null, {
           actor: user?.email ?? (user?.id ? `@${String(user.id).slice(0, 8)}` : '@user'),
-          text: text?.trim() || undefined,
-        },
-      });
+        });
+        if (!inserted) {
+          setUserHasLiked(true);
+          return;
+        }
+
+        // After DB insert, call server-side proxy to perform YouTube sync securely
+        if (isYouTube && videoId) {
+          try {
+            const baseUrl = 'https://zourlqrkoyugzymxkbgn.functions.supabase.co';
+            // get current session token to authenticate the proxy call
+            const { data: sessionData } = await supabase.auth.getSession();
+            const token = sessionData?.session?.access_token;
+            if (!token) {
+              console.warn('No session token available; skipping server-side YouTube sync');
+            } else {
+              await fetch(`${baseUrl}/record-like-and-sync`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  Authorization: `Bearer ${token}`,
+                },
+                body: JSON.stringify({ postId: String(viewingMetrics.post.id), platform: viewingMetrics.platform, videoId }),
+              });
+            }
+          } catch (e) {
+            // Sync failure should not revert DB insert; log and continue
+            console.error('Server-side like+sync failed', e);
+          }
+        }
+
+        // mark local state to disable button
+        setUserHasLiked(true);
+        try { toast.success('You liked this post'); } catch (e) {}
+      } else {
+        // Non-like events: record normally
+        await trackEventSafe({
+          event_type: type,
+          entity_type: 'post',
+          entity_id: viewingMetrics.post.id,
+          platform: viewingMetrics.platform,
+          metadata: {
+            actor: user?.email ?? (user?.id ? `@${String(user.id).slice(0, 8)}` : '@user'),
+            text: text?.trim() || undefined,
+          },
+        });
+      }
 
       // Refresh summary
       const summary = await analyticsService.getPostEngagementSummary(
@@ -470,7 +508,18 @@ const Content: React.FC = () => {
         recentActivity: summary.recentActivity,
         metricsSource: (summary as any).metricsSource,
       });
+      // Ensure userHasLiked is updated after refresh (in case it was inserted elsewhere)
+      try {
+        const liked = await analyticsService.hasUserLiked(String(viewingMetrics.post.id));
+        setUserHasLiked(Boolean(liked));
+      } catch (e) {
+        // ignore
+      }
       if (type === 'post_comment') setEngagementCommentText('');
+    } catch (e) {
+      console.error('recordEngagement error', e);
+      try { toast.error('Action failed — please try again'); } catch (er) {}
+      throw e;
     } finally {
       setEngagementActionLoading(false);
     }
@@ -1062,7 +1111,7 @@ const Content: React.FC = () => {
           }
 
           const origin = window.location.origin;
-          const r = await fetch(`${origin}/api/publish-post`, {
+          const r = await fetch(`${origin}/api/utils?endpoint=publish-post`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -2673,33 +2722,19 @@ const Content: React.FC = () => {
               </div>
 
               {/* Engagement Actions */}
-              {viewingMetrics.platform === 'youtube' && !youtubeConnected ? (
-                <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-xl p-4">
-                  <p className="text-sm font-bold text-yellow-800 dark:text-yellow-200 mb-2">Connect YouTube to enable two-way actions</p>
-                  <button
-                    onClick={() => {
-                      if (!currentWorkspaceId) {
-                        alert('No workspace found. Please create a workspace first.');
-                        return;
-                      }
-                      const returnUrl = window.location.origin;
-                      const oauthUrl = `https://zourlqrkoyugzymxkbgn.functions.supabase.co/youtube-oauth/start?workspaceId=${currentWorkspaceId}&returnUrl=${encodeURIComponent(returnUrl)}`;
-                      window.open(oauthUrl, '_blank');
-                    }}
-                    className="px-4 py-2 bg-red-600 text-white font-bold rounded-lg hover:bg-red-700 transition-colors text-xs"
-                  >
-                    Connect YouTube
-                  </button>
-                </div>
-              ) : (
-                <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-gray-200 dark:border-slate-700 flex flex-col md:flex-row md:items-center gap-3">
+              <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-gray-200 dark:border-slate-700 flex flex-col md:flex-row md:items-center gap-3">
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => recordEngagement('post_like')}
-                      disabled={engagementActionLoading}
-                      className="px-3 py-2 rounded-lg border border-gray-200 bg-white dark:bg-slate-900 dark:border-slate-700 text-gray-700 dark:text-slate-200 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:border-blue-200 transition-all text-[11px] font-black uppercase tracking-widest inline-flex items-center gap-2 disabled:opacity-60"
+                      disabled={engagementActionLoading || userHasLiked}
+                      className={
+                        `px-3 py-2 rounded-lg border text-[11px] font-black uppercase tracking-widest inline-flex items-center gap-2 disabled:opacity-60 ` +
+                        (userHasLiked
+                          ? 'bg-gray-100 border-gray-200 text-gray-500 cursor-not-allowed'
+                          : 'border-gray-200 bg-white dark:bg-slate-900 dark:border-slate-700 text-gray-700 dark:text-slate-200 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:border-blue-200 transition-all')
+                      }
                     >
-                      <CheckCircle2 size={14} /> Like
+                      <CheckCircle2 size={14} /> {userHasLiked ? 'Liked' : 'Like'}
                     </button>
                     <button
                       onClick={() => recordEngagement('post_share')}
@@ -2726,7 +2761,6 @@ const Content: React.FC = () => {
                     </button>
                   </div>
                 </div>
-              )}
 
               {/* Key Metrics Grid - real data when available (e.g. YouTube) */}
               {engagementLoading && engagementPostId === viewingMetrics.post?.id ? (

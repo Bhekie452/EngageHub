@@ -19,7 +19,7 @@ const YouTubeContextualConnect: React.FC<YouTubeContextualConnectProps> = ({
   showSkip = true 
 }: YouTubeContextualConnectProps) => {
   // Hardcode the workspaceId that we know works
-  const WORKSPACE_ID = 'c9a454c5-a5f3-42dd-9fbd-cedd4c1c49a9'
+  const workspaceId = 'c9a454c5-a5f3-42dd-9fbd-cedd4c1c49a9'
   const [isConnected, setIsConnected] = useState<boolean | null>(null)
   const [loading, setLoading] = useState(true)
   const [showPrompt, setShowPrompt] = useState(false)
@@ -28,9 +28,8 @@ const YouTubeContextualConnect: React.FC<YouTubeContextualConnectProps> = ({
 
   // Initialize connection state from localStorage
   useEffect(() => {
-    if (WORKSPACE_ID) {
-      console.log('WorkspaceId available:', WORKSPACE_ID)
-      const cachedState = localStorage.getItem(`youtube-connected-${WORKSPACE_ID}`)
+    if (workspaceId) {
+      console.log('WorkspaceId available:', workspaceId)
       const cachedState = localStorage.getItem(`youtube-connected-${workspaceId}`)
       console.log('Cached state from localStorage:', cachedState)
       
@@ -255,7 +254,7 @@ const YouTubeContextualConnect: React.FC<YouTubeContextualConnectProps> = ({
     }
   }
 
-  if (workspaceLoading || loading) {
+  if (loading) {
     return (
       <div className="flex items-center gap-2 text-sm text-gray-500">
         <div className="w-4 h-4 border-2 border-gray-300 border-t-blue-600 rounded-full animate-spin" />
@@ -349,36 +348,40 @@ const YouTubeContextualConnect: React.FC<YouTubeContextualConnectProps> = ({
       return (
         <div className="flex items-center gap-2">
           <button
-            className="flex items-center gap-2 px-3 py-1.5 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 transition-colors"
+            className="flex items-center gap-2 px-3 py-1.5 bg-green-600 text-white text-sm rounded-full hover:bg-green-700 transition-colors"
             onClick={checkConnection}
             title="YouTube Connected"
           >
             <Youtube className="w-3 h-3" />
-            <span>Connected</span>
+            <span className="font-semibold">Connected</span>
+            <CheckCircle2 className="w-3 h-3" />
           </button>
           <button
             onClick={handleDisconnect}
             disabled={disconnecting}
-            className="p-1.5 text-red-600 hover:bg-red-50 rounded border border-red-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex items-center gap-1 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 rounded-full border border-red-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             title="Disconnect YouTube account"
           >
             {disconnecting ? (
               <div className="w-3 h-3 border border-red-600 border-t-transparent rounded-full animate-spin" />
             ) : (
-              <LogOut className="w-3 h-3" />
+              <>
+                <LogOut className="w-3 h-3" />
+                <span>Disconnect</span>
+              </>
             )}
           </button>
         </div>
       )
     }
-    
+
     return (
       <button
         onClick={handleConnect}
-        className="flex items-center gap-2 px-3 py-1.5 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 transition-colors"
+        className="flex items-center gap-2 px-3 py-1.5 bg-blue-600 text-white text-sm rounded-full hover:bg-blue-700 transition-colors"
       >
         <Youtube className="w-3 h-3" />
-        <span>Connect YouTube</span>
+        <span className="font-semibold">Connect</span>
       </button>
     )
   }
@@ -443,6 +446,7 @@ export function useYouTubeConnection() {
   const { workspaceId } = useWorkspace()
   const [isConnected, setIsConnected] = useState<boolean | null>(null)
   const [loading, setLoading] = useState(true)
+  const [forceRender, setForceRender] = useState(0)
 
   useEffect(() => {
     checkConnection()
@@ -529,3 +533,5 @@ export function withYouTubeConnection<P extends object>(
     return <Component {...props} />
   }
 }
+
+export default YouTubeContextualConnect

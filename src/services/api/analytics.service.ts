@@ -153,57 +153,68 @@ export const analyticsService = {
     };
     let metricsSource: 'youtube' | 'engagehub' = 'engagehub';
 
-    // Attempt to enrich with native YouTube statistics when possible
+    // Prefer periodic `youtube_metrics` when available (server-side sync).
     try {
       if ((platform || '').toLowerCase() === 'youtube') {
-        // Read API key from supported env sources (Vite or Next.js public env)
-        const YT_KEY =
-          ((typeof process !== 'undefined' && (process as any)?.env?.NEXT_PUBLIC_YOUTUBE_API_KEY) as string) ||
-          (((import.meta as any)?.env?.VITE_YOUTUBE_API_KEY) as string) ||
-          '';
+        const { data: ymData, error: ymErr } = await supabase
+          .from('youtube_metrics')
+          .select('views, likes, comments')
+          .eq('post_id', postId)
+          .limit(1)
+          .single();
 
-        // Extract videoId from the external URL if present
-        const url = externalUrl || '';
-        let videoId: string | null = null;
-        if (url) {
-          try {
-            const u = new URL(url);
-            if (u.hostname.includes('youtu.be')) {
-              // https://youtu.be/<id>
-              videoId = u.pathname.replace('/', '') || null;
-            } else if (u.hostname.includes('youtube.com')) {
-              // https://www.youtube.com/watch?v=<id>
-              videoId = u.searchParams.get('v');
-              // shorts URL form: /shorts/<id>
-              if (!videoId && u.pathname.startsWith('/shorts/')) {
-                videoId = u.pathname.split('/')[2] || null;
+        if (!ymErr && ymData) {
+          metrics.views = typeof ymData.views === 'number' ? ymData.views : metrics.views;
+          metrics.likes = typeof ymData.likes === 'number' ? ymData.likes : metrics.likes;
+          metrics.comments = typeof ymData.comments === 'number' ? ymData.comments : metrics.comments;
+          metricsSource = 'youtube';
+        } else {
+          // Fallback: try client-side direct YouTube API fetch when env key present
+          const YT_KEY =
+            ((typeof process !== 'undefined' && (process as any)?.env?.NEXT_PUBLIC_YOUTUBE_API_KEY) as string) ||
+            (((import.meta as any)?.env?.VITE_YOUTUBE_API_KEY) as string) ||
+            '';
+
+          const url = externalUrl || '';
+          let videoId: string | null = null;
+          if (url) {
+            try {
+              const u = new URL(url);
+              if (u.hostname.includes('youtu.be')) {
+                videoId = u.pathname.replace('/', '') || null;
+              } else if (u.hostname.includes('youtube.com')) {
+                videoId = u.searchParams.get('v');
+                if (!videoId && u.pathname.startsWith('/shorts/')) videoId = u.pathname.split('/')[2] || null;
               }
+            } catch {
+              // ignore URL parse errors
             }
-          } catch {
-            // ignore URL parse errors
           }
-        }
 
-        if (YT_KEY && videoId) {
-          const apiUrl = `https://www.googleapis.com/youtube/v3/videos?part=statistics&id=${encodeURIComponent(
-            videoId
-          )}&key=${encodeURIComponent(YT_KEY)}`;
-          const resp = await fetch(apiUrl);
-          if (resp.ok) {
-            const json = await resp.json();
-            const stats = json?.items?.[0]?.statistics;
-            if (stats) {
-              // Override with native values when available
-              if (typeof stats.viewCount !== 'undefined') metrics.views = Number(stats.viewCount) || 0;
-              if (typeof stats.likeCount !== 'undefined') metrics.likes = Number(stats.likeCount) || 0;
-              if (typeof stats.commentCount !== 'undefined') metrics.comments = Number(stats.commentCount) || 0;
-              metricsSource = 'youtube';
+          if (YT_KEY && videoId) {
+            try {
+              const apiUrl = `https://www.googleapis.com/youtube/v3/videos?part=statistics&id=${encodeURIComponent(
+                videoId
+              )}&key=${encodeURIComponent(YT_KEY)}`;
+              const resp = await fetch(apiUrl);
+              if (resp.ok) {
+                const json = await resp.json();
+                const stats = json?.items?.[0]?.statistics;
+                if (stats) {
+                  if (typeof stats.viewCount !== 'undefined') metrics.views = Number(stats.viewCount) || 0;
+                  if (typeof stats.likeCount !== 'undefined') metrics.likes = Number(stats.likeCount) || 0;
+                  if (typeof stats.commentCount !== 'undefined') metrics.comments = Number(stats.commentCount) || 0;
+                  metricsSource = 'youtube';
+                }
+              }
+            } catch {
+              // ignore fetch errors
             }
           }
         }
       }
     } catch {
-      // On any failure, silently fall back to EngageHub-tracked metrics
+      // silently ignore
     }
 
     const recentActivity = rows
@@ -229,6 +240,57 @@ export const analyticsService = {
       });
 
     return { metrics, recentActivity, metricsSource };
+  },
+
+  async hasUserLiked(postId: string): Promise<boolean> {
+    const workspace_id = await getWorkspaceIdForCurrentUser();
+    const { data, error } = await supabase
+      .from('analytics_events')
+      .select('id')
+      .eq('workspace_id', workspace_id)
+      .eq('entity_type', 'post')
+      .eq('entity_id', postId)
+      .eq('event_type', 'post_like')
+      .limit(1);
+
+    if (error) throw error;
+    return Array.isArray(data) && data.length > 0;
+  },
+
+  async recordPostLike(postId: string, platform?: string | null, metadata?: Record<string, any>): Promise<boolean> {
+    const workspace_id = await getWorkspaceIdForCurrentUser();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Not authenticated');
+
+    // Prevent duplicate likes by the same user
+    const { data: existing, error: checkErr } = await supabase
+      .from('analytics_events')
+      .select('id')
+      .eq('workspace_id', workspace_id)
+      .eq('entity_type', 'post')
+      .eq('entity_id', postId)
+      .eq('event_type', 'post_like')
+      .eq('user_id', user.id)
+      .limit(1);
+
+    if (checkErr) throw checkErr;
+    if (existing && existing.length) return false;
+
+    const payload: AnalyticsEventInput = {
+      workspace_id,
+      user_id: user.id,
+      session_id: null,
+      event_type: 'post_like',
+      entity_type: 'post',
+      entity_id: postId,
+      platform: platform ?? null,
+      metadata: metadata ?? {},
+      occurred_at: new Date().toISOString(),
+    };
+
+    const { error: insertErr } = await supabase.from('analytics_events').insert(payload);
+    if (insertErr) throw insertErr;
+    return true;
   },
 };
 

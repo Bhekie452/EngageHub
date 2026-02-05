@@ -253,13 +253,13 @@ const Analytics: React.FC = () => {
                     </div>
                     <h4 className="text-sm font-black text-gray-800 uppercase tracking-widest">YouTube Performance</h4>
                   </div>
-                  <span className="text-xs font-black text-green-600 uppercase px-2 py-1 rounded-full bg-green-50">
-                    Connected
-                  </span>
+                  <span className="text-xs font-black text-green-600 uppercase px-2 py-1 rounded-full bg-green-50">Connected</span>
                 </div>
-                {/* YouTube analytics content would go here */}
-                <div className="text-center py-8">
-                  <p className="text-gray-500">YouTube analytics data will appear here</p>
+
+                {/* YouTube analytics content (simple two-column) */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="text-center py-8">
+                    <p className="text-gray-500">YouTube analytics data will appear here</p>
                     <p className="text-xs text-gray-600 font-medium">Subscribers</p>
                   </div>
                   <div className="text-center p-4 bg-gray-50 rounded-lg">
