@@ -13,6 +13,15 @@ export default defineConfig(({ mode }) => {
           '/api': {
             target: 'http://localhost:3001',
             changeOrigin: true,
+            secure: false,
+            configure: (proxy, _options) => {
+              proxy.on('error', (err, _req, _res) => {
+                console.log('Proxy error:', err);
+              });
+              proxy.on('proxyReq', (proxyReq, _req, _res) => {
+                console.log('Sending request to target:', proxyReq.method, proxyReq.path);
+              });
+            }
           }
         }
       },
