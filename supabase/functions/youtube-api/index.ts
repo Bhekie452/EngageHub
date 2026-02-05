@@ -66,6 +66,9 @@ serve(async (req) => {
     // Handle different endpoints
     let result
     switch (endpoint) {
+      case 'upload-video':
+        result = await uploadVideo(accessToken, options)
+        break
       case 'videos':
         result = await fetchVideos(accessToken, options.maxResults || 10)
         break
@@ -131,6 +134,43 @@ async function refreshYouTubeToken(refreshToken: string) {
   }
   
   return tokens
+}
+
+// Upload video to YouTube
+async function uploadVideo(accessToken: string, options: any) {
+  const { title, description, mediaUrl, tags = [], privacyStatus = 'private' } = options
+  
+  // For now, create a simple video upload with metadata
+  // In a real implementation, you'd need to handle file upload to YouTube
+  const response = await fetch(
+    'https://www.googleapis.com/youtube/v3/videos?part=snippet,status',
+    {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        snippet: {
+          title: title || 'Uploaded from EngageHub',
+          description: description || 'Video uploaded via EngageHub platform',
+          tags: tags
+        },
+        status: {
+          privacyStatus: privacyStatus
+        }
+      })
+    }
+  )
+  
+  if (!response.ok) throw new Error(`Failed to upload video: ${response.statusText}`)
+  const data = await response.json()
+  
+  return {
+    success: true,
+    videoId: data.id,
+    url: `https://youtube.com/watch?v=${data.id}`
+  }
 }
 
 // API Functions

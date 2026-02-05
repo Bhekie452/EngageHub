@@ -24,6 +24,17 @@ export async function callYouTubeAPI(endpoint: string, workspaceId: string, opti
   }
 }
 
+// Upload video to YouTube
+export async function uploadYouTubeVideoClient(workspaceId: string, options: {
+  title?: string;
+  description?: string;
+  mediaUrl?: string;
+  tags?: string[];
+  privacyStatus?: string;
+}) {
+  return callYouTubeAPI('upload-video', workspaceId, options)
+}
+
 // Fetch YouTube videos
 export async function fetchYouTubeVideosClient(workspaceId: string, maxResults: number = 10) {
   return callYouTubeAPI('videos', workspaceId, { maxResults })
