@@ -22,7 +22,8 @@ import {
   ChevronRight,
   Copy,
   MoreVertical,
-  ShieldCheck
+  ShieldCheck,
+  Shield
 } from 'lucide-react';
 import YouTubeSimpleConnect from './YouTubeSimpleConnect';
 import { useYouTubeSession } from '../src/hooks/useYouTubeSession';

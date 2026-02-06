@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import Stripe from 'stripe';
 
-type Handler = (req: VercelRequest, res: VercelResponse) => Promise<void> | void;
+type Handler = (req: VercelRequest, res: VercelResponse) => void;
 
 // Stripe Handlers
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY || '';
@@ -11,17 +11,19 @@ const stripe = stripeSecretKey ? new Stripe(stripeSecretKey, {
 
 const handleStripeCheckout: Handler = async (req, res) => {
   if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method Not Allowed' });
+    res.status(405).json({ error: 'Method Not Allowed' });
+    return;
   }
 
   if (!stripe) {
-    return res.status(500).json({ error: 'Stripe is not configured on the server.' });
+    res.status(500).json({ error: 'Stripe is not configured on the server.' });
+    return;
   }
 
   try {
-    const { priceId, userId, successUrl, cancelUrl } = req.body;
+    const { priceId, userId, successUrl, cancelUrl, paymentMethod } = req.body;
 
-    if (!priceId || !userId || !successUrl || !cancelUrl) {
+    if (!priceId || !userId || !successUrl || !cancelUrl || !paymentMethod) {
       return res.status(400).json({ error: 'Missing required parameters' });
     }
 
@@ -63,14 +65,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     switch (provider) {
       case 'stripe':
-        return await handleStripeCheckout(req, res);
+        await handleStripeCheckout(req, res);
+        break;
       case 'payfast':
-        return await handlePayfastNotify(req, res);
+        await handlePayfastNotify(req, res);
+        break;
       default:
-        return res.status(404).json({ error: 'Payment provider not found' });
+        res.status(404).json({ error: 'Provider not found' });
     }
   } catch (error) {
-    console.error(`Error in payments API (${provider}):`, error);
-    return res.status(500).json({ error: 'Internal server error' });
+    console.error('Payment handler error:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 }
