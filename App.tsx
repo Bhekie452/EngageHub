@@ -100,14 +100,26 @@ const App: React.FC = () => {
     const handleNavigate = (event: CustomEvent) => {
       const section = event.detail?.section;
       if (section) {
-        // Map section names to MenuSection enum
+        // Map section names or IDs to MenuSection enum
         const sectionMap: Record<string, MenuSection> = {
           'Social Media': MenuSection.SocialMedia,
           'social-media': MenuSection.SocialMedia,
           'SocialMedia': MenuSection.SocialMedia,
+          'Analytics': MenuSection.Analytics,
+          'analytics': MenuSection.Analytics,
+          'Content': MenuSection.Content,
+          'content': MenuSection.Content,
+          'Dashboard': MenuSection.Dashboard,
+          'dashboard': MenuSection.Dashboard,
+          'CRM': MenuSection.CRM,
+          'crm': MenuSection.CRM,
         };
-        if (sectionMap[section]) {
-          setCurrentSection(sectionMap[section]);
+
+        const targetSection = sectionMap[section] ||
+          Object.values(MenuSection).find(s => s.toLowerCase() === section.toLowerCase()) as MenuSection;
+
+        if (targetSection) {
+          setCurrentSection(targetSection);
         }
       }
     };
@@ -158,19 +170,19 @@ const App: React.FC = () => {
   return (
     <ToastProvider>
       <div className="min-h-screen bg-gray-50 dark:bg-slate-950 flex transition-colors duration-300">
-      <Sidebar
-        currentSection={currentSection}
-        onSelect={setCurrentSection}
-        isCollapsed={isSidebarCollapsed}
-        setIsCollapsed={setIsSidebarCollapsed}
-      />
+        <Sidebar
+          currentSection={currentSection}
+          onSelect={setCurrentSection}
+          isCollapsed={isSidebarCollapsed}
+          setIsCollapsed={setIsSidebarCollapsed}
+        />
 
-      <main className={`flex-1 transition-all duration-300 ${isSidebarCollapsed ? 'ml-16' : 'ml-64'}`}>
-        <Header section={currentSection} />
-        <div className="p-8 max-w-7xl mx-auto">
-          {renderContent()}
-        </div>
-      </main>
+        <main className={`flex-1 transition-all duration-300 ${isSidebarCollapsed ? 'ml-16' : 'ml-64'}`}>
+          <Header section={currentSection} />
+          <div className="p-8 max-w-7xl mx-auto">
+            {renderContent()}
+          </div>
+        </main>
 
         <button className="fixed bottom-6 right-6 w-14 h-14 bg-brand-600 text-white rounded-full shadow-2xl flex items-center justify-center hover:scale-110 active:scale-95 transition-all md:hidden z-50">
           <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14" /><path d="M12 5v14" /></svg>

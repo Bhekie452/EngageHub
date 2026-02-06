@@ -1,24 +1,57 @@
 import React, { useState, useEffect } from 'react'
 import { Youtube, CheckCircle2, LogOut } from 'lucide-react'
+import { useWorkspace } from '../src/hooks/useWorkspace'
 
 const YouTubeSimpleConnect: React.FC = () => {
-  const WORKSPACE_ID = 'c9a454c5-a5f3-42dd-9fbd-cedd4c1c49a9'
+  const { workspaceId } = useWorkspace()
+  const FALLBACK_WORKSPACE_ID = 'c9a454c5-a5f3-42dd-9fbd-cedd4c1c49a9'
+  const currentWorkspaceId = workspaceId || FALLBACK_WORKSPACE_ID
   const [isConnected, setIsConnected] = useState(false)
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
     // Check if already connected
-    const cachedState = localStorage.getItem(`youtube-connected-${WORKSPACE_ID}`)
-    if (cachedState === 'true') {
-      setIsConnected(true)
+    if (currentWorkspaceId) {
+      const cachedState = localStorage.getItem(`youtube-connected-${currentWorkspaceId}`)
+      if (cachedState === 'true') {
+        setIsConnected(true)
+      }
     }
-  }, [])
+  }, [currentWorkspaceId])
+
+  // Handle OAuth callback
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search)
+    const youtubeOAuth = urlParams.get('youtube_oauth')
+    
+    if (youtubeOAuth === 'success') {
+      console.log('YouTube OAuth successful - updating connection state')
+      // Set connection state
+      setIsConnected(true)
+      if (currentWorkspaceId) {
+        localStorage.setItem(`youtube-connected-${currentWorkspaceId}`, 'true')
+      }
+      // Clean up the URL
+      window.history.replaceState({}, document.title, window.location.pathname)
+      // Show success message
+      alert('YouTube account connected successfully!')
+    } else if (youtubeOAuth === 'error') {
+      alert('Failed to connect YouTube account. Please try again.')
+      window.history.replaceState({}, document.title, window.location.pathname)
+    }
+  }, [currentWorkspaceId])
 
   const handleConnect = () => {
-    console.log('Starting YouTube OAuth with workspaceId:', WORKSPACE_ID)
+    if (!currentWorkspaceId) {
+      console.error('No workspace ID available')
+      alert('Workspace not available. Please refresh the page.')
+      return
+    }
+    
+    console.log('Starting YouTube OAuth with workspaceId:', currentWorkspaceId)
     
     const returnUrl = window.location.href
-    const oauthUrl = `https://zourlqrkoyugzymxkbgn.functions.supabase.co/youtube-oauth/start?workspace_id=${WORKSPACE_ID}&return_url=${encodeURIComponent(returnUrl)}`
+    const oauthUrl = `https://zourlqrkoyugzymxkbgn.functions.supabase.co/youtube-oauth/start?workspaceId=${currentWorkspaceId}&returnUrl=${encodeURIComponent(returnUrl)}`
     
     console.log('OAuth URL:', oauthUrl)
     window.location.href = oauthUrl
@@ -26,13 +59,17 @@ const YouTubeSimpleConnect: React.FC = () => {
 
   const handleDisconnect = () => {
     setIsConnected(false)
-    localStorage.removeItem(`youtube-connected-${WORKSPACE_ID}`)
+    if (currentWorkspaceId) {
+      localStorage.removeItem(`youtube-connected-${currentWorkspaceId}`)
+    }
     console.log('YouTube disconnected')
   }
 
   const handleForceConnect = () => {
     setIsConnected(true)
-    localStorage.setItem(`youtube-connected-${WORKSPACE_ID}`, 'true')
+    if (currentWorkspaceId) {
+      localStorage.setItem(`youtube-connected-${currentWorkspaceId}`, 'true')
+    }
     console.log('Force connected YouTube')
   }
 

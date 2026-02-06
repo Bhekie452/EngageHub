@@ -4,7 +4,8 @@ export interface Post {
   id: string;
   user_id: string;
   content: string;
-  platform: 'facebook' | 'instagram' | 'twitter' | 'linkedin' | 'tiktok';
+  platform: 'facebook' | 'instagram' | 'twitter' | 'linkedin' | 'tiktok' | 'youtube';
+  platforms?: string[];
   status: 'draft' | 'scheduled' | 'published' | 'failed';
   scheduled_for?: string;
   published_at?: string;

@@ -19,8 +19,19 @@ serve(async (req) => {
   const CLIENT_ID = getEnv('YT_CLIENT_ID') || ''
   const CLIENT_SECRET = getEnv('YT_CLIENT_SECRET') || ''
   const REDIRECT_URI = getEnv('YT_REDIRECT_URI') || 'https://zourlqrkoyugzymxkbgn.functions.supabase.co/youtube-oauth/callback'
-  const SUPABASE_URL = getEnv('SUPABASE_URL') || ''
-  const SUPABASE_SERVICE_ROLE_KEY = getEnv('SERVICE_ROLE_KEY') || ''
+  // Supabase automatically provides SUPABASE_URL in Edge Functions
+  const SUPABASE_URL = getEnv('SUPABASE_URL') || 'https://zourlqrkoyugzymxkbgn.supabase.co'
+  const SUPABASE_SERVICE_ROLE_KEY = getEnv('SERVICE_ROLE_KEY') || getEnv('YT_SERVICE_ROLE_KEY') || ''
+  
+  
+  console.log('OAuth function loaded with:', {
+    hasClientId: !!CLIENT_ID,
+    hasClientSecret: !!CLIENT_SECRET,
+    hasServiceKey: !!SUPABASE_SERVICE_ROLE_KEY,
+    timestamp: new Date().toISOString(),
+    deployed: Date.now(),
+    credentialsUpdated: true
+  })
 
   console.log('=== YouTube OAuth Function Called ===')
   console.log('Method:', req.method)
@@ -59,7 +70,7 @@ serve(async (req) => {
           error: 'Workspace creation failed', 
           details: workspaceError 
         }), { 
-          status: 500,
+          status: 200, // Return 200 even on error to allow viewing content
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         })
       }
@@ -98,7 +109,7 @@ serve(async (req) => {
         error: error.message,
         stack: error.stack
       }), { 
-        status: 500,
+        status: 200, // Return 200 even on error to allow viewing content
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       })
     }
@@ -121,8 +132,9 @@ serve(async (req) => {
 
   // Handle /start - redirect to Google OAuth
   if (pathname.includes("/start")) {
-    const returnUrl = url.searchParams.get('returnUrl') || ''
-    const workspaceId = url.searchParams.get('workspaceId') || ''
+    const returnUrl = url.searchParams.get('returnUrl') || url.searchParams.get('return_url') || ''
+    // Accept both parameter names for compatibility
+    const workspaceId = url.searchParams.get('workspaceId') || url.searchParams.get('workspace_id') || ''
     const statePayload = btoa(JSON.stringify({ returnUrl, workspaceId }))
 
     const params = new URLSearchParams({
@@ -218,6 +230,12 @@ serve(async (req) => {
     }
 
     try {
+      console.log('Exchanging authorization code for tokens with:', {
+        clientId: CLIENT_ID?.substring(0, 10) + '...',
+        hasClientSecret: !!CLIENT_SECRET,
+        redirectUri: REDIRECT_URI
+      })
+      
       const tokenResponse = await fetch("https://oauth2.googleapis.com/token", {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -230,10 +248,28 @@ serve(async (req) => {
         })
       })
 
+      console.log('Token exchange response status:', tokenResponse.status)
+      
       const tokens = await tokenResponse.json()
+      console.log('Token exchange response:', { 
+        status: tokenResponse.status,
+        hasAccessToken: !!tokens.access_token,
+        error: tokens.error 
+      })
 
       if (!tokenResponse.ok || tokens.error) {
-        return new Response(JSON.stringify({ error: tokens.error || 'token_exchange_failed' }), { 
+        console.error('Token exchange failed:', {
+          status: tokenResponse.status,
+          statusText: tokenResponse.statusText,
+          error: tokens.error,
+          errorDescription: tokens.error_description,
+          fullResponse: tokens
+        })
+        return new Response(JSON.stringify({ 
+          error: tokens.error || 'token_exchange_failed',
+          error_description: tokens.error_description || 'No description provided',
+          status: tokenResponse.status 
+        }), { 
           status: 400,
           headers: { "Content-Type": "application/json" }
         })

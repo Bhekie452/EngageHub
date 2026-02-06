@@ -26,48 +26,107 @@ serve(async (req) => {
     // Initialize Supabase client
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL')!,
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+      Deno.env.get('SERVICE_ROLE_KEY') || Deno.env.get('YT_SERVICE_ROLE_KEY')!
     )
 
     // Get YouTube tokens for the workspace
+    console.log('Looking for YouTube tokens for workspaceId:', workspaceId);
     const { data: youtubeAccount, error: tokenError } = await supabase
       .from('youtube_accounts')
       .select('access_token, refresh_token, token_expires_at')
       .eq('workspace_id', workspaceId)
       .single()
 
+    console.log('YouTube account lookup result:', { data: youtubeAccount, error: tokenError });
+
     if (tokenError || !youtubeAccount) {
+      console.log('YouTube account not found in database - check workspaceId:', workspaceId);
       return new Response(
-        JSON.stringify({ error: 'YouTube account not connected' }),
+        JSON.stringify({ error: 'YouTube account not connected', workspaceId: workspaceId }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
       )
     }
-
-    // Check if token needs refresh
-    let accessToken = youtubeAccount.access_token
-    const isExpired = new Date(youtubeAccount.token_expires_at) < new Date()
     
+    // Use real access token from database
+    let accessToken = youtubeAccount.access_token;
+    
+    if (!accessToken) {
+        throw new Error('Access token missing on account');
+    }
+      
+    // Check if token needs refresh
+    const isExpired = new Date(youtubeAccount.token_expires_at) < new Date()
     if (isExpired && youtubeAccount.refresh_token) {
-      // Refresh the token
-      const newTokens = await refreshYouTubeToken(youtubeAccount.refresh_token)
-      
-      // Update in database
-      await supabase
-        .from('youtube_accounts')
-        .update({
-          access_token: newTokens.access_token,
-          token_expires_at: new Date(Date.now() + newTokens.expires_in * 1000).toISOString()
+      console.log('Token expired, refreshing...')
+      try {
+        const refreshResponse = await fetch('https://oauth2.googleapis.com/token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({
+            client_id: Deno.env.get('YT_CLIENT_ID')!,
+            client_secret: Deno.env.get('YT_CLIENT_SECRET')!,
+            refresh_token: youtubeAccount.refresh_token,
+            grant_type: 'refresh_token'
+          })
         })
-        .eq('workspace_id', workspaceId)
-      
-      accessToken = newTokens.access_token
+
+        if (!refreshResponse.ok) {
+          throw new Error('Failed to refresh token')
+        }
+
+        const tokens = await refreshResponse.json()
+        
+        // Update token in database
+        const { error: updateError } = await supabase
+          .from('youtube_accounts')
+          .update({
+            access_token: tokens.access_token,
+            refresh_token: tokens.refresh_token || youtubeAccount.refresh_token,
+            token_expires_at: tokens.expires_in ? new Date(Date.now() + tokens.expires_in * 1000).toISOString() : null
+          })
+          .eq('workspace_id', workspaceId)
+
+        if (updateError) {
+          throw new Error('Failed to update token')
+        }
+
+        accessToken = tokens.access_token
+        console.log('Token refreshed successfully')
+      } catch (refreshError) {
+        console.error('Token refresh failed:', refreshError)
+        // Check if we have a valid token despite the error
+        if (isExpired) {
+            throw refreshError; // Re-throw if the token is definitely expired and refresh failed
+        }
+      }
     }
 
     // Handle different endpoints
     let result
     switch (endpoint) {
+      case 'debug-check':
+        // Debug: Check all YouTube accounts in database
+        const { data: allAccounts, error: allError } = await supabase
+          .from('youtube_accounts')
+          .select('workspace_id, created_at')
+          .limit(10);
+        
+        return new Response(
+          JSON.stringify({ 
+            message: 'Debug check',
+            workspaceId: workspaceId,
+            allAccounts: allAccounts,
+            error: allError 
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
+        )
       case 'upload-video':
         result = await uploadVideo(accessToken, options)
+        if (result && result.url && options.postId) {
+             const { error: linkErr } = await supabase.from('posts').update({ link_url: result.url }).eq('id', options.postId);
+             if (linkErr) console.error('Failed to save link_url:', linkErr);
+             else console.log('Saved link_url for post:', options.postId);
+        }
         break
       case 'videos':
         result = await fetchVideos(accessToken, options.maxResults || 10)
@@ -80,6 +139,38 @@ serve(async (req) => {
         break
       case 'video-details':
         result = await getVideoDetails(accessToken, options.videoId)
+        
+        // Update database if we have a valid result and postId
+        if (result && options.postId) {
+          try {
+            // Find the social account ID for this workspace and YouTube
+            const { data: socialAccount } = await supabase
+              .from('social_accounts')
+              .select('id')
+              .eq('workspace_id', workspaceId)
+              .eq('platform', 'youtube')
+              .limit(1)
+              .single();
+
+            if (socialAccount) {
+               const stats = result.statistics || {};
+               await supabase.from('post_analytics').upsert({
+                 post_id: options.postId,
+                 social_account_id: socialAccount.id,
+                 platform: 'youtube',
+                 likes: Number(stats.likeCount) || 0,
+                 comments: Number(stats.commentCount) || 0,
+                 views: Number(stats.viewCount) || 0,
+                 video_views: Number(stats.viewCount) || 0,
+                 updated_at: new Date().toISOString()
+               }, { onConflict: 'post_id, social_account_id' });
+               console.log('Synced YouTube stats to database for post:', options.postId);
+            }
+          } catch (syncErr) {
+            console.error('Failed to sync stats to DB:', syncErr);
+            // Don't fail the request if sync fails
+          }
+        }
         break
       case 'video-comments':
         result = await getVideoComments(accessToken, options.videoId, options.maxResults || 20)
@@ -92,6 +183,9 @@ serve(async (req) => {
         break
       case 'subscribe':
         result = await subscribeToChannel(accessToken, options.channelId)
+        break
+      case 'subscriber-list':
+        result = await fetchSubscribers(accessToken, options.maxResults || 50)
         break
       default:
         return new Response(
@@ -329,4 +423,18 @@ async function subscribeToChannel(accessToken: string, channelId: string) {
   
   if (!response.ok) throw new Error(`Failed to subscribe to channel: ${response.statusText}`)
   return await response.json()
+}
+
+async function fetchSubscribers(accessToken: string, maxResults: number) {
+  const response = await fetch(
+    `https://www.googleapis.com/youtube/v3/subscriptions?part=subscriberSnippet&mySubscribers=true&maxResults=${maxResults}`,
+    { headers: { 'Authorization': `Bearer ${accessToken}` } }
+  )
+  
+  if (!response.ok) {
+    const err = await response.json();
+    throw new Error(`Failed to fetch subscribers: ${err.error?.message || response.statusText}`)
+  }
+  const data = await response.json()
+  return data.items || []
 }

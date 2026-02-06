@@ -1,0 +1,5 @@
+{
+  "imports": {
+    "jsr/@supabase/supabase-js": "https://jsr.io/@supabase/supabase-js@2"
+  }
+}

@@ -3,3 +3,9 @@ enabled = true
 verify_jwt = false
 import_map = "./functions/youtube-oauth/deno.json"
 entrypoint = "./functions/youtube-oauth/index.ts"
+
+[functions.youtube-api]
+enabled = true
+verify_jwt = false
+import_map = "./functions/youtube-api/deno.json"
+entrypoint = "./functions/youtube-api/index.ts"
