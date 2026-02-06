@@ -30,3 +30,10 @@ export function useAnalyticsRollupDay() {
   });
 }
 
+export function useGlobalSocialSummary() {
+  return useQuery({
+    queryKey: ['analytics', 'global-social'],
+    queryFn: () => analyticsService.getGlobalSocialSummary(),
+  });
+}
+
