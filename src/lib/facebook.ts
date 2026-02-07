@@ -269,23 +269,15 @@ export const getFacebookProfile = async (userAccessToken: string): Promise<{ id:
  */
 export const getPageTokens = async (userAccessToken?: string): Promise<any[]> => {
     try {
-        // Use long-term token if provided, otherwise use userAccessToken
-        const accessToken = userAccessToken || process.env.FACEBOOK_LONG_TERM_TOKEN || import.meta.env.VITE_FACEBOOK_LONG_TERM_TOKEN;
-        
-        if (!accessToken) {
-            throw new Error('No Facebook access token available');
-        }
-        
-        const response = await fetch(
-            `https://graph.facebook.com/v21.0/me/accounts?fields=id,name,access_token,instagram_business_account&access_token=${accessToken}`
-        );
+        // For now, use the simple endpoint that returns hardcoded pages
+        const response = await fetch('/api/facebook-simple');
         const data = await response.json();
-
-        if (data.error) {
-            throw new Error(data.error.message || 'Failed to fetch pages');
+        
+        if (!response.ok || data.error) {
+            throw new Error(data.error || 'Failed to fetch pages');
         }
-
-        return data.data || [];
+        
+        return data.pages || [];
     } catch (error: any) {
         throw new Error(`Failed to get pages: ${error.message}`);
     }
