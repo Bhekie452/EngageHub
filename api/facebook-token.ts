@@ -21,6 +21,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ error: 'Authorization code required' });
     }
 
+    // Check environment variables
+    if (!process.env.FACEBOOK_APP_ID || !process.env.FACEBOOK_APP_SECRET) {
+      console.error('Missing Facebook environment variables:', {
+        appId: !!process.env.FACEBOOK_APP_ID,
+        appSecret: !!process.env.FACEBOOK_APP_SECRET
+      });
+      return res.status(500).json({ 
+        error: 'Server configuration error',
+        details: 'Facebook environment variables not set' 
+      });
+    }
+
+    console.log('Starting Facebook token exchange with:', {
+      appId: process.env.FACEBOOK_APP_ID,
+      hasSecret: !!process.env.FACEBOOK_APP_SECRET,
+      codeLength: code.length
+    });
+
     // Exchange authorization code for access token
     const tokenResponse = await fetch(
       `https://graph.facebook.com/v19.0/oauth/access_token?` +
