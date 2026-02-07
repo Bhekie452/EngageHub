@@ -7,6 +7,9 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+// Updated for redeploy
+console.log('YouTube API function updated with new credentials');
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -26,37 +29,33 @@ serve(async (req) => {
     // Initialize Supabase client
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL')!,
-      Deno.env.get('SERVICE_ROLE_KEY') || Deno.env.get('YT_SERVICE_ROLE_KEY')!
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     )
 
-    // Get YouTube tokens for the workspace
-    console.log('Looking for YouTube tokens for workspaceId:', workspaceId);
-    const { data: youtubeAccount, error: tokenError } = await supabase
+    // Fetch YouTube account from database
+    const { data: youtubeAccount, error: fetchError } = await supabase
       .from('youtube_accounts')
-      .select('access_token, refresh_token, token_expires_at')
+      .select('access_token, refresh_token, expires_at, channel_id')
       .eq('workspace_id', workspaceId)
-      .single()
+      .single();
 
-    console.log('YouTube account lookup result:', { data: youtubeAccount, error: tokenError });
-
-    if (tokenError || !youtubeAccount) {
-      console.log('YouTube account not found in database - check workspaceId:', workspaceId);
+    if (fetchError || !youtubeAccount) {
       return new Response(
-        JSON.stringify({ error: 'YouTube account not connected', workspaceId: workspaceId }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+        JSON.stringify({ 
+          error: 'YouTube account not found. Please connect your YouTube account first.',
+          details: fetchError 
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
       )
     }
+
+    let accessToken = youtubeAccount.access_token
+
+    // Check if token is expired and refresh if needed
+    const now = new Date()
+    const expiresAt = new Date(youtubeAccount.expires_at)
     
-    // Use real access token from database
-    let accessToken = youtubeAccount.access_token;
-    
-    if (!accessToken) {
-        throw new Error('Access token missing on account');
-    }
-      
-    // Check if token needs refresh
-    const isExpired = new Date(youtubeAccount.token_expires_at) < new Date()
-    if (isExpired && youtubeAccount.refresh_token) {
+    if (now >= expiresAt) {
       console.log('Token expired, refreshing...')
       try {
         const refreshResponse = await fetch('https://oauth2.googleapis.com/token', {
@@ -65,7 +64,7 @@ serve(async (req) => {
           body: new URLSearchParams({
             client_id: Deno.env.get('YT_CLIENT_ID')!,
             client_secret: Deno.env.get('YT_CLIENT_SECRET')!,
-            refresh_token: youtubeAccount.refresh_token,
+            refresh_token: youtubeAccount.refresh_token!,
             grant_type: 'refresh_token'
           })
         })
@@ -76,28 +75,30 @@ serve(async (req) => {
 
         const tokens = await refreshResponse.json()
         
-        // Update token in database
+        // Update database with new token
         const { error: updateError } = await supabase
           .from('youtube_accounts')
           .update({
             access_token: tokens.access_token,
-            refresh_token: tokens.refresh_token || youtubeAccount.refresh_token,
-            token_expires_at: tokens.expires_in ? new Date(Date.now() + tokens.expires_in * 1000).toISOString() : null
+            expires_at: new Date(Date.now() + tokens.expires_in * 1000).toISOString()
           })
           .eq('workspace_id', workspaceId)
 
         if (updateError) {
-          throw new Error('Failed to update token')
+          console.error('Failed to update token:', updateError)
         }
 
         accessToken = tokens.access_token
         console.log('Token refreshed successfully')
       } catch (refreshError) {
         console.error('Token refresh failed:', refreshError)
-        // Check if we have a valid token despite the error
-        if (isExpired) {
-            throw refreshError; // Re-throw if the token is definitely expired and refresh failed
-        }
+        return new Response(
+          JSON.stringify({ 
+            error: 'Failed to refresh YouTube token. Please reconnect your account.',
+            details: refreshError.message 
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
+        )
       }
     }
 
@@ -208,28 +209,6 @@ serve(async (req) => {
   }
 })
 
-// Refresh YouTube access token
-async function refreshYouTubeToken(refreshToken: string) {
-  const response = await fetch('https://oauth2.googleapis.com/token', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      client_id: Deno.env.get('YT_CLIENT_ID')!,
-      client_secret: Deno.env.get('YT_CLIENT_SECRET')!,
-      refresh_token: refreshToken,
-      grant_type: 'refresh_token'
-    })
-  })
-  
-  const tokens = await response.json()
-  
-  if (!response.ok || tokens.error) {
-    throw new Error(`Token refresh failed: ${tokens.error || 'Unknown error'}`)
-  }
-  
-  return tokens
-}
-
 // Upload video to YouTube
 async function uploadVideo(accessToken: string, options: any) {
   const { title, description, mediaUrl, tags = [], privacyStatus = 'private' } = options
@@ -271,17 +250,16 @@ async function uploadVideo(accessToken: string, options: any) {
         })
       }
     )
-    
+
     if (!initResponse.ok) {
-      const errorData = await initResponse.json()
-      throw new Error(`Failed to initiate upload: ${errorData.error?.message || initResponse.statusText}`)
+      throw new Error(`Failed to initiate upload: ${initResponse.statusText}`)
     }
-    
+
     const uploadUrl = initResponse.headers.get('Location')
     if (!uploadUrl) {
-      throw new Error('No upload URL received from YouTube')
+      throw new Error('No upload URL received')
     }
-    
+
     // Step 3: Upload the actual video data
     const uploadResponse = await fetch(uploadUrl, {
       method: 'PUT',
@@ -291,50 +269,102 @@ async function uploadVideo(accessToken: string, options: any) {
       },
       body: videoBlob
     })
-    
+
     if (!uploadResponse.ok) {
-      const errorData = await uploadResponse.json()
-      throw new Error(`Failed to upload video: ${errorData.error?.message || uploadResponse.statusText}`)
+      throw new Error(`Upload failed: ${uploadResponse.statusText}`)
     }
-    
-    const data = await uploadResponse.json()
-    
-    console.log('YouTube upload successful:', data)
+
+    const uploadResult = await uploadResponse.json()
     
     return {
-      success: true,
-      videoId: data.id,
-      url: `https://youtube.com/watch?v=${data.id}`
+      videoId: uploadResult.id,
+      url: `https://www.youtube.com/watch?v=${uploadResult.id}`,
+      status: uploadResult.status?.privacyStatus || 'private'
     }
+
   } catch (error) {
-    console.error('YouTube upload error:', error)
+    console.error('Upload error:', error)
     throw error
   }
 }
 
-// API Functions
-async function fetchVideos(accessToken: string, maxResults: number) {
+// Fetch videos from YouTube channel
+async function fetchVideos(accessToken: string, maxResults: number = 10) {
   const response = await fetch(
-    `https://www.googleapis.com/youtube/v3/search?part=snippet&forMine=true&type=video&maxResults=${maxResults}`,
-    { headers: { 'Authorization': `Bearer ${accessToken}` } }
+    `https://www.googleapis.com/youtube/v3/search?part=snippet&maxResults=${maxResults}&type=video&order=date&mine=true`,
+    {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`
+      }
+    }
   )
-  
-  if (!response.ok) throw new Error(`Failed to fetch videos: ${response.statusText}`)
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch videos: ${response.statusText}`)
+  }
+
   const data = await response.json()
   return data.items || []
 }
 
+// Fetch channel details
 async function fetchChannel(accessToken: string) {
   const response = await fetch(
     'https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics&mine=true',
-    { headers: { 'Authorization': `Bearer ${accessToken}` } }
+    {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`
+      }
+    }
   )
-  
-  if (!response.ok) throw new Error(`Failed to fetch channel: ${response.statusText}`)
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch channel: ${response.statusText}`)
+  }
+
   const data = await response.json()
   return data.items?.[0] || null
 }
 
+// Get video details
+async function getVideoDetails(accessToken: string, videoId: string) {
+  const response = await fetch(
+    `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics&id=${videoId}`,
+    {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`
+      }
+    }
+  )
+
+  if (!response.ok) {
+    throw new Error(`Failed to get video details: ${response.statusText}`)
+  }
+
+  const data = await response.json()
+  return data.items?.[0] || null
+}
+
+// Get video comments
+async function getVideoComments(accessToken: string, videoId: string, maxResults: number = 20) {
+  const response = await fetch(
+    `https://www.googleapis.com/youtube/v3/commentThreads?part=snippet&videoId=${videoId}&maxResults=${maxResults}&order=relevance`,
+    {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`
+      }
+    }
+  )
+
+  if (!response.ok) {
+    throw new Error(`Failed to get video comments: ${response.statusText}`)
+  }
+
+  const data = await response.json()
+  return data.items || []
+}
+
+// Post comment to video
 async function postComment(accessToken: string, videoId: string, commentText: string) {
   const response = await fetch(
     'https://www.googleapis.com/youtube/v3/commentThreads?part=snippet',
@@ -346,61 +376,64 @@ async function postComment(accessToken: string, videoId: string, commentText: st
       },
       body: JSON.stringify({
         snippet: {
-          videoId: videoId,
           topLevelComment: {
-            snippet: { textOriginal: commentText }
+            snippet: {
+              videoId: videoId,
+              textOriginal: commentText
+            }
           }
         }
       })
     }
   )
-  
-  if (!response.ok) throw new Error(`Failed to post comment: ${response.statusText}`)
-  return await response.json()
-}
 
-async function getVideoDetails(accessToken: string, videoId: string) {
-  const response = await fetch(
-    `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics&id=${videoId}`,
-    { headers: { 'Authorization': `Bearer ${accessToken}` } }
-  )
-  
-  if (!response.ok) throw new Error(`Failed to get video details: ${response.statusText}`)
+  if (!response.ok) {
+    throw new Error(`Failed to post comment: ${response.statusText}`)
+  }
+
   const data = await response.json()
-  return data.items?.[0] || null
+  return data.snippet || null
 }
 
-async function getVideoComments(accessToken: string, videoId: string, maxResults: number) {
-  const response = await fetch(
-    `https://www.googleapis.com/youtube/v3/commentThreads?part=snippet&videoId=${videoId}&maxResults=${maxResults}&order=relevance`,
-    { headers: { 'Authorization': `Bearer ${accessToken}` } }
-  )
-  
-  if (!response.ok) throw new Error(`Failed to get video comments: ${response.statusText}`)
-  const data = await response.json()
-  return data.items || []
-}
-
+// Like video
 async function likeVideo(accessToken: string, videoId: string) {
   const response = await fetch(
     `https://www.googleapis.com/youtube/v3/videos/rate?id=${videoId}&rating=like`,
-    { method: 'POST', headers: { 'Authorization': `Bearer ${accessToken}` } }
+    {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`
+      }
+    }
   )
-  
-  if (!response.ok) throw new Error(`Failed to like video: ${response.statusText}`)
+
+  if (!response.ok) {
+    throw new Error(`Failed to like video: ${response.statusText}`)
+  }
+
   return { success: true }
 }
 
+// Unlike video
 async function unlikeVideo(accessToken: string, videoId: string) {
   const response = await fetch(
     `https://www.googleapis.com/youtube/v3/videos/rate?id=${videoId}&rating=none`,
-    { method: 'POST', headers: { 'Authorization': `Bearer ${accessToken}` } }
+    {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`
+      }
+    }
   )
-  
-  if (!response.ok) throw new Error(`Failed to unlike video: ${response.statusText}`)
+
+  if (!response.ok) {
+    throw new Error(`Failed to unlike video: ${response.statusText}`)
+  }
+
   return { success: true }
 }
 
+// Subscribe to channel
 async function subscribeToChannel(accessToken: string, channelId: string) {
   const response = await fetch(
     'https://www.googleapis.com/youtube/v3/subscriptions?part=snippet',
@@ -420,21 +453,30 @@ async function subscribeToChannel(accessToken: string, channelId: string) {
       })
     }
   )
-  
-  if (!response.ok) throw new Error(`Failed to subscribe to channel: ${response.statusText}`)
-  return await response.json()
+
+  if (!response.ok) {
+    throw new Error(`Failed to subscribe: ${response.statusText}`)
+  }
+
+  const data = await response.json()
+  return data.snippet || null
 }
 
-async function fetchSubscribers(accessToken: string, maxResults: number) {
+// Fetch subscribers
+async function fetchSubscribers(accessToken: string, maxResults: number = 50) {
   const response = await fetch(
-    `https://www.googleapis.com/youtube/v3/subscriptions?part=subscriberSnippet&mySubscribers=true&maxResults=${maxResults}`,
-    { headers: { 'Authorization': `Bearer ${accessToken}` } }
+    `https://www.googleapis.com/youtube/v3/subscriptions?part=snippet&mine=true&maxResults=${maxResults}`,
+    {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`
+      }
+    }
   )
-  
+
   if (!response.ok) {
-    const err = await response.json();
-    throw new Error(`Failed to fetch subscribers: ${err.error?.message || response.statusText}`)
+    throw new Error(`Failed to fetch subscribers: ${response.statusText}`)
   }
+
   const data = await response.json()
   return data.items || []
 }

@@ -1,8 +1,13 @@
-const { getPageTokens } = require('./src/lib/facebook.ts');
+import { getPageTokens } from './src/lib/facebook.js';
+import { config } from 'dotenv';
+
+// Load environment variables
+config();
 
 async function testFacebookToken() {
   try {
     console.log('Testing Facebook long-term token...');
+    console.log('FACEBOOK_LONG_TERM_TOKEN:', process.env.FACEBOOK_LONG_TERM_TOKEN ? 'Set' : 'Not set');
     
     // This will use your long-term token from .env
     const pages = await getPageTokens();
