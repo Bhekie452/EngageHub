@@ -267,10 +267,17 @@ export const getFacebookProfile = async (userAccessToken: string): Promise<{ id:
 /**
  * Get Facebook Pages for a user access token
  */
-export const getPageTokens = async (userAccessToken: string): Promise<any[]> => {
+export const getPageTokens = async (userAccessToken?: string): Promise<any[]> => {
     try {
+        // Use long-term token if provided, otherwise use userAccessToken
+        const accessToken = userAccessToken || import.meta.env.VITE_FACEBOOK_LONG_TERM_TOKEN;
+        
+        if (!accessToken) {
+            throw new Error('No Facebook access token available');
+        }
+        
         const response = await fetch(
-            `https://graph.facebook.com/v21.0/me/accounts?fields=id,name,access_token,instagram_business_account&access_token=${userAccessToken}`
+            `https://graph.facebook.com/v21.0/me/accounts?fields=id,name,access_token,instagram_business_account&access_token=${accessToken}`
         );
         const data = await response.json();
 
