@@ -224,7 +224,7 @@ export const exchangeCodeForToken = async (code: string): Promise<any> => {
             : getRedirectURI();
         if (typeof window !== 'undefined') sessionStorage.removeItem('facebook_oauth_redirect_uri');
 
-        const response = await fetch(`/api/auth?provider=facebook&action=token`, {
+        const response = await fetch(`/api/facebook-token`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ code, redirectUri })
