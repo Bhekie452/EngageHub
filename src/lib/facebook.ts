@@ -353,7 +353,7 @@ export const exchangeCodeForToken = async (code: string): Promise<any> => {
         console.log('📋 Code length:', code.length);
         console.log('📋 Redirect URI:', redirectUri);
 
-        const response = await fetch(`/api/facebook-simple`, {
+        const response = await fetch(`/api/facebook?action=simple`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ code, redirectUri })
@@ -444,7 +444,7 @@ export const getPageTokens = async (userAccessToken?: string): Promise<any[]> =>
             return pages;
         } else {
             // Fallback to API endpoint
-            const response = await fetch('/api/facebook-simple');
+            const response = await fetch('/api/facebook?action=simple');
             const data = await response.json();
             
             if (!response.ok || data.error) {
