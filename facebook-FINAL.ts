@@ -37,16 +37,19 @@ const getLoginScope = (): string =>
     import.meta.env.VITE_FACEBOOK_SCOPES || 'public_profile,email,pages_show_list,pages_read_engagement';
 
 /**
- * Get redirect URI - use dedicated callback route for consistency
+ * Get redirect URI (consistent format for Facebook OAuth)
  */
 const getRedirectURI = (): string => {
     if (typeof window === 'undefined') {
-        return 'http://localhost:3000/auth/facebook/callback';
+        return 'http://localhost:3000';
     }
     
-    // Always use the dedicated callback route for OAuth
     const origin = window.location.origin;
-    return `${origin}/auth/facebook/callback`;
+    const pathname = window.location.pathname;
+    
+    // Remove hash fragments and ensure trailing slash
+    const cleanUri = `${origin}${pathname}`.replace(/#.*$/, '');
+    return cleanUri.endsWith('/') ? cleanUri : `${cleanUri}/`;
 };
 
 // Token storage functions

@@ -82,9 +82,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         });
       }
 
-      // Clean redirect URI - remove hash fragments like #_=_ that Facebook adds
-      const cleanRedirectUri = redirectUri.split('#')[0];
-      console.log('📋 Clean redirect URI:', cleanRedirectUri);
+      // CRITICAL: Use hardcoded redirect URI for security and consistency
+      // Never trust redirectUri from frontend - prevents mismatch and security issues
+      const cleanRedirectUri = "https://engage-hub-ten.vercel.app/auth/facebook/callback";
+      console.log('📋 Using hardcoded secure redirect URI:', cleanRedirectUri);
 
       console.log('🔄 Step 1: Exchanging code for short-term access token...');
       
