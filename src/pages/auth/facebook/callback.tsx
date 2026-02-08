@@ -22,13 +22,11 @@ export default function FacebookCallback() {
           setStatus("success");
           console.log("✅ Facebook OAuth completed successfully");
 
-          // IMPORTANT: remove code from URL so refresh doesn't reuse it
-          window.history.replaceState({}, "", "/");
-
           setTimeout(() => {
             window.location.href = "/";
           }, 1500);
-        } else {
+        } else if (!result?.skipped) {
+          // Only show error if it wasn't a duplicate that was skipped
           setStatus("error");
           setError("No authorization code received");
         }

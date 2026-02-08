@@ -31,6 +31,9 @@ const FB_APP_ID = import.meta.env.VITE_FACEBOOK_APP_ID || '2106228116796555';
 let isProcessingCallback = false;
 let exchangeStarted = false;
 
+// Session storage lock for cross-tab protection
+const FB_LOCK = "fb_callback_lock";
+
 /**
  * Scopes for Facebook Login
  */
@@ -159,17 +162,26 @@ export const initFacebookSDK = () => {
 export const handleFacebookCallback = async (): Promise<any> => {
     if (typeof window === 'undefined') return null;
     
+    // 🔥 CRITICAL: Block duplicates across tabs/reloads using sessionStorage
+    if (sessionStorage.getItem(FB_LOCK) === "1") {
+        console.warn("🛑 Facebook callback already in progress (blocked duplicate)");
+        return { success: false, skipped: true };
+    }
+    
+    // Set lock immediately
+    sessionStorage.setItem(FB_LOCK, "1");
+    
     // Guard 1: In-memory flag
     if (isProcessingCallback) {
         console.log('🔄 Already processing Facebook callback, skipping...');
-        return null;
+        return { success: false, skipped: true };
     }
     
     // Guard 2: localStorage flag
     const processingFlag = localStorage.getItem('facebook_processing');
     if (processingFlag === 'true') {
         console.log('🔄 Facebook callback already processing (localStorage), skipping...');
-        return null;
+        return { success: false, skipped: true };
     }
     
     // Guard 3: Check if already connected
@@ -182,7 +194,7 @@ export const handleFacebookCallback = async (): Promise<any> => {
     // Guard 4: Prevent double exchange
     if (exchangeStarted) {
         console.log('🔄 Exchange already started, skipping...');
-        return null;
+        return { success: false, skipped: true };
     }
     exchangeStarted = true;
     
@@ -199,6 +211,13 @@ export const handleFacebookCallback = async (): Promise<any> => {
     if (code && state === 'facebook_oauth') {
         console.log('🔄 Facebook OAuth callback detected, processing...');
         
+        // 🔥 CRITICAL FIX: Remove code from URL IMMEDIATELY before exchange
+        const cleanUrl = new URL(window.location.href);
+        cleanUrl.searchParams.delete("code");
+        cleanUrl.searchParams.delete("state");
+        window.history.replaceState({}, "", cleanUrl.pathname + cleanUrl.search);
+        console.log('🗑️ Code removed from URL immediately');
+        
         // Set processing flags
         isProcessingCallback = true;
         localStorage.setItem('facebook_processing', 'true');
@@ -214,9 +233,6 @@ export const handleFacebookCallback = async (): Promise<any> => {
                     localStorage.setItem('facebook_pages', JSON.stringify(result.pages));
                     console.log(`📄 Stored ${result.pages.length} Facebook pages`);
                 }
-                
-                // Clean up URL
-                window.history.replaceState({}, '', window.location.pathname);
                 
                 // Fire success event
                 window.dispatchEvent(new CustomEvent('facebook-connected', {
@@ -240,8 +256,7 @@ export const handleFacebookCallback = async (): Promise<any> => {
                 if (token) {
                     console.log('✅ Token found from another instance, treating as success');
                     
-                    // Clean up URL and fire event
-                    window.history.replaceState({}, '', window.location.pathname);
+                    // Fire success event
                     window.dispatchEvent(new CustomEvent('facebook-connected', {
                         detail: { success: true, pages: [] }
                     }));
@@ -255,7 +270,9 @@ export const handleFacebookCallback = async (): Promise<any> => {
             // Clear processing flags
             isProcessingCallback = false;
             localStorage.removeItem('facebook_processing');
-            exchangeStarted = false; // Reset exchange guard
+            exchangeStarted = false;
+            // 🔥 IMPORTANT: Keep sessionStorage lock to prevent refresh re-run
+            // Only clear it if you want to allow re-authentication
         }
     }
     
@@ -294,10 +311,17 @@ export const loginWithFacebook = () => {
             return;
         }
 
+        // DON'T call handleFacebookCallback here - it's already called by the callback page
+        // This prevents double exchange when loginWithFacebook is used on callback page
         if (code && state === 'facebook_oauth') {
-            handleFacebookCallback()
-                .then(resolve)
-                .catch(reject);
+            // Just resolve with existing result or let callback page handle it
+            const existingToken = getStoredAccessToken();
+            if (existingToken) {
+                resolve({ success: true, accessToken: existingToken });
+            } else {
+                // Let the callback page handle the exchange
+                resolve({ success: false, message: 'Callback processing...' });
+            }
             return;
         }
 
