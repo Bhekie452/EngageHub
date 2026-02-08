@@ -50,8 +50,17 @@ const handlePublishCampaign = async (req: VercelRequest, res: VercelResponse) =>
 
 // Handler for publishing individual posts
 const handlePublishPost = async (req: VercelRequest, res: VercelResponse) => {
+  console.log('[publish-post] Method:', req.method);
+  console.log('[publish-post] Headers:', req.headers);
+  
   if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method Not Allowed' });
+    console.error('[publish-post] Wrong method. Expected POST, got:', req.method);
+    return res.status(405).json({ 
+      error: 'Method Not Allowed',
+      expected: 'POST',
+      received: req.method,
+      message: 'This endpoint only accepts POST requests'
+    });
   }
 
   try {
@@ -120,6 +129,13 @@ const handlePublishPost = async (req: VercelRequest, res: VercelResponse) => {
 // Main handler for utility endpoints
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const { endpoint } = req.query;
+  
+  console.log('[utils] Request:', {
+    method: req.method,
+    endpoint,
+    query: req.query,
+    hasBody: !!req.body
+  });
 
   try {
     switch (endpoint) {
