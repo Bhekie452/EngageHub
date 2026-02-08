@@ -3,7 +3,6 @@ import Stripe from 'stripe';
 
 export const config = {
   runtime: 'nodejs18.x',
-  maxDuration: 30,
 };
 
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY || '';

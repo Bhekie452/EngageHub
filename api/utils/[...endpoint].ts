@@ -2,7 +2,6 @@ import { VercelRequest, VercelResponse } from '@vercel/node';
 
 export const config = {
   runtime: 'nodejs18.x',
-  maxDuration: 30,
 };
 
 // Handler for getting post engagement metrics
