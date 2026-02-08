@@ -29,6 +29,7 @@ const FB_APP_ID = import.meta.env.VITE_FACEBOOK_APP_ID || '2106228116796555';
 
 // Triple guard system to prevent duplicate token exchanges
 let isProcessingCallback = false;
+let exchangeStarted = false;
 
 /**
  * Scopes for Facebook Login
@@ -178,6 +179,13 @@ export const handleFacebookCallback = async (): Promise<any> => {
         return { success: true, accessToken: existingToken };
     }
     
+    // Guard 4: Prevent double exchange
+    if (exchangeStarted) {
+        console.log('🔄 Exchange already started, skipping...');
+        return null;
+    }
+    exchangeStarted = true;
+    
     const urlParams = new URLSearchParams(window.location.search);
     const code = urlParams.get('code');
     const state = urlParams.get('state');
@@ -247,6 +255,7 @@ export const handleFacebookCallback = async (): Promise<any> => {
             // Clear processing flags
             isProcessingCallback = false;
             localStorage.removeItem('facebook_processing');
+            exchangeStarted = false; // Reset exchange guard
         }
     }
     
