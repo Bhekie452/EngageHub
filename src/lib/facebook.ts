@@ -25,7 +25,7 @@ declare global {
     }
 }
 
-const FB_APP_ID = import.meta.env.VITE_FACEBOOK_APP_ID || '1621732999001688';
+const FB_APP_ID = import.meta.env.VITE_FACEBOOK_APP_ID || '2106228116796555';
 
 /**
  * Scopes for Facebook Login. Default uses only permissions that work without App Review.
@@ -49,6 +49,46 @@ const getRedirectURI = (): string => {
         return 'http://localhost:3000';
     }
     return `${window.location.origin}${window.location.pathname}${window.location.hash || ''}`;
+};
+
+// Token storage functions
+const storeAccessToken = (token: string, expiresIn?: number): void => {
+    if (typeof window === 'undefined') return;
+    
+    localStorage.setItem('facebook_access_token', token);
+    if (expiresIn) {
+        const expiresAt = Date.now() + (expiresIn * 1000);
+        localStorage.setItem('facebook_token_expires', expiresAt.toString());
+    }
+    console.log('✅ Access token stored in localStorage');
+};
+
+const clearStoredData = (): void => {
+    if (typeof window === 'undefined') return;
+    
+    localStorage.removeItem('facebook_access_token');
+    localStorage.removeItem('facebook_token_expires');
+    localStorage.removeItem('facebook_pages');
+    console.log('🗑️ Facebook data cleared from localStorage');
+};
+
+export const getStoredAccessToken = (): string | null => {
+    if (typeof window === 'undefined') return null;
+    
+    const token = localStorage.getItem('facebook_access_token');
+    const expiresAt = localStorage.getItem('facebook_token_expires');
+    
+    if (expiresAt && Date.now() > parseInt(expiresAt)) {
+        console.log('⏰ Token expired, clearing stored data');
+        clearStoredData();
+        return null;
+    }
+    
+    return token;
+};
+
+export const isConnectedToFacebook = (): boolean => {
+    return !!getStoredAccessToken();
 };
 
 // Debug: Log the redirect URI being used (only in development)
@@ -136,32 +176,71 @@ export const initFacebookSDK = () => {
 };
 
 /**
- * Wait for Facebook SDK to be ready
+ * Handle Facebook OAuth callback automatically on page load
  */
-const waitForFacebookSDK = (timeout = 5000): Promise<boolean> => {
-    return new Promise((resolve, reject) => {
-        if ((window as any).FB) {
-            resolve(true);
-            return;
-        }
+export const handleFacebookCallback = async (): Promise<any> => {
+    if (typeof window === 'undefined') return null;
+    
+    const urlParams = new URLSearchParams(window.location.search);
+    const code = urlParams.get('code');
+    const state = urlParams.get('state');
+    const error = urlParams.get('error');
 
-        const startTime = Date.now();
-        const checkInterval = setInterval(() => {
-            if ((window as any).FB) {
-                clearInterval(checkInterval);
-                resolve(true);
-            } else if (Date.now() - startTime > timeout) {
-                clearInterval(checkInterval);
-                reject(new Error('Facebook SDK timeout - SDK not loaded'));
+    if (error) {
+        console.error('❌ Facebook OAuth error:', error);
+        throw new Error(`Facebook login error: ${error}`);
+    }
+
+    if (code && state === 'facebook_oauth') {
+        console.log('🔄 Handling Facebook OAuth callback...');
+        
+        try {
+            const result = await exchangeCodeForToken(code);
+            
+            // Store the token
+            if (result.accessToken) {
+                storeAccessToken(result.accessToken, result.expiresIn);
+                
+                // Store pages if available
+                if (result.pages && result.pages.length > 0) {
+                    localStorage.setItem('facebook_pages', JSON.stringify(result.pages));
+                    console.log(`📄 Stored ${result.pages.length} Facebook pages`);
+                }
+                
+                // Clean up URL
+                window.history.replaceState({}, '', window.location.pathname);
+                
+                console.log('✅ Facebook OAuth completed successfully');
+                return result;
             }
-        }, 100);
-    });
+        } catch (error) {
+            console.error('❌ Facebook token exchange failed:', error);
+            throw error;
+        }
+    }
+    
+    return null;
 };
 
 /**
- * Login with Facebook
- * - Uses SDK for HTTPS/production
- * - Uses redirect OAuth for HTTP/localhost (requires backend for token exchange)
+ * Initiate Facebook OAuth flow
+ */
+export const initiateFacebookOAuth = (): void => {
+    if (typeof window === 'undefined') return;
+    
+    const scope = getLoginScope();
+    const oauthState = 'facebook_oauth';
+    const redirectUri = getRedirectURI();
+    const authUrl = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${FB_APP_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}&state=${oauthState}&response_type=code`;
+
+    console.log('🚀 Initiating Facebook OAuth flow...');
+    console.log('📋 OAuth URL:', authUrl);
+    
+    window.location.href = authUrl;
+};
+
+/**
+ * Legacy function for backward compatibility
  */
 export const loginWithFacebook = () => {
     return new Promise((resolve, reject) => {
@@ -200,21 +279,13 @@ export const loginWithFacebook = () => {
             return;
         }
 
-        const scope = getLoginScope();
-        const oauthState = 'facebook_oauth';
-        const redirectUri = getRedirectURI();
-        const authUrl = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${FB_APP_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}&state=${oauthState}&response_type=code`;
-
-        sessionStorage.setItem('facebook_oauth_return', window.location.href);
-        sessionStorage.setItem('facebook_oauth_redirect_uri', redirectUri);
-        window.location.href = authUrl;
+        initiateFacebookOAuth();
     });
 };
 
 /**
  * Exchange authorization code for access token
- * NOTE: In production, this MUST be done server-side for security
- * For localhost development, you'll need to set up a backend endpoint or use ngrok
+ * NOTE: This MUST be done server-side for security
  */
 export const exchangeCodeForToken = async (code: string): Promise<any> => {
     try {
@@ -223,6 +294,10 @@ export const exchangeCodeForToken = async (code: string): Promise<any> => {
             ? (fromStorage || getRedirectURI())
             : getRedirectURI();
         if (typeof window !== 'undefined') sessionStorage.removeItem('facebook_oauth_redirect_uri');
+
+        console.log('🔄 Exchanging authorization code for access token...');
+        console.log('📋 Code length:', code.length);
+        console.log('📋 Redirect URI:', redirectUri);
 
         const response = await fetch(`/api/facebook-simple`, {
             method: 'POST',
@@ -237,27 +312,33 @@ export const exchangeCodeForToken = async (code: string): Promise<any> => {
             throw new Error(typeof msg === 'string' ? msg : 'Token exchange failed');
         }
 
-        const returnUrl = typeof window !== 'undefined' ? (sessionStorage.getItem('facebook_oauth_return') || window.location.pathname) : '';
-        if (typeof window !== 'undefined') {
-            window.history.replaceState({}, '', returnUrl);
-            sessionStorage.removeItem('facebook_oauth_return');
-        }
+        console.log('✅ Token exchange successful');
+        console.log('📋 Token length:', data.accessToken?.length || 0);
+        console.log('📋 Expires in:', data.expiresIn);
 
         return {
-            accessToken: data.access_token,
-            expiresIn: data.expires_in
+            accessToken: data.accessToken,
+            expiresIn: data.expiresIn,
+            pages: data.pages || []
         };
     } catch (error: any) {
+        console.error('❌ Token exchange failed:', error);
         throw new Error(error?.message || 'Token exchange failed');
     }
 };
 
 /**
- * Get Facebook user profile (id, name) using basic-scope token. Works with public_profile,email only.
+ * Get Facebook user profile (id, name) using stored access token
  */
-export const getFacebookProfile = async (userAccessToken: string): Promise<{ id: string; name: string }> => {
+export const getFacebookProfile = async (userAccessToken?: string): Promise<{ id: string; name: string }> => {
+    const token = userAccessToken || getStoredAccessToken();
+    
+    if (!token) {
+        throw new Error('No Facebook access token available');
+    }
+
     const response = await fetch(
-        `https://graph.facebook.com/v21.0/me?fields=id,name&access_token=${userAccessToken}`
+        `https://graph.facebook.com/v21.0/me?fields=id,name&access_token=${token}`
     );
     const data = await response.json();
     if (data.error) throw new Error(data.error.message || 'Failed to fetch profile');
@@ -269,18 +350,62 @@ export const getFacebookProfile = async (userAccessToken: string): Promise<{ id:
  */
 export const getPageTokens = async (userAccessToken?: string): Promise<any[]> => {
     try {
-        // For now, use the simple endpoint that returns hardcoded pages
-        const response = await fetch('/api/facebook-simple');
-        const data = await response.json();
-        
-        if (!response.ok || data.error) {
-            throw new Error(data.error || 'Failed to fetch pages');
+        // First try to get from localStorage
+        if (typeof window !== 'undefined') {
+            const cachedPages = localStorage.getItem('facebook_pages');
+            if (cachedPages) {
+                const pages = JSON.parse(cachedPages);
+                console.log(`📄 Retrieved ${pages.length} cached Facebook pages`);
+                return pages;
+            }
         }
+
+        // If no cached pages, fetch from API
+        const token = userAccessToken || getStoredAccessToken();
         
-        return data.pages || [];
+        if (token) {
+            // Use stored token to fetch pages
+            const response = await fetch(
+                `https://graph.facebook.com/v21.0/me/accounts?fields=id,name,access_token,instagram_business_account&access_token=${token}`
+            );
+            const data = await response.json();
+            
+            if (data.error) {
+                throw new Error(data.error.message || 'Failed to fetch pages');
+            }
+            
+            const pages = data.data || [];
+            
+            // Cache the pages
+            if (typeof window !== 'undefined' && pages.length > 0) {
+                localStorage.setItem('facebook_pages', JSON.stringify(pages));
+                console.log(`📄 Fetched and cached ${pages.length} Facebook pages`);
+            }
+            
+            return pages;
+        } else {
+            // Fallback to API endpoint
+            const response = await fetch('/api/facebook-simple');
+            const data = await response.json();
+            
+            if (!response.ok || data.error) {
+                throw new Error(data.error || 'Failed to fetch pages');
+            }
+            
+            return data.pages || [];
+        }
     } catch (error: any) {
+        console.error('❌ Failed to get pages:', error);
         throw new Error(`Failed to get pages: ${error.message}`);
     }
+};
+
+/**
+ * Disconnect from Facebook (clear stored data)
+ */
+export const disconnectFacebook = (): void => {
+    clearStoredData();
+    console.log('🔌 Disconnected from Facebook');
 };
 
 /**
