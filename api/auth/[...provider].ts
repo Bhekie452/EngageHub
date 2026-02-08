@@ -1,5 +1,10 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
 
+export const config = {
+  runtime: 'nodejs18.x',
+  maxDuration: 30,
+};
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const { provider, action } = req.query;
   

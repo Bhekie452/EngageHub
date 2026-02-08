@@ -1,4 +1,9 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { VercelRequest, VercelResponse } from '@vercel/node';
+
+export const config = {
+  runtime: 'nodejs18.x',
+  maxDuration: 30,
+};
 
 // Handler for getting post engagement metrics
 const handleGetPostEngagement = async (req: VercelRequest, res: VercelResponse) => {
