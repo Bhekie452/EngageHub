@@ -43,12 +43,22 @@ const getLoginScope = (): string =>
 
 /**
  * Get redirect URI (calculated at call time to avoid hydration issues)
+ * Ensures consistent redirect URI across OAuth flow
  */
 const getRedirectURI = (): string => {
     if (typeof window === 'undefined') {
         return 'http://localhost:3000';
     }
-    return `${window.location.origin}${window.location.pathname}${window.location.hash || ''}`;
+    
+    // Get origin and ensure consistent format
+    const origin = window.location.origin;
+    const pathname = window.location.pathname;
+    
+    // Remove any hash fragments and ensure trailing slash
+    const cleanUri = `${origin}${pathname}`.replace(/#.*$/, '');
+    
+    // Ensure it ends with a slash for Facebook OAuth consistency
+    return cleanUri.endsWith('/') ? cleanUri : `${cleanUri}/`;
 };
 
 // Token storage functions
