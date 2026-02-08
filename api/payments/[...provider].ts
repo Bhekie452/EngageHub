@@ -1,10 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import Stripe from 'stripe';
 
-export const config = {
-  runtime: 'nodejs18.x',
-};
-
 type Handler = (req: VercelRequest, res: VercelResponse) => void;
 
 // Stripe Handlers
