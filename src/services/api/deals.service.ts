@@ -1,4 +1,5 @@
 import { supabase } from '../../lib/supabase';
+import { getCurrentCurrency } from '../../lib/currency';
 
 export interface Deal {
   id: string;
@@ -187,9 +188,12 @@ export const dealsService = {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('Not authenticated');
 
+    // Get current currency from database
+    const currentCurrency = getCurrentCurrency();
+
     const { data, error } = await supabase
       .from('deals')
-      .insert([{ ...deal, owner_id: user.id }])
+      .insert([{ ...deal, owner_id: user.id, currency: currentCurrency }])
       .select()
       .single();
 
