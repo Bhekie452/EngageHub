@@ -38,14 +38,97 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const results: any = {};
 
+    // REAL FACEBOOK PUBLISHING
     if (hasFacebook) {
-      results.facebook = { status: 'published', postId: 'fb-mock-id' };
+      try {
+        const FACEBOOK_LONG_TERM_TOKEN = process.env.FACEBOOK_LONG_TERM_TOKEN;
+        
+        if (!FACEBOOK_LONG_TERM_TOKEN) {
+          results.facebook = { 
+            status: 'error', 
+            error: 'No Facebook token available',
+            details: 'FACEBOOK_LONG_TERM_TOKEN environment variable not set'
+          };
+        } else {
+          // Get user's Facebook Pages
+          const pagesUrl = `https://graph.facebook.com/v21.0/me/accounts?fields=id,name,access_token&access_token=${FACEBOOK_LONG_TERM_TOKEN}`;
+          const pagesResponse = await fetch(pagesUrl);
+          const pagesData = await pagesResponse.json();
+          
+          if (pagesData.error) {
+            results.facebook = { 
+              status: 'error', 
+              error: 'Failed to fetch pages',
+              details: pagesData.error.message
+            };
+          } else {
+            const pages = pagesData.data || [];
+            if (pages.length === 0) {
+              results.facebook = { 
+                status: 'error', 
+                error: 'No Facebook Pages available',
+                details: 'User needs to create a Facebook Page'
+              };
+            } else {
+              // Use first available page
+              const page = pages[0];
+              
+              // Post to Facebook Page
+              const postUrl = `https://graph.facebook.com/v21.0/${page.id}/feed`;
+              const postData = {
+                message: content,
+                access_token: page.access_token
+              };
+              
+              const postResponse = await fetch(postUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(postData)
+              });
+              
+              const postResult = await postResponse.json();
+              
+              if (postResult.error) {
+                results.facebook = { 
+                  status: 'error', 
+                  error: 'Failed to publish to Facebook',
+                  details: postResult.error.message
+                };
+              } else {
+                results.facebook = { 
+                  status: 'published', 
+                  postId: postResult.id,
+                  pageName: page.name
+                };
+              }
+            }
+          }
+        }
+      } catch (error: any) {
+        results.facebook = { 
+          status: 'error', 
+          error: 'Facebook publishing failed',
+          details: error.message
+        };
+      }
     }
+
+    // Instagram (mock for now - needs Instagram Business Account setup)
     if (hasInstagram) {
-      results.instagram = { status: 'published', postId: 'ig-mock-id' };
+      results.instagram = { 
+        status: 'error', 
+        error: 'Instagram publishing not implemented',
+        details: 'Requires Instagram Business Account setup'
+      };
     }
+
+    // YouTube (mock for now - needs YouTube API setup)
     if (hasYouTube) {
-      results.youtube = { status: 'published', videoId: 'yt-mock-id' };
+      results.youtube = { 
+        status: 'error', 
+        error: 'YouTube publishing not implemented',
+        details: 'Requires YouTube Data API setup'
+      };
     }
 
     console.log('[publish-post] Response:', {
