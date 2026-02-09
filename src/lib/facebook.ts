@@ -34,11 +34,16 @@ let exchangeStarted = false;
 // Session storage lock for cross-tab protection
 const FB_LOCK = "fb_callback_lock";
 
+// Track ongoing requests to prevent duplicates
+let ongoingRequest: Promise<any[]> | null = null;
+let lastFetchedUserId: string | null = null;
+
 /**
  * Scopes for Facebook Login
  */
 const getLoginScope = (): string =>
-    import.meta.env.VITE_FACEBOOK_SCOPES || 'public_profile,email,pages_show_list,pages_read_engagement';
+    import.meta.env.VITE_FACEBOOK_SCOPES || 
+    'public_profile,email,pages_show_list,pages_read_engagement,instagram_basic,instagram_content_publish,instagram_manage_comments,instagram_manage_insights';
 
 /**
  * Get redirect URI - use dedicated callback route for consistency
@@ -405,63 +410,92 @@ export const getFacebookProfile = async (userAccessToken?: string): Promise<{ id
     return { id: String(data.id), name: data.name || 'Facebook' };
 };
 
-/**
+ /**
  * Get Facebook Pages with caching
  */
 export const getPageTokens = async (userAccessToken?: string): Promise<any[]> => {
     try {
-        // Try localStorage first
-        if (typeof window !== 'undefined') {
-            const cachedPages = localStorage.getItem('facebook_pages');
-            if (cachedPages) {
-                const pages = JSON.parse(cachedPages);
-                console.log(`📄 Retrieved ${pages.length} cached Facebook pages`);
-                return pages;
-            }
+        // If same user and request already in progress, return existing promise
+        if (ongoingRequest && lastFetchedUserId === userAccessToken) {
+            return ongoingRequest;
         }
 
-        // Fetch from API
-        const token = userAccessToken || getStoredAccessToken();
+        // Create new request
+        const request = (async () => {
+            // Check cache first
+            if (typeof window !== 'undefined') {
+                const cached = localStorage.getItem('facebook_pages');
+                if (cached) {
+                    try {
+                        const parsed = JSON.parse(cached);
+                        if (parsed && parsed.length > 0) {
+                            console.log('[getPageTokens] Using cached pages:', parsed.length);
+                            return parsed;
+                        }
+                    } catch (e) {
+                        console.warn('[getPageTokens] Invalid cache, fetching fresh');
+                    }
+                }
+            }
+
+            const token = userAccessToken || getStoredAccessToken();
+            
+            if (token) {
+                const response = await fetch(
+                    `https://graph.facebook.com/v21.0/me/accounts?fields=id,name,access_token,instagram_business_account&access_token=${token}` 
+                );
+                const data = await response.json();
+                
+                if (data.error) {
+                    throw new Error(data.error.message || 'Failed to fetch pages');
+                }
+                
+                const pages = data.data || [];
+                
+                // ✅ NEW: Validate Instagram connection
+                const pagesWithInstagram = pages.filter((page: any) => page.instagram_business_account);
+                const pagesWithoutInstagram = pages.filter((page: any) => !page.instagram_business_account);
+                
+                if (pagesWithoutInstagram.length > 0) {
+                    console.warn('⚠️ Some pages have no Instagram account:', 
+                        pagesWithoutInstagram.map((p: any) => p.name));
+                }
+                
+                if (pagesWithInstagram.length === 0) {
+                    throw new Error(
+                        'No Instagram Business accounts found. Please:\n' +
+                        '1. Convert your Instagram to a Business account\n' +
+                        '2. Link it to your Facebook Page\n' +
+                        '3. Reconnect your Facebook account'
+                    );
+                }
+                
+                console.log(`✅ Found ${pagesWithInstagram.length} pages with Instagram`);
+                
+                // Cache ALL pages (even without Instagram)
+                if (typeof window !== 'undefined' && pages.length > 0) {
+                    localStorage.setItem('facebook_pages', JSON.stringify(pages));
+                }
+                
+                return pages;
+            } else {
+                const response = await fetch('/api/facebook?action=simple');
+                const data = await response.json();
+                if (!response.ok || data.error) throw new Error(data.error || 'Failed to fetch pages');
+                return data.pages || [];
+            }
+        })();
+
+        // Store as ongoing request
+        ongoingRequest = request;
+        lastFetchedUserId = userAccessToken || '';
         
-        if (token) {
-            const response = await fetch(
-                `https://graph.facebook.com/v21.0/me/accounts?fields=id,name,access_token,instagram_business_account&access_token=${token}`
-            );
-            const data = await response.json();
-            
-            if (data.error) {
-                throw new Error(data.error.message || 'Failed to fetch pages');
-            }
-            
-            const pages = data.data || [];
-            
-            // Cache pages
-            if (typeof window !== 'undefined' && pages.length > 0) {
-                localStorage.setItem('facebook_pages', JSON.stringify(pages));
-                console.log(`📄 Fetched and cached ${pages.length} Facebook pages`);
-            }
-            
-            return pages;
-        } else {
-            // Fallback to API endpoint
-            const response = await fetch('/api/facebook?action=simple');
-            const data = await response.json();
-            
-            if (!response.ok || data.error) {
-                throw new Error(data.error || 'Failed to fetch pages');
-            }
-            
-            return data.pages || [];
-        }
+        return request;
     } catch (error: any) {
         console.error('❌ Failed to get pages:', error);
-        throw new Error(`Failed to get pages: ${error.message}`);
+        throw error;
     }
 };
-
-/**
- * Disconnect from Facebook
- */
 export const disconnectFacebook = (): void => {
     clearStoredData();
     
@@ -488,5 +522,98 @@ export const getInstagramAccount = async (pageAccessToken: string, instagramBusi
         return data;
     } catch (error: any) {
         throw new Error(`Failed to get Instagram account: ${error.message}`);
+    }
+};
+
+/**
+ * Get all Instagram accounts from connected Facebook pages
+ */
+export const getConnectedInstagramAccounts = async (userAccessToken?: string): Promise<any[]> => {
+    try {
+        const pages = await getPageTokens(userAccessToken);
+        const instagramAccounts = [];
+        
+        for (const page of pages) {
+            if (page.instagram_business_account) {
+                try {
+                    const igAccount = await getInstagramAccount(
+                        page.access_token,
+                        page.instagram_business_account.id
+                    );
+                    
+                    instagramAccounts.push({
+                        pageId: page.id,
+                        pageName: page.name,
+                        pageToken: page.access_token,
+                        instagram: {
+                            id: igAccount.id,
+                            username: igAccount.username,
+                            profilePicture: igAccount.profile_picture_url
+                        }
+                    });
+                } catch (error) {
+                    console.warn(`⚠️ Failed to fetch Instagram for page ${page.name}:`, error);
+                }
+            }
+        }
+        
+        if (instagramAccounts.length === 0) {
+            throw new Error('No Instagram Business accounts found on your Facebook pages');
+        }
+        
+        return instagramAccounts;
+    } catch (error: any) {
+        console.error('❌ Failed to get Instagram accounts:', error);
+        throw error;
+    }
+};
+
+/**
+ * Debug Instagram connection
+ */
+export const debugInstagramConnection = async (): Promise<void> => {
+    console.log('🔍 Debugging Instagram Connection...\n');
+    
+    // Check 1: Token exists
+    const token = getStoredAccessToken();
+    console.log('1. Access Token:', token ? '✅ Found' : '❌ Missing');
+    
+    if (!token) {
+        console.log('→ Run initiateFacebookOAuth() first');
+        return;
+    }
+    
+    // Check 2: Fetch pages
+    try {
+        const pages = await getPageTokens();
+        console.log(`2. Facebook Pages: ✅ ${pages.length} found`);
+        
+        // Check 3: Instagram accounts
+        const pagesWithIG = pages.filter(p => p.instagram_business_account);
+        console.log(`3. Pages with Instagram: ${pagesWithIG.length > 0 ? '✅' : '❌'} ${pagesWithIG.length}`);
+        
+        if (pagesWithIG.length === 0) {
+            console.log('❌ No Instagram Business accounts linked!');
+            console.log('\nSetup required:');
+            console.log('1. Convert Instagram to Business account');
+            console.log('2. Link Instagram to Facebook Page');
+            console.log('3. Reconnect with proper scopes');
+            return;
+        }
+        
+        // Check 4: Fetch Instagram details
+        for (const page of pagesWithIG) {
+            const igAccount = await getInstagramAccount(
+                page.access_token,
+                page.instagram_business_account.id
+            );
+            console.log(`\n✅ Instagram Account Found:`);
+            console.log(`   Page: ${page.name}`);
+            console.log(`   Instagram: @${igAccount.username}`);
+            console.log(`   ID: ${igAccount.id}`);
+        }
+        
+    } catch (error) {
+        console.error('❌ Error:', error);
     }
 };
