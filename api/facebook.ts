@@ -72,13 +72,28 @@ async function handleFacebookSimple(req: VercelRequest, res: VercelResponse) {
         `&redirect_uri=${encodeURIComponent(cleanRedirectUri)}` +
         `&code=${code}`;
 
+      console.log('🔗 Token Exchange URL:', tokenUrl.substring(0, 100) + '...');
+
       const tokenResponse = await fetch(tokenUrl);
       const tokenData = await tokenResponse.json();
 
+      console.log('📋 Token Response:', {
+        status: tokenResponse.status,
+        ok: tokenResponse.ok,
+        data: tokenData
+      });
+
       if (tokenData.error) {
+        console.error('❌ Facebook Token Error:', {
+          error: tokenData.error,
+          message: tokenData.error?.message,
+          type: tokenData.error?.type,
+          code: tokenData.error?.code
+        });
         return res.status(400).json({ 
           error: 'Token exchange failed',
-          details: tokenData.error.message || 'Token exchange failed'
+          details: tokenData.error.message || 'Token exchange failed',
+          facebookError: tokenData.error
         });
       }
 
@@ -91,13 +106,28 @@ async function handleFacebookSimple(req: VercelRequest, res: VercelResponse) {
         `&client_secret=${FACEBOOK_APP_SECRET}` +
         `&fb_exchange_token=${shortTermToken}`;
 
+      console.log('🔄 Long-term Exchange URL:', longTermUrl.substring(0, 100) + '...');
+
       const longTermResponse = await fetch(longTermUrl);
       const longTermData = await longTermResponse.json();
 
+      console.log('📋 Long-term Response:', {
+        status: longTermResponse.status,
+        ok: longTermResponse.ok,
+        data: longTermData
+      });
+
       if (longTermData.error) {
+        console.error('❌ Facebook Long-term Error:', {
+          error: longTermData.error,
+          message: longTermData.error?.message,
+          type: longTermData.error?.type,
+          code: longTermData.error?.code
+        });
         return res.status(400).json({ 
           error: 'Long-term token exchange failed',
-          details: longTermData.error.message || 'Long-term token exchange failed'
+          details: longTermData.error.message || 'Long-term token exchange failed',
+          facebookError: longTermData.error
         });
       }
 
