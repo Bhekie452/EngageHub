@@ -72,9 +72,26 @@ async function handleFacebookSimple(req: VercelRequest, res: VercelResponse) {
         });
       }
 
+      // ✅ Check for code reuse (basic prevention)
+      const codeKey = `fb_code_${code.substring(0, 20)}`;
+      if (global.usedCodes?.has(codeKey)) {
+        return res.status(400).json({ 
+          error: 'Facebook API Error',
+          message: 'This authorization code has already been used',
+          type: 'OAuthException',
+          code: 'CODE_ALREADY_USED',
+          details: 'Authorization codes are single-use only'
+        });
+      }
+      
+      // Mark code as used
+      if (!global.usedCodes) global.usedCodes = new Set();
+      global.usedCodes.add(codeKey);
+
       // ✅ Log workspace info
       console.log('📋 Workspace ID:', workspaceId || 'Not provided');
       console.log('🔗 Using Redirect URI:', cleanRedirectUri);
+      console.log('🔑 Code Key:', codeKey);
 
       // Exchange code for short-term token
       const tokenUrl = `https://graph.facebook.com/v21.0/oauth/access_token?` +
@@ -102,11 +119,11 @@ async function handleFacebookSimple(req: VercelRequest, res: VercelResponse) {
           code: tokenData.error?.code
         });
         return res.status(400).json({ 
-          error: 'Token exchange failed',
-          details: tokenData.error.message || 'Token exchange failed',
-          facebookError: tokenData.error,
-          errorType: tokenData.error?.type,
-          errorCode: tokenData.error?.code
+          error: 'Facebook API Error',
+          message: tokenData.error.message || 'Token exchange failed',
+          type: tokenData.error?.type,
+          code: tokenData.error?.code,
+          details: 'Facebook rejected the token exchange request'
         });
       }
 

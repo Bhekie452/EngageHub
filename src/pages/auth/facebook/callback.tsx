@@ -1,46 +1,59 @@
-import React, { useEffect, useRef, useState } from "react";
-import { handleFacebookCallback } from "../../../lib/facebook";
+import React, { useEffect, useState, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { handleFacebookCallback } from '../../../lib/facebook';
 
 export default function FacebookCallback() {
-  const [status, setStatus] = useState<"loading" | "success" | "error">("loading");
+  const navigate = useNavigate();
+  const [status, setStatus] = useState('Processing...');
   const [error, setError] = useState<string | null>(null);
-
-  // prevents double-run even if component mounts twice
-  const hasRun = useRef(false);
+  
+  // CRITICAL: Prevent double-firing with ref
+  const hasProcessed = useRef(false);
 
   useEffect(() => {
-    if (hasRun.current) return;
-    hasRun.current = true;
+    // CRITICAL: Only process once
+    if (hasProcessed.current) {
+      console.log(' Already processed this callback - skipping');
+      return;
+    }
+    
+    hasProcessed.current = true;
+    console.log(' Starting Facebook callback processing...');
 
     const processCallback = async () => {
       try {
-        console.log("🔄 Processing Facebook OAuth callback...");
-
         const result = await handleFacebookCallback();
-
+        
         if (result?.success) {
-          setStatus("success");
-          console.log("✅ Facebook OAuth completed successfully");
-
+          setStatus(' Facebook connected successfully!');
+          console.log(' Facebook connection successful');
+          
+          // Redirect after success
           setTimeout(() => {
-            window.location.href = "/";
-          }, 1500);
-        } else if (!result?.skipped) {
-          // Only show error if it wasn't a duplicate that was skipped
-          setStatus("error");
-          setError("No authorization code received");
+            navigate('/dashboard');
+          }, 2000);
+        } else if (result?.skipped) {
+          setStatus(' Connection already processed');
+          console.log(' Connection already processed');
+          
+          setTimeout(() => {
+            navigate('/dashboard');
+          }, 2000);
+        } else {
+          setStatus(' Connection failed');
+          console.log(' No result from callback');
         }
       } catch (err: any) {
-        setStatus("error");
-        setError(err?.message || "Failed to connect Facebook");
-        console.error("❌ Facebook callback error:", err);
+        setError(err.message || 'Failed to connect Facebook');
+        setStatus(' Connection failed');
+        console.error('Facebook callback error:', err);
       }
     };
 
     processCallback();
-  }, []);
+  }, [navigate]);
 
-  if (status === "loading") {
+  if (status === "Processing...") {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
