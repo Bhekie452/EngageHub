@@ -56,14 +56,25 @@ async function handleFacebookSimple(req: VercelRequest, res: VercelResponse) {
 
     if (req.method === 'POST') {
       const { code, redirectUri, workspaceId } = req.body;
-      const cleanRedirectUri = "https://engage-hub-ten.vercel.app/auth/facebook/callback";
+      
+      // ✅ Use exact redirect URI from frontend (not hardcoded)
+      const cleanRedirectUri = redirectUri || "https://engage-hub-ten.vercel.app/auth/facebook/callback";
 
       if (!code) {
         return res.status(400).json({ error: 'Missing authorization code' });
       }
 
+      // ✅ Validate workspace ID (basic check)
+      if (!workspaceId) {
+        return res.status(400).json({ 
+          error: 'No workspace found',
+          details: 'Workspace ID is required for Facebook connection'
+        });
+      }
+
       // ✅ Log workspace info
       console.log('📋 Workspace ID:', workspaceId || 'Not provided');
+      console.log('🔗 Using Redirect URI:', cleanRedirectUri);
 
       // Exchange code for short-term token
       const tokenUrl = `https://graph.facebook.com/v21.0/oauth/access_token?` +
@@ -93,7 +104,9 @@ async function handleFacebookSimple(req: VercelRequest, res: VercelResponse) {
         return res.status(400).json({ 
           error: 'Token exchange failed',
           details: tokenData.error.message || 'Token exchange failed',
-          facebookError: tokenData.error
+          facebookError: tokenData.error,
+          errorType: tokenData.error?.type,
+          errorCode: tokenData.error?.code
         });
       }
 
