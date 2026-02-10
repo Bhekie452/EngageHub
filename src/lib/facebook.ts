@@ -75,18 +75,29 @@ const getRedirectURI = (): string => {
 
 // Token storage functions
 /**
- * Store Page access tokens (not user tokens)
+ * Store Page access tokens (not user tokens) with concurrency protection
  */
 const storePageTokens = (pages: any[]): void => {
     if (typeof window === 'undefined') return;
     
-    localStorage.setItem('facebook_pages', JSON.stringify(pages));
-    console.log(`✅ Stored ${pages.length} Facebook Page tokens`);
-    
-    // Log what we stored
-    pages.forEach((page, i) => {
-        console.log(`📄 Page ${i+1}: ${page.pageName} (${page.pageId}) - Instagram: ${page.hasInstagram ? '✅' : '❌'}`);
-    });
+    try {
+        // Add timestamp to prevent concurrency issues
+        const dataWithTimestamp = {
+            pages: pages,
+            timestamp: Date.now(),
+            version: '1.0'
+        };
+        
+        localStorage.setItem('facebook_pages', JSON.stringify(dataWithTimestamp));
+        console.log(`✅ Stored ${pages.length} Facebook Page tokens`);
+        
+        // Log what we stored
+        pages.forEach((page, i) => {
+            console.log(`📄 Page ${i+1}: ${page.pageName} (${page.pageId}) - Instagram: ${page.hasInstagram ? '✅' : '❌'}`);
+        });
+    } catch (error) {
+        console.error('❌ Error storing Page tokens:', error);
+    }
 };
 
 /**
@@ -341,51 +352,69 @@ export const handleFacebookCallback = async (): Promise<any> => {
 /**
  * Initiate Facebook OAuth flow with URL-based deduplication
  */
-export const initiateFacebookOAuth = (): void => {
-    if (typeof window === 'undefined') return;
-
-    // 🔥 CRITICAL: Prevent multiple OAuth windows
-    const oauthKey = 'facebook_oauth_in_progress';
-    
-    // 🔍 DEBUG: Log current state before check
-    console.log('🔍 [DEBUG] Current OAuth state:', {
-        hasExisting: !!sessionStorage.getItem(oauthKey),
-        existingValue: sessionStorage.getItem(oauthKey),
-        allKeys: Object.keys(sessionStorage).filter(k => k.includes('facebook')),
-        timestamp: new Date().toISOString()
-    });
-    
-    if (sessionStorage.getItem(oauthKey)) {
-        console.warn('🛑 Facebook OAuth already in progress - ignoring duplicate request');
-        console.log('🔍 [DEBUG] Duplicate blocked - OAuth already in progress');
+export const initiateFacebookOAuth = () => {
+    if (typeof window === 'undefined') {
+        console.log('❌ Window not available');
         return;
     }
 
-    // Mark OAuth as in progress
-    sessionStorage.setItem(oauthKey, Date.now().toString());
-    console.log('🚀 Starting Facebook OAuth flow');
-    console.log('🔍 [DEBUG] OAuth marked as in progress:', {
-        timestamp: Date.now().toString(),
-        key: oauthKey
+    // 🔥 CRITICAL: Global lock to prevent ANY duplicate processing
+    if (globalProcessingLock) {
+        console.log('🛑 Facebook OAuth already in progress - ignoring duplicate request');
+        return;
+    }
+
+    // 🔥 CRITICAL: Session-based lock to prevent multiple tabs/windows
+    const oauthInProgress = sessionStorage.getItem('facebook_oauth_in_progress');
+    if (oauthInProgress) {
+        const lockAge = Date.now() - parseInt(oauthInProgress);
+        // Lock expires after 2 minutes
+        if (lockAge < 120000) {
+            console.log('🛑 Facebook OAuth already in progress in another tab - ignoring duplicate request');
+            console.log('🔍 [DEBUG] Duplicate blocked - OAuth already in progress');
+            return;
+        } else {
+            console.log('🔓 OAuth lock expired, clearing...');
+            sessionStorage.removeItem('facebook_oauth_in_progress');
+        }
+    }
+
+    // 🔥 CRITICAL: Prevent multiple requests
+    if (ongoingRequest) {
+        console.log('🛑 Request already in progress, ignoring duplicate');
+        return;
+    }
+
+    // Set all locks
+    globalProcessingLock = true;
+    sessionStorage.setItem('facebook_oauth_in_progress', Date.now().toString());
+    
+    console.log('🚀 Initiating Facebook OAuth...');
+    console.log('🔍 [DEBUG] Current OAuth state:', {
+        hasExisting: !!oauthInProgress,
+        existingValue: oauthInProgress,
+        allKeys: Object.keys(sessionStorage),
+        timestamp: new Date().toISOString()
     });
 
+    const FACEBOOK_APP_ID = import.meta.env.VITE_FACEBOOK_APP_ID || '2106228116796555';
     const redirectUri = getRedirectURI();
-    const scopes = getLoginScope();
-    
-    // Build OAuth URL with re-authentication
+    const scope = getLoginScope();
+    const state = 'facebook_oauth';
+
+    // Build OAuth URL
     const authUrl = `https://www.facebook.com/v21.0/dialog/oauth?` +
-        `client_id=${FB_APP_ID}` +
+        `client_id=${FACEBOOK_APP_ID}` +
         `&redirect_uri=${encodeURIComponent(redirectUri)}` +
-        `&scope=${encodeURIComponent(scopes)}` +
+        `&scope=${encodeURIComponent(scope)}` +
         `&response_type=code` +
-        `&state=facebook_oauth` +
-        `&auth_type=rerequest` +  // Force re-approval
+        `&state=${state}` +
         `&display=popup`;  // Better UX
 
     console.log('🔗 Redirecting to Facebook OAuth:', authUrl.substring(0, 100) + '...');
     
     // 🔥 CRITICAL: Use redirect instead of popup to avoid blocking
-    console.log('� Using redirect flow (more reliable than popup)');
+    console.log('🔄 Using redirect flow (more reliable than popup)');
     window.location.href = authUrl;
 };
 
@@ -418,7 +447,7 @@ export const fetchFacebookConnections = async (workspaceId: string): Promise<any
 };
 
 /**
- * Get Facebook pages with database fallback
+ * Get Facebook pages with database fallback and concurrency protection
  */
 export const getFacebookPages = async (workspaceId?: string): Promise<any[]> => {
     // First try database
@@ -434,17 +463,28 @@ export const getFacebookPages = async (workspaceId?: string): Promise<any[]> => 
         }
     }
     
-    // Fallback to localStorage
+    // Fallback to localStorage with concurrency protection
     if (typeof window !== 'undefined') {
-        const cached = localStorage.getItem('facebook_pages');
-        if (cached) {
-            try {
+        try {
+            const cached = localStorage.getItem('facebook_pages');
+            if (cached) {
                 const parsed = JSON.parse(cached);
-                console.log('✅ Using pages from localStorage fallback');
-                return parsed;
-            } catch (error) {
-                console.log('❌ Error parsing localStorage pages');
+                
+                // Handle new data structure with timestamp
+                let pages = [];
+                if (parsed.pages && Array.isArray(parsed.pages)) {
+                    pages = parsed.pages;
+                    console.log(`✅ Using ${pages.length} pages from localStorage (timestamp: ${new Date(parsed.timestamp).toLocaleString()})`);
+                } else if (Array.isArray(parsed)) {
+                    // Handle old format (backward compatibility)
+                    pages = parsed;
+                    console.log(`✅ Using ${pages.length} pages from localStorage (old format)`);
+                }
+                
+                return pages;
             }
+        } catch (error) {
+            console.error('❌ Error parsing localStorage pages:', error);
         }
     }
     
