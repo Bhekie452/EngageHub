@@ -36,6 +36,7 @@ declare global {
         testFacebookConnection?: () => Promise<any>;
         verifyFacebookConnection?: () => Promise<any>;
         quickFacebookTest?: () => void;
+        diagnoseFacebookConnection?: () => Promise<void>;
     }
 }
 
@@ -601,6 +602,96 @@ if (typeof window !== 'undefined') {
             window.verifyFacebookConnection();
         } else {
             console.log('❌ Please connect Facebook first');
+        }
+    };
+    
+    // Add diagnostic function
+    window.diagnoseFacebookConnection = async function() {
+        console.log('🔍 Diagnosing Facebook Connection...');
+        
+        const token = localStorage.getItem('facebook_access_token');
+        if (!token) {
+            console.log('❌ No token found - please connect Facebook first');
+            return;
+        }
+        
+        console.log('🔑 Testing token with /me endpoint...');
+        try {
+            const meResponse = await fetch(`https://graph.facebook.com/v21.0/me?access_token=${token}`);
+            const meData = await meResponse.json();
+            console.log('👤 /me response:', meData);
+            
+            if (meData.error) {
+                console.log('❌ Token invalid:', meData.error);
+                return;
+            }
+        } catch (error) {
+            console.log('❌ /me request failed:', error);
+            return;
+        }
+        
+        console.log('📄 Testing /me/accounts endpoint...');
+        try {
+            const accountsResponse = await fetch(`https://graph.facebook.com/v21.0/me/accounts?access_token=${token}`);
+            const accountsData = await accountsResponse.json();
+            console.log('📋 /me/accounts response:', accountsData);
+            
+            if (accountsData.error) {
+                console.log('❌ Accounts fetch failed:', accountsData.error);
+                return;
+            }
+            
+            const allItems = accountsData.data || [];
+            console.log(`📊 Total items returned: ${allItems.length}`);
+            
+            if (allItems.length === 0) {
+                console.log('⚠️ NO ITEMS RETURNED!');
+                console.log('💡 This means:');
+                console.log('   1. You have NO Facebook Pages');  
+                console.log('   2. Your token lacks pages_show_list permission');
+                console.log('   3. Your Pages are not accessible');
+                console.log('');
+                console.log('🔧 SOLUTION:');
+                console.log('   1. Create Facebook Pages: https://facebook.com/pages/create');
+                console.log('   2. Link Instagram Business accounts to Pages');
+                console.log('   3. Reconnect Facebook with proper permissions');
+                return;
+            }
+            
+            console.log('📄 Analyzing returned items...');
+            allItems.forEach((item, index) => {
+                console.log(`\n📋 Item ${index + 1}:`);
+                console.log(`   ID: ${item.id}`);
+                console.log(`   Name: ${item.name}`);
+                console.log(`   Category: ${item.category || 'NO CATEGORY (personal profile?)'}`);
+                console.log(`   Has Instagram: ${item.instagram_business_account ? '✅ Yes' : '❌ No'}`);
+                console.log(`   Has Access Token: ${item.access_token ? '✅ Yes' : '❌ No'}`);
+                
+                if (!item.category) {
+                    console.log('   ⚠️ This looks like a PERSONAL PROFILE, not a Page!');
+                }
+            });
+            
+            const actualPages = allItems.filter(item => item.category);
+            const pagesWithInstagram = actualPages.filter(page => page.instagram_business_account);
+            
+            console.log('\n📊 SUMMARY:');
+            console.log(`   Total items: ${allItems.length}`);
+            console.log(`   Actual Pages (with category): ${actualPages.length}`);
+            console.log(`   Pages with Instagram: ${pagesWithInstagram.length}`);
+            
+            if (actualPages.length === 0) {
+                console.log('\n❌ DIAGNOSIS: Only personal profiles returned!');
+                console.log('🔧 SOLUTION: Create Facebook Pages and reconnect');
+            } else if (pagesWithInstagram.length === 0) {
+                console.log('\n⚠️ DIAGNOSIS: Pages found but no Instagram linked!');
+                console.log('🔧 SOLUTION: Link Instagram Business accounts to your Pages');
+            } else {
+                console.log('\n✅ DIAGNOSIS: Everything looks good!');
+            }
+            
+        } catch (error) {
+            console.log('❌ /me/accounts request failed:', error);
         }
     };
     
