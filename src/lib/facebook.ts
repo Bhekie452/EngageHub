@@ -27,16 +27,15 @@ declare global {
 
 const FB_APP_ID = import.meta.env.VITE_FACEBOOK_APP_ID || '2106228116796555';
 
-// Triple guard system to prevent duplicate token exchanges
-let isProcessingCallback = false;
-let exchangeStarted = false;
+// Triple guard system// 🔥 CRITICAL: Global lock to prevent ANY duplicate processing
+let globalProcessingLock = false;
 
-// Session storage lock for cross-tab protection
-const FB_LOCK = "fb_callback_lock";
-
-// Track ongoing requests to prevent duplicates
+// 🔥 CRITICAL: Prevent duplicate requests
 let ongoingRequest: Promise<any[]> | null = null;
 let lastFetchedUserId: string | null = null;
+
+// 🔥 CRITICAL: Lock for OAuth callback processing
+const FB_LOCK = 'facebook_oauth_lock';
 
 /**
  * Scopes for Facebook Login
@@ -167,48 +166,52 @@ export const initFacebookSDK = () => {
 export const handleFacebookCallback = async (): Promise<any> => {
     if (typeof window === 'undefined') return null;
     
-    // 🔥 CRITICAL: Block duplicates across tabs/reloads using sessionStorage
-    if (sessionStorage.getItem(FB_LOCK) === "1") {
-        console.warn("🛑 Facebook callback already in progress (blocked duplicate)");
+    // 🔥 CRITICAL: Global lock - prevent ANY duplicates
+    if (globalProcessingLock) {
+        console.warn("🛑 Global lock active - another process is handling Facebook callback");
         return { success: false, skipped: true };
     }
-    const urlParams = new URLSearchParams(window.location.search);
-    const code = urlParams.get('code');
-    const state = urlParams.get('state');
-    const error = urlParams.get('error');
-
-    if (error) {
-        console.error('❌ Facebook OAuth error:', error);
-        throw new Error(`Facebook login error: ${error}`);
-    }
-
-    if (!code || state !== 'facebook_oauth') {
-        return null; // Not a Facebook callback
-    }
-
-    // 🔥 CRITICAL: Create a unique key for this specific code
-    const codeKey = `fb_code_${code.substring(0, 20)}`;
     
-    // Check if this exact code was already processed
-    if (sessionStorage.getItem(codeKey) === "processed") {
-        console.warn("� This authorization code was already processed");
-        const existingToken = getStoredAccessToken();
-        return { success: !!existingToken, accessToken: existingToken, skipped: true };
-    }
-    
-    // Mark this code as being processed IMMEDIATELY
-    sessionStorage.setItem(codeKey, "processing");
-    
-    console.log('🔄 Facebook OAuth callback detected, processing...');
-    
-    // 🔥 CRITICAL: Remove code from URL IMMEDIATELY
-    const cleanUrl = new URL(window.location.href);
-    cleanUrl.searchParams.delete("code");
-    cleanUrl.searchParams.delete("state");
-    window.history.replaceState({}, "", cleanUrl.pathname + cleanUrl.search);
-    console.log('🗑️ Code removed from URL');
+    globalProcessingLock = true;
+    console.log('🔒 Global lock engaged for Facebook callback');
     
     try {
+        const urlParams = new URLSearchParams(window.location.search);
+        const code = urlParams.get('code');
+        const state = urlParams.get('state');
+        const error = urlParams.get('error');
+
+        if (error) {
+            console.error('❌ Facebook OAuth error:', error);
+            throw new Error(`Facebook login error: ${error}`);
+        }
+
+        if (!code || state !== 'facebook_oauth') {
+            return null; // Not a Facebook callback
+        }
+
+        // 🔥 CRITICAL: Create a unique key for this specific code
+        const codeKey = `fb_code_${code.substring(0, 20)}`;
+        
+        // Check if this exact code was already processed
+        if (sessionStorage.getItem(codeKey) === "processed") {
+            console.warn("🛑 This authorization code was already processed");
+            const existingToken = getStoredAccessToken();
+            return { success: !!existingToken, accessToken: existingToken, skipped: true };
+        }
+        
+        // Mark this code as being processed IMMEDIATELY
+        sessionStorage.setItem(codeKey, "processing");
+        
+        console.log('🔄 Facebook OAuth callback detected, processing...');
+        
+        // 🔥 CRITICAL: Remove code from URL IMMEDIATELY
+        const cleanUrl = new URL(window.location.href);
+        cleanUrl.searchParams.delete("code");
+        cleanUrl.searchParams.delete("state");
+        window.history.replaceState({}, "", cleanUrl.pathname + cleanUrl.search);
+        console.log('🗑️ Code removed from URL');
+        
         const result = await exchangeCodeForToken(code);
         
         // Store token
@@ -233,11 +236,13 @@ export const handleFacebookCallback = async (): Promise<any> => {
         }
     } catch (error: any) {
         console.error('❌ Facebook token exchange failed:', error);
-        
-        // Remove processing flag on error
-        sessionStorage.removeItem(codeKey);
-        
         throw error;
+    } finally {
+        // 🔥 CRITICAL: Release global lock after delay
+        setTimeout(() => {
+            globalProcessingLock = false;
+            console.log('🔓 Global lock released');
+        }, 1000);
     }
     
     return null;
