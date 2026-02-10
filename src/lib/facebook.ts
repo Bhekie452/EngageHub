@@ -295,15 +295,43 @@ export const initiateFacebookOAuth = (): void => {
     const scope = getLoginScope();
     const oauthState = 'facebook_oauth';
     const redirectUri = getRedirectURI();
-    const authUrl = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${FB_APP_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}&state=${oauthState}&response_type=code`;
+    
+    // ✅ Added auth_type=rerequest to force permission re-approval for Instagram linking
+    const authUrl = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${FB_APP_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}&state=${oauthState}&response_type=code&auth_type=rerequest&display=popup`;
 
     console.log('📋 OAuth URL:', authUrl);
     window.location.href = authUrl;
 };
 
 /**
- * Legacy function for backward compatibility
+ * Complete reconnection with security challenge handling
  */
+export const reconnectFacebook = async (): Promise<void> => {
+    console.log('🔄 Starting Facebook reconnection with forced reauth...');
+    
+    // Step 1: Disconnect (clear all data)
+    disconnectFacebook();
+    
+    // Step 2: Wait for storage to clear
+    await new Promise(resolve => setTimeout(resolve, 500));
+    
+    // Step 3: Show user message
+    console.log('✅ Data cleared. Redirecting to Facebook...');
+    
+    // Step 4: Start OAuth flow with forced reauth
+    initiateFacebookOAuth();
+};
+
+/**
+ * Check if security challenge is needed
+ */
+export const needsSecurityChallenge = (error: any): boolean => {
+    return (
+        error?.error === 'FACEBOOK_SECURITY_CHALLENGE' ||
+        error?.message?.includes('security challenge') ||
+        error?.message?.includes('reauth')
+    );
+};
 export const loginWithFacebook = () => {
     return new Promise((resolve, reject) => {
         const urlParams = new URLSearchParams(window.location.search);
@@ -375,6 +403,20 @@ export const exchangeCodeForToken = async (code: string): Promise<any> => {
             (error as any).facebookError = data?.facebookError;
             
             throw error;
+        }
+
+        // ✅ Handle security challenge response
+        if (data.error === 'FACEBOOK_SECURITY_CHALLENGE') {
+            // Show user-friendly message
+            throw new Error(
+                '🔐 Facebook Security Check Required\n\n' +
+                'Facebook needs to verify this action for security.\n\n' +
+                'Please:\n' +
+                '1. Disconnect your Facebook account\n' +
+                '2. Reconnect and approve all permissions\n' +
+                '3. Make sure you\'re logged into the correct Facebook account\n\n' +
+                'Click "Connect Facebook" again to complete the process.'
+            );
         }
 
         console.log('✅ Token exchange successful');
