@@ -22,6 +22,10 @@ declare global {
             XFBML: {
                 parse: (element?: HTMLElement) => void;
             };
+            AppEvents?: {
+                logPageView: () => void;
+                logEvent: (eventName: string, valueToSum?: number, parameters?: any) => void;
+            };
         };
         fbAsyncInit?: () => void;
         
