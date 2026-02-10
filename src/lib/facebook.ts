@@ -192,14 +192,24 @@ export const cleanupOAuthState = (): void => {
 export const handleFacebookCallback = async (): Promise<any> => {
     if (typeof window === 'undefined') return null;
     
-    // 🔥 CRITICAL: Global lock - prevent ANY duplicates
+    // � DEBUG: Log callback entry state
+    console.log('🔍 [DEBUG] Facebook callback triggered:', {
+        url: window.location.href,
+        search: window.location.search,
+        timestamp: new Date().toISOString(),
+        sessionStorageKeys: Object.keys(sessionStorage).filter(k => k.includes('facebook'))
+    });
+    
+    // �🔥 CRITICAL: Global lock - prevent ANY duplicates
     if (globalProcessingLock) {
         console.warn("🛑 Global lock active - another process is handling Facebook callback");
+        console.log('🔍 [DEBUG] Global lock blocked callback');
         return { success: false, skipped: true };
     }
     
     globalProcessingLock = true;
     console.log('🔒 Global lock engaged for Facebook callback');
+    console.log('🔍 [DEBUG] Global lock engaged');
     
     try {
         const urlParams = new URLSearchParams(window.location.search);
@@ -213,6 +223,7 @@ export const handleFacebookCallback = async (): Promise<any> => {
         }
 
         if (!code || state !== 'facebook_oauth') {
+            console.log('🔍 [DEBUG] Not a Facebook callback - ignoring');
             return null; // Not a Facebook callback
         }
 
@@ -222,6 +233,7 @@ export const handleFacebookCallback = async (): Promise<any> => {
         // Check if this exact code was already processed
         if (sessionStorage.getItem(codeKey) === "processed") {
             console.warn("🛑 This authorization code was already processed");
+            console.log('🔍 [DEBUG] Code already processed - skipping');
             const existingToken = getStoredAccessToken();
             return { success: !!existingToken, accessToken: existingToken, skipped: true };
         }
@@ -230,6 +242,11 @@ export const handleFacebookCallback = async (): Promise<any> => {
         sessionStorage.setItem(codeKey, "processing");
         
         console.log('🔄 Facebook OAuth callback detected, processing...');
+        console.log('🔍 [DEBUG] Processing new code:', {
+            codeKey,
+            codeLength: code.length,
+            timestamp: Date.now()
+        });
         
         // 🔥 CRITICAL: Remove code from URL IMMEDIATELY
         const cleanUrl = new URL(window.location.href);
@@ -237,6 +254,7 @@ export const handleFacebookCallback = async (): Promise<any> => {
         cleanUrl.searchParams.delete("state");
         window.history.replaceState({}, "", cleanUrl.pathname + cleanUrl.search);
         console.log('🗑️ Code removed from URL');
+        console.log('🔍 [DEBUG] Code removed from URL');
         
         const result = await exchangeCodeForToken(code);
         
@@ -258,16 +276,22 @@ export const handleFacebookCallback = async (): Promise<any> => {
             }));
             
             console.log('✅ Facebook connection successful!');
+            console.log('🔍 [DEBUG] Connection completed successfully');
             return result;
         }
     } catch (error: any) {
         console.error('❌ Facebook token exchange failed:', error);
+        console.log('🔍 [DEBUG] Token exchange failed:', {
+            error: error.message,
+            timestamp: Date.now()
+        });
         throw error;
     } finally {
         // 🔥 CRITICAL: Release global lock after delay
         setTimeout(() => {
             globalProcessingLock = false;
             console.log('🔓 Global lock released');
+            console.log('🔍 [DEBUG] Global lock released');
         }, 1000);
     }
     
@@ -275,20 +299,35 @@ export const handleFacebookCallback = async (): Promise<any> => {
 };
 
 /**
+ * Initiate Facebook OAuth flow with URL-based deduplication
  */
 export const initiateFacebookOAuth = (): void => {
     if (typeof window === 'undefined') return;
 
     // 🔥 CRITICAL: Prevent multiple OAuth windows
     const oauthKey = 'facebook_oauth_in_progress';
+    
+    // 🔍 DEBUG: Log current state before check
+    console.log('🔍 [DEBUG] Current OAuth state:', {
+        hasExisting: !!sessionStorage.getItem(oauthKey),
+        existingValue: sessionStorage.getItem(oauthKey),
+        allKeys: Object.keys(sessionStorage).filter(k => k.includes('facebook')),
+        timestamp: new Date().toISOString()
+    });
+    
     if (sessionStorage.getItem(oauthKey)) {
         console.warn('🛑 Facebook OAuth already in progress - ignoring duplicate request');
+        console.log('🔍 [DEBUG] Duplicate blocked - OAuth already in progress');
         return;
     }
 
     // Mark OAuth as in progress
     sessionStorage.setItem(oauthKey, Date.now().toString());
     console.log('🚀 Starting Facebook OAuth flow');
+    console.log('🔍 [DEBUG] OAuth marked as in progress:', {
+        timestamp: Date.now().toString(),
+        key: oauthKey
+    });
 
     const redirectUri = getRedirectURI();
     const scopes = getLoginScope();
@@ -303,13 +342,14 @@ export const initiateFacebookOAuth = (): void => {
         `&auth_type=rerequest` +  // Force re-approval
         `&display=popup`;  // Better UX
 
-    console.log('� Redirecting to Facebook OAuth:', authUrl.substring(0, 100) + '...');
+    console.log('🔗 Redirecting to Facebook OAuth:', authUrl.substring(0, 100) + '...');
     
     // Open in popup to avoid page navigation issues
     const popup = window.open(authUrl, 'facebook_oauth', 'width=600,height=600,scrollbars=yes,resizable=yes');
     
     if (popup) {
-        console.log('� Facebook OAuth popup opened');
+        console.log('📱 Facebook OAuth popup opened');
+        console.log('🔍 [DEBUG] Popup opened successfully');
         
         // Clean up on popup close
         const checkClosed = setInterval(() => {
@@ -317,6 +357,7 @@ export const initiateFacebookOAuth = (): void => {
                 clearInterval(checkClosed);
                 sessionStorage.removeItem(oauthKey);
                 console.log('🔓 OAuth popup closed - cleaning up');
+                console.log('🔍 [DEBUG] Popup closed, OAuth state cleared');
             }
         }, 1000);
         
@@ -326,11 +367,13 @@ export const initiateFacebookOAuth = (): void => {
             sessionStorage.removeItem(oauthKey);
             if (!popup.closed) {
                 console.log('⏰ OAuth timeout - cleaning up');
+                console.log('🔍 [DEBUG] OAuth timeout, state cleared');
             }
         }, 300000);
     } else {
         // Fallback to redirect
         console.log('🔄 Popup blocked - falling back to redirect');
+        console.log('🔍 [DEBUG] Popup blocked, using redirect fallback');
         window.location.href = authUrl;
     }
 };
