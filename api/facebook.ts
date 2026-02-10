@@ -183,53 +183,49 @@ async function handleFacebookSimple(req: VercelRequest, res: VercelResponse) {
 
       const pages = pagesData.data || [];
 
-      // 🔥 CRITICAL: Save connection to database
-      if (workspaceId && longTermToken) {
-        console.log('💾 Saving Facebook connection to database...');
+      // 🔥 CRITICAL: Extract Page access tokens (not user token)
+      const pageConnections = pages.map(page => ({
+        pageId: page.id,
+        pageName: page.name,
+        pageAccessToken: page.access_token,   // ✅ Use Page token for Page actions
+        instagramBusinessAccountId: page.instagram_business_account?.id,
+        category: page.category,
+        hasInstagram: !!page.instagram_business_account
+      }));
+
+      // Save Page tokens instead of user token
+      if (workspaceId && pageConnections.length > 0) {
+        console.log('💾 Saving Facebook Page tokens to database...');
         
-        try {
-          // TODO: Replace with actual database save
-          // For now, just log the data that would be saved
-          const connectionData = {
-            workspaceId: workspaceId,
-            platform: 'facebook',
-            accessToken: longTermToken,
-            expiresIn: expiresIn,
-            pages: pages.map(page => ({
-              pageId: page.id,
-              pageName: page.name,
-              pageAccessToken: page.access_token,
-              instagramBusinessAccountId: page.instagram_business_account?.id,
-              category: page.category,
-              hasInstagram: !!page.instagram_business_account
-            })),
-            createdAt: new Date().toISOString()
-          };
-          
-          console.log('✅ Connection data prepared for database:', {
-            workspaceId: connectionData.workspaceId,
-            platform: connectionData.platform,
-            tokenLength: connectionData.accessToken.length,
-            pagesCount: connectionData.pages.length,
-            pagesWithInstagram: connectionData.pages.filter(p => p.hasInstagram).length
-          });
-          
-          // TODO: Actual database save:
-          // await saveFacebookConnection(connectionData);
-          
-        } catch (dbError) {
-          console.error('❌ Database save error:', dbError);
-          // Continue anyway - frontend will use localStorage fallback
-        }
+        const connectionData = {
+          workspaceId: workspaceId,
+          platform: 'facebook',
+          pages: pageConnections,  // ✅ Store Page tokens
+          longTermUserToken: longTermToken, // Keep for refreshing
+          createdAt: new Date().toISOString()
+        };
+        
+        console.log('✅ Page connection data prepared:', {
+          workspaceId: connectionData.workspaceId,
+          platform: connectionData.platform,
+          pagesCount: connectionData.pages.length,
+          pagesWithInstagram: connectionData.pages.filter(p => p.hasInstagram).length,
+          hasPageTokens: connectionData.pages.some(p => p.pageAccessToken)
+        });
+        
+        // TODO: Actual database save:
+        // await saveFacebookPageConnections(connectionData);
+        
       } else {
-        console.warn('⚠️ Cannot save to database - missing workspaceId or token');
+        console.warn('⚠️ No Pages found or missing workspaceId - user may not manage any Facebook Pages');
       }
 
       return res.status(200).json({
         success: true,
-        accessToken: longTermToken,
-        expiresIn: expiresIn,
-        pages: pages
+        pages: pageConnections,  // ✅ Return Page tokens to frontend
+        message: pageConnections.length > 0 
+          ? `Found ${pageConnections.length} Facebook Pages` 
+          : 'No Facebook Pages found - user may not manage any Pages'
       });
 
     } else {
@@ -530,8 +526,9 @@ async function handleGetConnections(req: VercelRequest, res: VercelResponse) {
 
     console.log('📋 Fetching Facebook connections for workspace:', workspaceId);
 
-    // 🔥 CRITICAL: For now, return localStorage data as fallback
-    // TODO: Replace with actual database query
+    // 🔥 CRITICAL: For now, return empty array - need database implementation
+    // TODO: Replace with actual database query:
+    // const connections = await getFacebookPageConnections(workspaceId);
     const connections = []; // Empty array - no database storage yet
 
     return res.status(200).json({
@@ -548,4 +545,29 @@ async function handleGetConnections(req: VercelRequest, res: VercelResponse) {
       details: error.message
     });
   }
+}
+
+/**
+ * Refresh Page tokens using long-term user token
+ */
+async function refreshPageTokens(longTermUserToken: string) {
+  const url = `https://graph.facebook.com/v21.0/me/accounts?` +
+    `fields=id,name,access_token,instagram_business_account,category&` +
+    `access_token=${longTermUserToken}`;
+
+  const response = await fetch(url);
+  const data = await response.json();
+
+  if (data.error) {
+    throw new Error(`Failed to refresh Page tokens: ${data.error.message}`);
+  }
+
+  return (data.data || []).map(page => ({
+    pageId: page.id,
+    pageName: page.name,
+    pageAccessToken: page.access_token,   // ✅ always fresh
+    instagramBusinessAccountId: page.instagram_business_account?.id,
+    category: page.category,
+    hasInstagram: !!page.instagram_business_account
+  }));
 }

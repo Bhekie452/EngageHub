@@ -74,6 +74,24 @@ const getRedirectURI = (): string => {
 };
 
 // Token storage functions
+/**
+ * Store Page access tokens (not user tokens)
+ */
+const storePageTokens = (pages: any[]): void => {
+    if (typeof window === 'undefined') return;
+    
+    localStorage.setItem('facebook_pages', JSON.stringify(pages));
+    console.log(`✅ Stored ${pages.length} Facebook Page tokens`);
+    
+    // Log what we stored
+    pages.forEach((page, i) => {
+        console.log(`📄 Page ${i+1}: ${page.pageName} (${page.pageId}) - Instagram: ${page.hasInstagram ? '✅' : '❌'}`);
+    });
+};
+
+/**
+ * Store user access token (for refreshing Page tokens)
+ */
 const storeAccessToken = (token: string, expiresIn?: number): void => {
     if (typeof window === 'undefined') return;
     
@@ -82,7 +100,7 @@ const storeAccessToken = (token: string, expiresIn?: number): void => {
         const expiresAt = Date.now() + (expiresIn * 1000);
         localStorage.setItem('facebook_token_expires', expiresAt.toString());
     }
-    console.log('✅ Access token stored in localStorage');
+    console.log('✅ User access token stored in localStorage (for Page token refresh)');
 };
 
 const clearStoredData = (): void => {
@@ -274,26 +292,32 @@ export const handleFacebookCallback = async (): Promise<any> => {
         
         const result = await exchangeCodeForToken(code);
         
-        // Store token
-        if (result.accessToken) {
-            storeAccessToken(result.accessToken, result.expiresIn);
-            
+        if (result && result.success) {
+            // 🔥 CRITICAL: Store Page tokens (not user token)
             if (result.pages && result.pages.length > 0) {
-                localStorage.setItem('facebook_pages', JSON.stringify(result.pages));
-                console.log(`📄 Stored ${result.pages.length} Facebook pages`);
+                storePageTokens(result.pages);
+                console.log(`📄 Stored ${result.pages.length} Facebook Page tokens`);
             }
             
-            // Mark as successfully processed
-            sessionStorage.setItem(codeKey, "processed");
+            // Also store user token for refreshing Page tokens
+            if (result.accessToken) {
+                storeAccessToken(result.accessToken, result.expiresIn);
+            }
             
-            // Fire success event
-            window.dispatchEvent(new CustomEvent('facebook-connected', {
-                detail: { success: true, pages: result.pages }
-            }));
+            console.log('✅ Facebook connection successful');
+            console.log('📋 Result:', result);
             
-            console.log('✅ Facebook connection successful!');
-            console.log('🔍 [DEBUG] Connection completed successfully');
-            return result;
+            // Dispatch success event
+            const event = new CustomEvent('facebookConnected', { 
+                detail: { 
+                    success: true, 
+                    pages: result.pages,
+                    message: result.message 
+                } 
+            });
+            window.dispatchEvent(event);
+            
+            return { success: true, pages: result.pages, message: result.message };
         }
     } catch (error: any) {
         console.error('❌ Facebook token exchange failed:', error);
