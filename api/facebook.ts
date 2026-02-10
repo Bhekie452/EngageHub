@@ -51,32 +51,26 @@ async function handleFacebookSimple(req: VercelRequest, res: VercelResponse) {
 
     if (!FACEBOOK_APP_ID || !FACEBOOK_APP_SECRET) {
       return res.status(500).json({ 
-        error: 'Server configuration error',
-        details: 'Facebook credentials not configured'
+        error: 'Facebook credentials not configured',
+        details: 'Missing FACEBOOK_APP_ID or FACEBOOK_APP_SECRET'
       });
     }
 
+    // POST request - exchange code for token
     if (req.method === 'POST') {
       const { code, redirectUri, workspaceId } = req.body;
-      
-      // ✅ Use exact redirect URI from frontend (not hardcoded)
-      const cleanRedirectUri = redirectUri || "https://engage-hub-ten.vercel.app/auth/facebook/callback";
 
       if (!code) {
-        return res.status(400).json({ error: 'Missing authorization code' });
-      }
-
-      // ✅ Validate workspace ID (basic check)
-      if (!workspaceId) {
         return res.status(400).json({ 
-          error: 'No workspace found',
-          details: 'Workspace ID is required for Facebook connection'
+          error: 'Missing authorization code',
+          details: 'No code provided in request body'
         });
       }
 
-      // ✅ Check for code reuse (basic prevention)
+      // 🔥 CRITICAL: Check if code already used
       const codeKey = `fb_code_${code.substring(0, 20)}`;
-      if (global.usedCodes?.has(codeKey)) {
+      if (!global.usedCodes) global.usedCodes = new Set();
+      if (global.usedCodes.has(codeKey)) {
         return res.status(400).json({ 
           error: 'Facebook API Error',
           message: 'This authorization code has already been used',
@@ -86,20 +80,18 @@ async function handleFacebookSimple(req: VercelRequest, res: VercelResponse) {
         });
       }
       
-      // Mark code as used
-      if (!global.usedCodes) global.usedCodes = new Set();
+      // Mark code as used IMMEDIATELY
       global.usedCodes.add(codeKey);
+      console.log('🔒 Code marked as used:', codeKey);
 
-      // ✅ Log workspace info
       console.log('📋 Workspace ID:', workspaceId || 'Not provided');
-      console.log('🔗 Using Redirect URI:', cleanRedirectUri);
-      console.log('🔑 Code Key:', codeKey);
+      console.log('🔗 Using Redirect URI:', redirectUri);
 
       // Exchange code for short-term token
       const tokenUrl = `https://graph.facebook.com/v21.0/oauth/access_token?` +
         `client_id=${FACEBOOK_APP_ID}` +
         `&client_secret=${FACEBOOK_APP_SECRET}` +
-        `&redirect_uri=${encodeURIComponent(cleanRedirectUri)}` +
+        `&redirect_uri=${encodeURIComponent(redirectUri)}` +
         `&code=${code}`;
 
       console.log('🔗 Token Exchange URL:', tokenUrl.substring(0, 100) + '...');
@@ -110,16 +102,12 @@ async function handleFacebookSimple(req: VercelRequest, res: VercelResponse) {
       console.log('📋 Token Response:', {
         status: tokenResponse.status,
         ok: tokenResponse.ok,
-        data: tokenData
+        hasAccessToken: !!tokenData.access_token,
+        tokenLength: tokenData.access_token?.length || 0
       });
 
       if (tokenData.error) {
-        console.error('❌ Facebook Token Error:', {
-          error: tokenData.error,
-          message: tokenData.error?.message,
-          type: tokenData.error?.type,
-          code: tokenData.error?.code
-        });
+        console.error('❌ Facebook Token Error:', tokenData.error);
         return res.status(400).json({ 
           error: 'Facebook API Error',
           message: tokenData.error.message || 'Token exchange failed',
@@ -131,50 +119,60 @@ async function handleFacebookSimple(req: VercelRequest, res: VercelResponse) {
 
       const shortTermToken = tokenData.access_token;
 
-      // Exchange for long-term token
+      // Exchange short-term token for long-term token
       const longTermUrl = `https://graph.facebook.com/v21.0/oauth/access_token?` +
         `grant_type=fb_exchange_token` +
         `&client_id=${FACEBOOK_APP_ID}` +
         `&client_secret=${FACEBOOK_APP_SECRET}` +
         `&fb_exchange_token=${shortTermToken}`;
 
-      console.log('🔄 Long-term Exchange URL:', longTermUrl.substring(0, 100) + '...');
+      console.log('🔄 Exchanging for long-term token...');
 
       const longTermResponse = await fetch(longTermUrl);
       const longTermData = await longTermResponse.json();
 
-      console.log('📋 Long-term Response:', {
+      console.log('📋 Long-term Token Response:', {
         status: longTermResponse.status,
         ok: longTermResponse.ok,
-        data: longTermData
+        hasAccessToken: !!longTermData.access_token,
+        tokenLength: longTermData.access_token?.length || 0,
+        expiresIn: longTermData.expires_in
       });
 
       if (longTermData.error) {
-        console.error('❌ Facebook Long-term Error:', {
-          error: longTermData.error,
-          message: longTermData.error?.message,
-          type: longTermData.error?.type,
-          code: longTermData.error?.code
-        });
+        console.error('❌ Long-term token error:', longTermData.error);
         return res.status(400).json({ 
-          error: 'Long-term token exchange failed',
-          details: longTermData.error.message || 'Long-term token exchange failed',
-          facebookError: longTermData.error
+          error: 'Facebook API Error',
+          message: longTermData.error.message || 'Long-term token exchange failed',
+          type: longTermData.error?.type,
+          code: longTermData.error?.code,
+          details: 'Failed to exchange short-term token for long-term token'
         });
       }
 
       const longTermToken = longTermData.access_token;
       const expiresIn = longTermData.expires_in;
 
-      // Get Facebook Pages with Instagram fields
+      // 🔥 CRITICAL: Fetch Pages with long-term token
       const pagesUrl = `https://graph.facebook.com/v21.0/me/accounts?` +
-        `fields=id,name,access_token,instagram_business_account,category&` +  // ✅ Added category and instagram fields
+        `fields=id,name,access_token,instagram_business_account,category&` +
         `access_token=${longTermToken}`;
+
+      console.log('📄 Fetching Facebook Pages...');
 
       const pagesResponse = await fetch(pagesUrl);
       const pagesData = await pagesResponse.json();
 
+      console.log('📋 Pages Response:', {
+        status: pagesResponse.status,
+        ok: pagesResponse.ok,
+        hasData: !!pagesData.data,
+        pageCount: pagesData.data?.length || 0,
+        error: pagesData.error
+      });
+
       if (pagesData.error) {
+        console.error('❌ Pages fetch error:', pagesData.error);
         return res.status(400).json({ 
           error: 'Failed to fetch pages',
           details: pagesData.error.message || 'Failed to fetch pages'
@@ -193,31 +191,36 @@ async function handleFacebookSimple(req: VercelRequest, res: VercelResponse) {
         hasInstagram: !!page.instagram_business_account
       }));
 
-      // Save Page tokens instead of user token
-      if (workspaceId && pageConnections.length > 0) {
-        console.log('💾 Saving Facebook Page tokens to database...');
+      // 🔥 CRITICAL: Save to database (workspace + tokens)
+      if (workspaceId && longTermToken && pageConnections.length > 0) {
+        console.log('💾 Saving Facebook connection to database...');
         
         const connectionData = {
           workspaceId: workspaceId,
           platform: 'facebook',
+          longTermUserToken: longTermToken, // For refreshing Page tokens
           pages: pageConnections,  // ✅ Store Page tokens
-          longTermUserToken: longTermToken, // Keep for refreshing
           createdAt: new Date().toISOString()
         };
         
-        console.log('✅ Page connection data prepared:', {
+        console.log('✅ Connection data prepared for database:', {
           workspaceId: connectionData.workspaceId,
           platform: connectionData.platform,
+          userTokenLength: connectionData.longTermUserToken.length,
           pagesCount: connectionData.pages.length,
           pagesWithInstagram: connectionData.pages.filter(p => p.hasInstagram).length,
           hasPageTokens: connectionData.pages.some(p => p.pageAccessToken)
         });
         
         // TODO: Actual database save:
-        // await saveFacebookPageConnections(connectionData);
+        // await saveFacebookConnection(connectionData);
+        console.log('⚠️ Database save not implemented - using localStorage fallback');
         
       } else {
-        console.warn('⚠️ No Pages found or missing workspaceId - user may not manage any Facebook Pages');
+        console.warn('⚠️ No Pages found or missing workspaceId');
+        if (!workspaceId) console.warn('❌ Missing workspaceId');
+        if (!longTermToken) console.warn('❌ Missing long-term token');
+        if (pageConnections.length === 0) console.warn('❌ No Page connections found');
       }
 
       return res.status(200).json({
@@ -225,37 +228,38 @@ async function handleFacebookSimple(req: VercelRequest, res: VercelResponse) {
         pages: pageConnections,  // ✅ Return Page tokens to frontend
         message: pageConnections.length > 0 
           ? `Found ${pageConnections.length} Facebook Pages` 
-          : 'No Facebook Pages found - user may not manage any Pages'
+          : 'No Facebook Pages found - user may not manage any Pages',
+        workspaceId: workspaceId
       });
 
     } else {
-      // GET request - fetch pages with stored token
-      const longTermToken = process.env.FACEBOOK_LONG_TERM_TOKEN;
+      // GET request - return stored connection
+      const { workspaceId } = req.query;
 
-      if (!longTermToken) {
+      if (!workspaceId) {
         return res.status(400).json({ 
-          error: 'No Facebook token available',
-          details: 'FACEBOOK_LONG_TERM_TOKEN environment variable not set'
+          error: 'Missing workspaceId',
+          details: 'workspaceId parameter required for GET requests'
         });
       }
 
-      const pagesUrl = `https://graph.facebook.com/v21.0/me/accounts?` +
-        `fields=id,name,access_token,instagram_business_account,category&` +  // ✅ Added category and instagram fields
-        `access_token=${longTermToken}`;
+      console.log('📋 Fetching stored connection for workspace:', workspaceId);
 
-      const pagesResponse = await fetch(pagesUrl);
-      const pagesData = await pagesResponse.json();
+      // TODO: Fetch from database
+      // const connection = await getFacebookConnection(workspaceId);
+      const connection = null; // Not implemented yet
 
-      if (pagesData.error) {
-        return res.status(400).json({ 
-          error: 'Failed to fetch pages',
-          details: pagesData.error.message || 'Failed to fetch pages'
+      if (!connection) {
+        return res.status(404).json({ 
+          error: 'No Facebook connection found',
+          details: 'No stored Facebook connection for this workspace',
+          workspaceId: workspaceId
         });
       }
 
       return res.status(200).json({
         success: true,
-        pages: pagesData.data || []
+        connection: connection
       });
     }
 
