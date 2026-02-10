@@ -625,6 +625,23 @@ if (typeof window !== 'undefined') {
                 console.log('❌ Token invalid:', meData.error);
                 return;
             }
+            
+            // Check token permissions
+            console.log('🔍 Checking token permissions...');
+            try {
+                const permsResponse = await fetch(`https://graph.facebook.com/v21.0/me/permissions?access_token=${token}`);
+                const permsData = await permsResponse.json();
+                console.log('🔐 Token permissions:', permsData);
+                
+                const hasPagesPermission = permsData.data?.some(p => p.permission === 'pages_show_list');
+                if (!hasPagesPermission) {
+                    console.log('❌ MISSING pages_show_list permission!');
+                    console.log('🔧 SOLUTION: Reconnect Facebook to get proper permissions');
+                    return;
+                }
+            } catch (permError) {
+                console.log('⚠️ Could not check permissions:', permError);
+            }
         } catch (error) {
             console.log('❌ /me request failed:', error);
             return;
