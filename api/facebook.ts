@@ -55,12 +55,15 @@ async function handleFacebookSimple(req: VercelRequest, res: VercelResponse) {
     }
 
     if (req.method === 'POST') {
-      const { code } = req.body;
+      const { code, redirectUri, workspaceId } = req.body;
       const cleanRedirectUri = "https://engage-hub-ten.vercel.app/auth/facebook/callback";
 
       if (!code) {
         return res.status(400).json({ error: 'Missing authorization code' });
       }
+
+      // ✅ Log workspace info
+      console.log('📋 Workspace ID:', workspaceId || 'Not provided');
 
       // Exchange code for short-term token
       const tokenUrl = `https://graph.facebook.com/v21.0/oauth/access_token?` +
@@ -101,9 +104,9 @@ async function handleFacebookSimple(req: VercelRequest, res: VercelResponse) {
       const longTermToken = longTermData.access_token;
       const expiresIn = longTermData.expires_in;
 
-      // Get Facebook Pages
+      // Get Facebook Pages with Instagram fields
       const pagesUrl = `https://graph.facebook.com/v21.0/me/accounts?` +
-        `fields=id,name,access_token,instagram_business_account&` +
+        `fields=id,name,access_token,instagram_business_account,category&` +  // ✅ Added category and instagram fields
         `access_token=${longTermToken}`;
 
       const pagesResponse = await fetch(pagesUrl);
@@ -137,7 +140,7 @@ async function handleFacebookSimple(req: VercelRequest, res: VercelResponse) {
       }
 
       const pagesUrl = `https://graph.facebook.com/v21.0/me/accounts?` +
-        `fields=id,name,access_token,instagram_business_account&` +
+        `fields=id,name,access_token,instagram_business_account,category&` +  // ✅ Added category and instagram fields
         `access_token=${longTermToken}`;
 
       const pagesResponse = await fetch(pagesUrl);
@@ -179,7 +182,7 @@ async function handleFacebookPages(req: VercelRequest, res: VercelResponse) {
     }
 
     const pagesUrl = `https://graph.facebook.com/v21.0/me/accounts?` +
-      `fields=id,name,access_token,instagram_business_account&` +
+      `fields=id,name,access_token,instagram_business_account,category&` +  // ✅ Added category and instagram fields
       `access_token=${token}`;
 
     const response = await fetch(pagesUrl);

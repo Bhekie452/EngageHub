@@ -172,37 +172,6 @@ export const handleFacebookCallback = async (): Promise<any> => {
         console.warn("🛑 Facebook callback already in progress (blocked duplicate)");
         return { success: false, skipped: true };
     }
-    
-    // Set lock immediately
-    sessionStorage.setItem(FB_LOCK, "1");
-    
-    // Guard 1: In-memory flag
-    if (isProcessingCallback) {
-        console.log('🔄 Already processing Facebook callback, skipping...');
-        return { success: false, skipped: true };
-    }
-    
-    // Guard 2: localStorage flag
-    const processingFlag = localStorage.getItem('facebook_processing');
-    if (processingFlag === 'true') {
-        console.log('🔄 Facebook callback already processing (localStorage), skipping...');
-        return { success: false, skipped: true };
-    }
-    
-    // Guard 3: Check if already connected
-    const existingToken = getStoredAccessToken();
-    if (existingToken) {
-        console.log('✅ Already connected to Facebook, skipping callback');
-        return { success: true, accessToken: existingToken };
-    }
-    
-    // Guard 4: Prevent double exchange
-    if (exchangeStarted) {
-        console.log('🔄 Exchange already started, skipping...');
-        return { success: false, skipped: true };
-    }
-    exchangeStarted = true;
-    
     const urlParams = new URLSearchParams(window.location.search);
     const code = urlParams.get('code');
     const state = urlParams.get('state');
@@ -213,72 +182,62 @@ export const handleFacebookCallback = async (): Promise<any> => {
         throw new Error(`Facebook login error: ${error}`);
     }
 
-    if (code && state === 'facebook_oauth') {
-        console.log('🔄 Facebook OAuth callback detected, processing...');
+    if (!code || state !== 'facebook_oauth') {
+        return null; // Not a Facebook callback
+    }
+
+    // 🔥 CRITICAL: Create a unique key for this specific code
+    const codeKey = `fb_code_${code.substring(0, 20)}`;
+    
+    // Check if this exact code was already processed
+    if (sessionStorage.getItem(codeKey) === "processed") {
+        console.warn("� This authorization code was already processed");
+        const existingToken = getStoredAccessToken();
+        return { success: !!existingToken, accessToken: existingToken, skipped: true };
+    }
+    
+    // Mark this code as being processed IMMEDIATELY
+    sessionStorage.setItem(codeKey, "processing");
+    
+    console.log('🔄 Facebook OAuth callback detected, processing...');
+    
+    // 🔥 CRITICAL: Remove code from URL IMMEDIATELY
+    const cleanUrl = new URL(window.location.href);
+    cleanUrl.searchParams.delete("code");
+    cleanUrl.searchParams.delete("state");
+    window.history.replaceState({}, "", cleanUrl.pathname + cleanUrl.search);
+    console.log('🗑️ Code removed from URL');
+    
+    try {
+        const result = await exchangeCodeForToken(code);
         
-        // 🔥 CRITICAL FIX: Remove code from URL IMMEDIATELY before exchange
-        const cleanUrl = new URL(window.location.href);
-        cleanUrl.searchParams.delete("code");
-        cleanUrl.searchParams.delete("state");
-        window.history.replaceState({}, "", cleanUrl.pathname + cleanUrl.search);
-        console.log('🗑️ Code removed from URL immediately');
-        
-        // Set processing flags
-        isProcessingCallback = true;
-        localStorage.setItem('facebook_processing', 'true');
-        
-        try {
-            const result = await exchangeCodeForToken(code);
+        // Store token
+        if (result.accessToken) {
+            storeAccessToken(result.accessToken, result.expiresIn);
             
-            // Store token and pages
-            if (result.accessToken) {
-                storeAccessToken(result.accessToken, result.expiresIn);
-                
-                if (result.pages && result.pages.length > 0) {
-                    localStorage.setItem('facebook_pages', JSON.stringify(result.pages));
-                    console.log(`📄 Stored ${result.pages.length} Facebook pages`);
-                }
-                
-                // Fire success event
-                window.dispatchEvent(new CustomEvent('facebook-connected', {
-                    detail: { success: true, pages: result.pages }
-                }));
-                
-                console.log('✅ Facebook connection successful!');
-                return result;
-            }
-        } catch (error: any) {
-            console.error('❌ Facebook token exchange failed:', error);
-            
-            // Handle "code already used" gracefully
-            if (error.message && error.message.includes('already been used')) {
-                console.log('🔄 Code already used, checking if another instance succeeded...');
-                
-                // Wait a bit and check if token was stored by another instance
-                await new Promise(resolve => setTimeout(resolve, 500));
-                
-                const token = getStoredAccessToken();
-                if (token) {
-                    console.log('✅ Token found from another instance, treating as success');
-                    
-                    // Fire success event
-                    window.dispatchEvent(new CustomEvent('facebook-connected', {
-                        detail: { success: true, pages: [] }
-                    }));
-                    
-                    return { success: true, accessToken: token };
-                }
+            if (result.pages && result.pages.length > 0) {
+                localStorage.setItem('facebook_pages', JSON.stringify(result.pages));
+                console.log(`📄 Stored ${result.pages.length} Facebook pages`);
             }
             
-            throw error;
-        } finally {
-            // Clear processing flags
-            isProcessingCallback = false;
-            localStorage.removeItem('facebook_processing');
-            exchangeStarted = false;
-            // 🔥 IMPORTANT: Keep sessionStorage lock to prevent refresh re-run
-            // Only clear it if you want to allow re-authentication
+            // Mark as successfully processed
+            sessionStorage.setItem(codeKey, "processed");
+            
+            // Fire success event
+            window.dispatchEvent(new CustomEvent('facebook-connected', {
+                detail: { success: true, pages: result.pages }
+            }));
+            
+            console.log('✅ Facebook connection successful!');
+            return result;
         }
+    } catch (error: any) {
+        console.error('❌ Facebook token exchange failed:', error);
+        
+        // Remove processing flag on error
+        sessionStorage.removeItem(codeKey);
+        
+        throw error;
     }
     
     return null;
@@ -386,15 +345,32 @@ export const exchangeCodeForToken = async (code: string): Promise<any> => {
         console.log('📋 Code length:', code.length);
         console.log('📋 Redirect URI:', redirectUri);
 
+        // ✅ Get workspaceId from localStorage
+        const workspaceId = localStorage.getItem('current_workspace_id') || 
+                           'c9a454c5-a5f3-42dd-9fbd-cedd4c1c49a9'; // Fallback from logs
+
+        console.log('📋 Workspace ID:', workspaceId);
+
         const response = await fetch(`/api/facebook?action=simple`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ code, redirectUri })
+            body: JSON.stringify({ 
+                code, 
+                redirectUri,
+                workspaceId
+            })
         });
 
         const data = await response.json().catch(() => ({}));
 
+        // ✅ Log the actual error response
         if (!response.ok) {
+            console.error('❌ Backend error response:', {
+                status: response.status,
+                statusText: response.statusText,
+                data: data
+            });
+            
             const msg = data?.error?.message ?? data?.message ?? data?.error ?? (typeof data === 'string' ? data : 'Token exchange failed');
             const error = new Error(typeof msg === 'string' ? msg : 'Token exchange failed');
             
