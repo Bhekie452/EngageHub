@@ -971,74 +971,63 @@ export const loginWithFacebook = () => {
  * Exchange authorization code for access token
  */
 export const exchangeCodeForToken = async (code: string): Promise<any> => {
+    const redirectUri = getRedirectURI();
+    const workspaceId = localStorage.getItem('current_workspace_id') || 'fallback-id';
+    
+    // 🔥 CRITICAL: Frontend duplicate prevention
+    const exchangeKey = `fb_exchange_${code.substring(0, 20)}`;
+    const existingExchange = sessionStorage.getItem(exchangeKey);
+    
+    if (existingExchange) {
+        console.log('� Frontend: Code already being exchanged - blocking duplicate');
+        throw new Error('This authorization code is already being processed');
+    }
+    
+    // Mark as processing
+    sessionStorage.setItem(exchangeKey, 'processing');
+    
+    console.log('🔄 Exchanging authorization code for access token...');
+    console.log('📋 Code length:', code.length);
+    console.log('📋 Redirect URI:', redirectUri);
+    console.log('📋 Workspace ID:', workspaceId);
+
     try {
-        const redirectUri = getRedirectURI();
-
-        console.log('🔄 Exchanging authorization code for access token...');
-        console.log('📋 Code length:', code.length);
-        console.log('📋 Redirect URI:', redirectUri);
-
-        // ✅ Get workspaceId from localStorage
-        const workspaceId = localStorage.getItem('current_workspace_id') || 
-                           'c9a454c5-a5f3-42dd-9fbd-cedd4c1c49a9'; // Fallback from logs
-
-        console.log('📋 Workspace ID:', workspaceId);
-
         const response = await fetch(`/api/facebook?action=simple`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
-                code, 
-                redirectUri,
-                workspaceId
-            })
+            body: JSON.stringify({ code, redirectUri, workspaceId })
         });
 
-        const data = await response.json().catch(() => ({}));
+        const data = await response.json();
 
-        // ✅ Log the actual error response
         if (!response.ok) {
-            console.error('❌ Backend error response:', {
-                status: response.status,
-                statusText: response.statusText,
-                data: data
-            });
+            console.error('❌ Backend error response:', data);
             
-            const msg = data?.error?.message ?? data?.message ?? data?.error ?? (typeof data === 'string' ? data : 'Token exchange failed');
-            const error = new Error(typeof msg === 'string' ? msg : 'Token exchange failed');
+            // Mark as failed to allow retry
+            sessionStorage.removeItem(exchangeKey);
             
-            // Add more details to error for better handling
-            (error as any).details = data?.details;
-            (error as any).facebookError = data?.facebookError;
+            if (data.error?.includes('already been used')) {
+                throw new Error('This authorization code has already been used');
+            }
             
-            throw error;
+            throw new Error(data.error || 'Token exchange failed');
         }
 
-        // ✅ Handle security challenge response
-        if (data.error === 'FACEBOOK_SECURITY_CHALLENGE') {
-            // Show user-friendly message
-            throw new Error(
-                '🔐 Facebook Security Check Required\n\n' +
-                'Facebook needs to verify this action for security.\n\n' +
-                'Please:\n' +
-                '1. Disconnect your Facebook account\n' +
-                '2. Reconnect and approve all permissions\n' +
-                '3. Make sure you\'re logged into the correct Facebook account\n\n' +
-                'Click "Connect Facebook" again to complete the process.'
-            );
-        }
-
+        // Mark as completed
+        sessionStorage.setItem(exchangeKey, 'completed');
+        
         console.log('✅ Token exchange successful');
         console.log('📋 Token length:', data.accessToken?.length || 0);
         console.log('📋 Expires in:', data.expiresIn);
 
-        return {
-            accessToken: data.accessToken,
-            expiresIn: data.expiresIn,
-            pages: data.pages || []
-        };
+        return { accessToken: data.accessToken, expiresIn: data.expiresIn, pages: data.pages, message: data.message };
+        
     } catch (error: any) {
         console.error('❌ Token exchange failed:', error);
+        
+        // Mark as failed to allow retry
+        sessionStorage.removeItem(exchangeKey);
+        
         throw error;
     }
 };
