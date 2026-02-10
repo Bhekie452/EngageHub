@@ -358,38 +358,9 @@ export const initiateFacebookOAuth = (): void => {
 
     console.log('🔗 Redirecting to Facebook OAuth:', authUrl.substring(0, 100) + '...');
     
-    // Open in popup to avoid page navigation issues
-    const popup = window.open(authUrl, 'facebook_oauth', 'width=600,height=600,scrollbars=yes,resizable=yes');
-    
-    if (popup) {
-        console.log('📱 Facebook OAuth popup opened');
-        console.log('🔍 [DEBUG] Popup opened successfully');
-        
-        // Clean up on popup close
-        const checkClosed = setInterval(() => {
-            if (popup.closed) {
-                clearInterval(checkClosed);
-                sessionStorage.removeItem(oauthKey);
-                console.log('🔓 OAuth popup closed - cleaning up');
-                console.log('🔍 [DEBUG] Popup closed, OAuth state cleared');
-            }
-        }, 1000);
-        
-        // Auto-cleanup after 5 minutes
-        setTimeout(() => {
-            clearInterval(checkClosed);
-            sessionStorage.removeItem(oauthKey);
-            if (!popup.closed) {
-                console.log('⏰ OAuth timeout - cleaning up');
-                console.log('🔍 [DEBUG] OAuth timeout, state cleared');
-            }
-        }, 300000);
-    } else {
-        // Fallback to redirect
-        console.log('🔄 Popup blocked - falling back to redirect');
-        console.log('🔍 [DEBUG] Popup blocked, using redirect fallback');
-        window.location.href = authUrl;
-    }
+    // 🔥 CRITICAL: Use redirect instead of popup to avoid blocking
+    console.log('� Using redirect flow (more reliable than popup)');
+    window.location.href = authUrl;
 };
 
 /**
