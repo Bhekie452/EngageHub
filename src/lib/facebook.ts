@@ -366,8 +366,67 @@ export const initiateFacebookOAuth = (): void => {
 };
 
 /**
- * Check if security challenge is needed
+ * Fetch Facebook connections from database
  */
+export const fetchFacebookConnections = async (workspaceId: string): Promise<any[]> => {
+    if (!workspaceId) {
+        console.log('❌ No workspaceId provided');
+        return [];
+    }
+
+    try {
+        console.log('📋 Fetching Facebook connections from database...');
+        
+        const response = await fetch(`/api/facebook?action=connections&workspaceId=${workspaceId}`);
+        const data = await response.json();
+        
+        if (data.success) {
+            console.log(`✅ Fetched ${data.connections.length} connections from database`);
+            return data.connections;
+        } else {
+            console.log('⚠️ Database fetch failed, using localStorage fallback');
+            return [];
+        }
+    } catch (error) {
+        console.log('❌ Error fetching from database, using localStorage fallback:', error);
+        return [];
+    }
+};
+
+/**
+ * Get Facebook pages with database fallback
+ */
+export const getFacebookPages = async (workspaceId?: string): Promise<any[]> => {
+    // First try database
+    if (workspaceId) {
+        try {
+            const connections = await fetchFacebookConnections(workspaceId);
+            if (connections.length > 0) {
+                console.log('✅ Using pages from database');
+                return connections;
+            }
+        } catch (error) {
+            console.log('⚠️ Database fetch failed, trying localStorage');
+        }
+    }
+    
+    // Fallback to localStorage
+    if (typeof window !== 'undefined') {
+        const cached = localStorage.getItem('facebook_pages');
+        if (cached) {
+            try {
+                const parsed = JSON.parse(cached);
+                console.log('✅ Using pages from localStorage fallback');
+                return parsed;
+            } catch (error) {
+                console.log('❌ Error parsing localStorage pages');
+            }
+        }
+    }
+    
+    console.log('❌ No Facebook pages found');
+    return [];
+};
 export const needsSecurityChallenge = (error: any): boolean => {
     return (
         error?.error === 'FACEBOOK_SECURITY_CHALLENGE' ||

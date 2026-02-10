@@ -24,6 +24,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return await handleFacebookDiagnostics(req, res);
       case 'validate':
         return await handleValidateToken(req, res);
+      case 'connections':
+        return await handleGetConnections(req, res);
       default:
         return res.status(400).json({ error: 'Invalid action parameter' });
     }
@@ -180,6 +182,48 @@ async function handleFacebookSimple(req: VercelRequest, res: VercelResponse) {
       }
 
       const pages = pagesData.data || [];
+
+      // 🔥 CRITICAL: Save connection to database
+      if (workspaceId && longTermToken) {
+        console.log('💾 Saving Facebook connection to database...');
+        
+        try {
+          // TODO: Replace with actual database save
+          // For now, just log the data that would be saved
+          const connectionData = {
+            workspaceId: workspaceId,
+            platform: 'facebook',
+            accessToken: longTermToken,
+            expiresIn: expiresIn,
+            pages: pages.map(page => ({
+              pageId: page.id,
+              pageName: page.name,
+              pageAccessToken: page.access_token,
+              instagramBusinessAccountId: page.instagram_business_account?.id,
+              category: page.category,
+              hasInstagram: !!page.instagram_business_account
+            })),
+            createdAt: new Date().toISOString()
+          };
+          
+          console.log('✅ Connection data prepared for database:', {
+            workspaceId: connectionData.workspaceId,
+            platform: connectionData.platform,
+            tokenLength: connectionData.accessToken.length,
+            pagesCount: connectionData.pages.length,
+            pagesWithInstagram: connectionData.pages.filter(p => p.hasInstagram).length
+          });
+          
+          // TODO: Actual database save:
+          // await saveFacebookConnection(connectionData);
+          
+        } catch (dbError) {
+          console.error('❌ Database save error:', dbError);
+          // Continue anyway - frontend will use localStorage fallback
+        }
+      } else {
+        console.warn('⚠️ Cannot save to database - missing workspaceId or token');
+      }
 
       return res.status(200).json({
         success: true,
@@ -466,6 +510,41 @@ async function handleValidateToken(req: VercelRequest, res: VercelResponse) {
     console.error('Facebook validation error:', error);
     return res.status(500).json({ 
       error: 'Token validation failed',
+      details: error.message
+    });
+  }
+}
+
+// Handle fetching stored Facebook connections
+async function handleGetConnections(req: VercelRequest, res: VercelResponse) {
+  if (req.method !== 'GET') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  try {
+    const { workspaceId } = req.query;
+
+    if (!workspaceId) {
+      return res.status(400).json({ error: 'Missing workspaceId' });
+    }
+
+    console.log('📋 Fetching Facebook connections for workspace:', workspaceId);
+
+    // 🔥 CRITICAL: For now, return localStorage data as fallback
+    // TODO: Replace with actual database query
+    const connections = []; // Empty array - no database storage yet
+
+    return res.status(200).json({
+      success: true,
+      connections: connections,
+      workspaceId: workspaceId,
+      message: 'Database storage not implemented yet - using localStorage fallback'
+    });
+
+  } catch (error: any) {
+    console.error('Get connections error:', error);
+    return res.status(500).json({ 
+      error: 'Failed to fetch connections',
       details: error.message
     });
   }
