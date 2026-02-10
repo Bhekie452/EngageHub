@@ -161,6 +161,32 @@ export const initFacebookSDK = () => {
 };
 
 /**
+ * Clean up any existing OAuth state
+ */
+export const cleanupOAuthState = (): void => {
+    if (typeof window === 'undefined') return;
+    
+    console.log('🧹 Cleaning up OAuth state...');
+    
+    // Clear all Facebook-related storage
+    sessionStorage.removeItem('facebook_oauth_lock');
+    sessionStorage.removeItem('fb_oauth_in_progress');
+    
+    // Clear any code keys
+    for (let i = 0; i < sessionStorage.length; i++) {
+        const key = sessionStorage.key(i);
+        if (key?.startsWith('fb_code_')) {
+            sessionStorage.removeItem(key);
+        }
+    }
+    
+    // Clear global processing lock
+    globalProcessingLock = false;
+    
+    console.log('✅ OAuth state cleaned up');
+};
+
+/**
  * Handle Facebook OAuth callback with duplicate prevention
  */
 export const handleFacebookCallback = async (): Promise<any> => {
@@ -249,41 +275,64 @@ export const handleFacebookCallback = async (): Promise<any> => {
 };
 
 /**
- * Initiate Facebook OAuth flow
  */
 export const initiateFacebookOAuth = (): void => {
     if (typeof window === 'undefined') return;
-    
-    console.log('🚀 Initiating Facebook OAuth flow...');
-    
-    const scope = getLoginScope();
-    const oauthState = 'facebook_oauth';
+
+    // 🔥 CRITICAL: Prevent multiple OAuth windows
+    const oauthKey = 'facebook_oauth_in_progress';
+    if (sessionStorage.getItem(oauthKey)) {
+        console.warn('🛑 Facebook OAuth already in progress - ignoring duplicate request');
+        return;
+    }
+
+    // Mark OAuth as in progress
+    sessionStorage.setItem(oauthKey, Date.now().toString());
+    console.log('🚀 Starting Facebook OAuth flow');
+
     const redirectUri = getRedirectURI();
+    const scopes = getLoginScope();
     
-    // ✅ Added auth_type=rerequest to force permission re-approval for Instagram linking
-    const authUrl = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${FB_APP_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}&state=${oauthState}&response_type=code&auth_type=rerequest&display=popup`;
+    // Build OAuth URL with re-authentication
+    const authUrl = `https://www.facebook.com/v21.0/dialog/oauth?` +
+        `client_id=${FB_APP_ID}` +
+        `&redirect_uri=${encodeURIComponent(redirectUri)}` +
+        `&scope=${encodeURIComponent(scopes)}` +
+        `&response_type=code` +
+        `&state=facebook_oauth` +
+        `&auth_type=rerequest` +  // Force re-approval
+        `&display=popup`;  // Better UX
 
-    console.log('📋 OAuth URL:', authUrl);
-    window.location.href = authUrl;
-};
-
-/**
- * Complete reconnection with security challenge handling
- */
-export const reconnectFacebook = async (): Promise<void> => {
-    console.log('🔄 Starting Facebook reconnection with forced reauth...');
+    console.log('� Redirecting to Facebook OAuth:', authUrl.substring(0, 100) + '...');
     
-    // Step 1: Disconnect (clear all data)
-    disconnectFacebook();
+    // Open in popup to avoid page navigation issues
+    const popup = window.open(authUrl, 'facebook_oauth', 'width=600,height=600,scrollbars=yes,resizable=yes');
     
-    // Step 2: Wait for storage to clear
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
-    // Step 3: Show user message
-    console.log('✅ Data cleared. Redirecting to Facebook...');
-    
-    // Step 4: Start OAuth flow with forced reauth
-    initiateFacebookOAuth();
+    if (popup) {
+        console.log('� Facebook OAuth popup opened');
+        
+        // Clean up on popup close
+        const checkClosed = setInterval(() => {
+            if (popup.closed) {
+                clearInterval(checkClosed);
+                sessionStorage.removeItem(oauthKey);
+                console.log('🔓 OAuth popup closed - cleaning up');
+            }
+        }, 1000);
+        
+        // Auto-cleanup after 5 minutes
+        setTimeout(() => {
+            clearInterval(checkClosed);
+            sessionStorage.removeItem(oauthKey);
+            if (!popup.closed) {
+                console.log('⏰ OAuth timeout - cleaning up');
+            }
+        }, 300000);
+    } else {
+        // Fallback to redirect
+        console.log('🔄 Popup blocked - falling back to redirect');
+        window.location.href = authUrl;
+    }
 };
 
 /**
