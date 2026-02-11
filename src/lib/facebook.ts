@@ -994,7 +994,27 @@ export const exchangeCodeForToken = async (code: string): Promise<any> => {
             body: JSON.stringify({ code, redirectUri, workspaceId })
         });
 
-        const data = await response.json();
+        // 🔥 CRITICAL: Check if response is JSON before parsing
+        const responseText = await response.text();
+        console.log('📋 Raw response:', responseText.substring(0, 200) + (responseText.length > 200 ? '...' : ''));
+        
+        let data;
+        try {
+            data = JSON.parse(responseText);
+        } catch (parseError) {
+            console.error('❌ JSON parse error:', parseError);
+            console.error('❌ Response text:', responseText);
+            
+            // Mark as failed to allow retry
+            sessionStorage.removeItem(exchangeKey);
+            
+            // Check if it's an HTML error page
+            if (responseText.includes('<!DOCTYPE html>') || responseText.includes('<html>')) {
+                throw new Error('Server returned HTML error page instead of JSON. Check server logs.');
+            }
+            
+            throw new Error(`Invalid JSON response: ${responseText.substring(0, 100)}...`);
+        }
 
         if (!response.ok) {
             console.error('❌ Backend error response:', data);
