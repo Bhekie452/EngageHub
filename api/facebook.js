@@ -564,13 +564,11 @@ async function handleGetConnections(req, res) {
             .order('account_type', { ascending: false }); // Pages first, then profiles
         if (error)
             throw error;
-        // Prioritize page accounts over profiles
+        // ONLY return page accounts - NEVER show personal profiles
         const pageConnections = (connections ?? []).filter(c => c.account_type === 'page');
-        const profileConnections = (connections ?? []).filter(c => c.account_type === 'profile');
-        // Return page account if available, otherwise return profile
-        const primaryConnection = pageConnections.length > 0 ? pageConnections[0] :
-            (profileConnections.length > 0 ? profileConnections[0] : null);
-        const transformed = primaryConnection ? [{
+        
+        // Return only page accounts, never profiles
+        const transformed = pageConnections.map((primaryConnection) => ({
                 id: primaryConnection.id,
                 workspaceId: primaryConnection.workspace_id,
                 platform: primaryConnection.platform,
@@ -588,8 +586,8 @@ async function handleGetConnections(req, res) {
                 lastSyncAt: primaryConnection.last_sync_at,
                 createdAt: primaryConnection.created_at,
                 updatedAt: primaryConnection.updated_at,
-            }] : [];
-        console.log(`✅ Retrieved ${transformed.length} Facebook connections for workspace ${workspaceId} (pages: ${pageConnections.length}, profiles: ${profileConnections.length})`);
+            }));
+        console.log(`✅ Retrieved ${transformed.length} Facebook page connections for workspace ${workspaceId} (pages only - profiles hidden)`);
         return res.status(200).json({
             success: true,
             connections: transformed,
