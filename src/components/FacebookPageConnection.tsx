@@ -78,28 +78,44 @@ export default function FacebookPageConnection() {
 
   const fetchPagesFromOAuth = async () => {
     try {
-      // Use existing user token to fetch pages
-      const userToken = localStorage.getItem('facebook_access_token');
-      if (!userToken) {
-        setError('No Facebook access token found. Please connect to Facebook first.');
-        return;
-      }
-
-      const response = await fetch('/api/facebook?action=list-pages', {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${userToken}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
+      // Get user token from database first
+      const workspaceId = localStorage.getItem('current_workspace_id') || 'c9a454c5-a5f3-42dd-9fbd-cedd4c1c49a9';
+      
+      const response = await fetch(`/api/facebook?action=connections&workspaceId=${workspaceId}`);
       const data = await response.json();
+      
+      if (data.success && data.connections) {
+        // Find profile connection to get user token
+        const profileConn = data.connections.find((c: any) => c.accountType === 'profile');
+        
+        if (profileConn && profileConn.accessToken) {
+          // Set token in localStorage for future use
+          localStorage.setItem('facebook_access_token', profileConn.accessToken);
+          
+          // Use this token to fetch pages
+          const userToken = profileConn.accessToken;
+          
+          const pagesResponse = await fetch('/api/facebook?action=list-pages', {
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${userToken}`,
+              'Content-Type': 'application/json',
+            },
+          });
 
-      if (data.success) {
-        setPages(data.pages);
-        console.log('✅ Fetched pages via OAuth:', data.pages.length);
+          const pagesData = await pagesResponse.json();
+
+          if (pagesData.success) {
+            setPages(pagesData.pages);
+            console.log('✅ Fetched pages from OAuth:', pagesData.pages.length);
+          } else {
+            setError(pagesData.error || 'Failed to fetch pages');
+          }
+        } else {
+          setError('No Facebook profile connection found. Please connect to Facebook first.');
+        }
       } else {
-        setError(data.error || 'Failed to fetch Facebook pages');
+        setError('Failed to load Facebook connections');
       }
 
     } catch (err: any) {
