@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Facebook Permission Check</title>
+</head>
+<body>
+    <h1>Facebook Permission Check</h1>
+    <button onclick="checkPermissions()">Check My Facebook Permissions</button>
+    <div id="results"></div>
+    
+    <script>
+        async function checkPermissions() {
+            const results = document.getElementById('results');
+            results.innerHTML = '<h2>Checking...</h2>';
+            
+            // Get token from localStorage (same as your app)
+            const token = localStorage.getItem('facebook_access_token');
+            
+            if (!token) {
+                results.innerHTML = '<h2>❌ No Facebook token found</h2><p>Please connect Facebook first in your main app.</p>';
+                return;
+            }
+            
+            results.innerHTML = '<h2>🔐 Checking Permissions...</h2>';
+            
+            try {
+                // Check permissions
+                const permsResponse = await fetch(`https://graph.facebook.com/v21.0/me/permissions?access_token=${token}`);
+                const permsData = await permsResponse.json();
+                
+                console.log('Full permissions response:', permsData);
+                
+                if (permsData.error) {
+                    results.innerHTML = `<h2>❌ Error: ${permsData.error.message}</h2>`;
+                    return;
+                }
+                
+                const permissions = permsData.data || [];
+                const criticalPerms = ['pages_show_list', 'pages_read_engagement', 'instagram_basic', 'instagram_content_publish'];
+                
+                let html = '<h2>🔐 Permission Results:</h2>';
+                html += '<h3>CRITICAL PERMISSIONS:</h3>';
+                
+                criticalPerms.forEach(perm => {
+                    const hasPermission = permissions.some(p => p.permission === perm && p.status === 'granted');
+                    html += `<p>${hasPermission ? '✅' : '❌'} ${perm}: ${hasPermission ? 'GRANTED' : 'MISSING'}</p>`;
+                });
+                
+                html += '<h3>ALL PERMISSIONS:</h3>';
+                permissions.forEach(p => {
+                    html += `<p>${p.permission}: ${p.status}</p>`;
+                });
+                
+                // Check accounts if pages_show_list is granted
+                const hasPagesPermission = permissions.some(p => p.permission === 'pages_show_list' && p.status === 'granted');
+                
+                if (hasPagesPermission) {
+                    html += '<h3>✅ Testing /me/accounts...</h3>';
+                    try {
+                        const accountsResponse = await fetch(`https://graph.facebook.com/v21.0/me/accounts?access_token=${token}`);
+                        const accountsData = await accountsResponse.json();
+                        
+                        console.log('Accounts response:', accountsData);
+                        
+                        if (accountsData.data && accountsData.data.length > 0) {
+                            html += `<p>✅ Found ${accountsData.data.length} accounts/pages</p>`;
+                            accountsData.data.forEach((item, i) => {
+                                html += `<div style="border: 1px solid #ccc; margin: 10px; padding: 10px;">`;
+                                html += `<h4>Item ${i+1}:</h4>`;
+                                html += `<p><strong>Name:</strong> ${item.name}</p>`;
+                                html += `<p><strong>Category:</strong> ${item.category || 'NO CATEGORY'}</p>`;
+                                html += `<p><strong>Has Instagram:</strong> ${item.instagram_business_account ? '✅ Yes' : '❌ No'}</p>`;
+                                html += `<p><strong>Has Access Token:</strong> ${item.access_token ? '✅ Yes' : '❌ No'}</p>`;
+                                if (!item.category) {
+                                    html += `<p style="color: red;"><strong>⚠️ This looks like a PERSONAL PROFILE, not a Page!</strong></p>`;
+                                }
+                                html += '</div>';
+                            });
+                        } else {
+                            html += '<p style="color: red;">❌ No accounts returned - even with proper permissions</p>';
+                            html += '<p>This means you have no Facebook Pages or you\'re not an admin of any Pages.</p>';
+                        }
+                    } catch (error) {
+                        html += `<p style="color: red;">❌ Error checking accounts: ${error.message}</p>`;
+                    }
+                } else {
+                    html += '<h2 style="color: red;">❌ MISSING pages_show_list PERMISSION!</h2>';
+                    html += '<h3>SOLUTION:</h3>';
+                    html += '<ol>';
+                    html += '<li>Disconnect current Facebook connection in your app</li>';
+                    html += '<li>Click "Connect Facebook" again</li>';
+                    html += '<li>Make sure to grant ALL requested permissions</li>';
+                    html += '<li>pages_show_list is REQUIRED to access Facebook Pages</li>';
+                    html += '</ol>';
+                }
+                
+                results.innerHTML = html;
+                
+            } catch (error) {
+                results.innerHTML = `<h2>❌ Error: ${error.message}</h2>`;
+            }
+        }
+    </script>
+</body>
+</html>

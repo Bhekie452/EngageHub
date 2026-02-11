@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Facebook Connection Test</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+    <h1>🔧 Facebook Connection Debug</h1>
+    <button onclick="checkConnections()">Check Facebook Connections</button>
+    <button onclick="setWorkspace()">Set Correct Workspace</button>
+    <button onclick="clearState()">Clear State</button>
+    <div id="output"></div>
+
+    <script>
+        const supabase = createClient(
+            'https://zourlqrkoyugzymxkbgn.supabase.co',
+            'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlciI6Inpvd2VyX2VyLXJvb2UiLCJyb2xlIjoic2VydmljZV9yb2xlIiwiaWF0IjoxNzY4MjExMzYyLCJleHAiOjI4MDgzNzg3MzYyfQ.ic8p6qw_KJw5QtojcZwpIJ7ISJo3bxz9ef5RQA1wzfM'
+        );
+
+        async function checkConnections() {
+            const workspaceId = localStorage.getItem('current_workspace_id') || '26caa666-2797-40f9-aa99-399be01d57eb';
+            const output = document.getElementById('output');
+            
+            output.innerHTML = '<h2>🔍 Checking...</h2>';
+            
+            try {
+                const { data: connections, error } = await supabase
+                    .from('social_accounts')
+                    .select('*')
+                    .eq('workspace_id', workspaceId)
+                    .eq('platform', 'facebook')
+                    .eq('connection_status', 'connected');
+                
+                if (error) {
+                    output.innerHTML = `<h2>❌ Error: ${error.message}</h2>`;
+                    return;
+                }
+                
+                let html = `<h2>📊 Found ${connections.length} connections for workspace: ${workspaceId}</h2>`;
+                
+                if (connections.length === 0) {
+                    html += '<p>❌ No Facebook connections found</p>';
+                } else {
+                    connections.forEach((conn, idx) => {
+                        html += `<h3>Connection ${idx + 1}: ${conn.display_name} (${conn.account_type})</h3>`;
+                        html += `<p>✅ Status: ${conn.connection_status}</p>`;
+                        html += `<p>🔑 Token: ${conn.access_token ? 'Present' : 'Missing'}</p>`;
+                        
+                        if (conn.platform_data) {
+                            const platformData = typeof conn.platform_data === 'string' 
+                                ? JSON.parse(conn.platform_data) 
+                                : conn.platform_data;
+                            
+                            if (platformData.pages && platformData.pages.length > 0) {
+                                html += '<h4>📄 Pages:</h4>';
+                                platformData.pages.forEach(page => {
+                                    html += `<p>📄 ${page.pageName} (${page.pageId})</p>`;
+                                });
+                            } else {
+                                html += '<h4>❌ No pages found</h4>';
+                            }
+                        }
+                    });
+                }
+                
+                output.innerHTML = html;
+                
+            } catch (err) {
+                output.innerHTML = `<h2>❌ Unexpected Error: ${err.message}</h2>`;
+            }
+        }
+
+        function setWorkspace() {
+            const correctWorkspace = 'c9a454c5-a5f3-42dd-9fbd-cedd4c1c49a9';
+            localStorage.setItem('current_workspace_id', correctWorkspace);
+            alert(`✅ Workspace set to: ${correctWorkspace}`);
+            checkConnections();
+        }
+
+        function clearState() {
+            localStorage.clear();
+            sessionStorage.clear();
+            alert('✅ All state cleared');
+            checkConnections();
+        }
+
+        // Auto-check on load
+        window.onload = () => checkConnections();
+    </script>
+</body>
+</html>
