@@ -32,6 +32,7 @@ interface SimpleRequestBody {
   code: string;
   redirectUri: string;
   workspaceId?: string;
+  state?: string; // 🔥 Added unique state parameter
 }
 
 // ------------------------------------------------------------------
@@ -124,6 +125,7 @@ async function handleFacebookSimple(
       code,
       redirectUri,
       workspaceId,
+      state, // 🔥 Added unique state parameter
     }: SimpleRequestBody = req.body as SimpleRequestBody;
 
     if (!code) {
@@ -133,10 +135,18 @@ async function handleFacebookSimple(
       });
     }
 
-    // ----- 1️⃣  Prevent re‑use of an OAuth code -----------------
-    const codeKey = `fb_code_${code.substring(0, 20)}`;
+    console.log('🔍 OAuth request details:', {
+      codeLength: code.length,
+      redirectUri,
+      workspaceId,
+      state: state ? `${state.substring(0, 10)}...` : 'none',
+    });
+
+    // ----- 1️⃣  Prevent re‑use of an OAuth code with state tracking -----
+    const codeKey = state ? `fb_code_${code.substring(0, 20)}_${state}` : `fb_code_${code.substring(0, 20)}`;
     const usedCodes = getUsedCodes();
     if (usedCodes.has(codeKey)) {
+      console.log('🛑 Backend: Code already used - blocking duplicate');
       return res.status(400).json({
         error: 'Facebook API Error',
         message: 'This authorization code has already been used',
@@ -146,7 +156,7 @@ async function handleFacebookSimple(
       });
     }
     usedCodes.add(codeKey);
-    console.log('🔒 Code marked as used:', codeKey);
+    console.log('🔒 Code marked as used:', codeKey.substring(0, 30) + '...');
 
     // ----- 2️⃣  Exchange short‑term token -------------------------
     const shortTokenUrl = `https://graph.facebook.com/v21.0/oauth/access_token?` +

@@ -970,28 +970,33 @@ export const exchangeCodeForToken = async (code: string): Promise<any> => {
     const redirectUri = getRedirectURI();
     const workspaceId = localStorage.getItem('current_workspace_id') || 'fallback-id';
     
-    // 🔥 CRITICAL: Frontend duplicate prevention
+    // 🔥 CRITICAL: Frontend duplicate prevention with unique state
     const exchangeKey = `fb_exchange_${code.substring(0, 20)}`;
     const existingExchange = sessionStorage.getItem(exchangeKey);
     
     if (existingExchange) {
-        console.log('� Frontend: Code already being exchanged - blocking duplicate');
+        console.log('🛑 Frontend: Code already being exchanged - blocking duplicate');
         throw new Error('This authorization code is already being processed');
     }
     
-    // Mark as processing
+    // Mark as processing immediately
     sessionStorage.setItem(exchangeKey, 'processing');
+    
+    // Add unique state to prevent race conditions
+    const uniqueState = `${Date.now()}_${Math.random().toString(36).substring(2)}`;
+    sessionStorage.setItem(exchangeKey, uniqueState);
     
     console.log('🔄 Exchanging authorization code for access token...');
     console.log('📋 Code length:', code.length);
     console.log('📋 Redirect URI:', redirectUri);
     console.log('📋 Workspace ID:', workspaceId);
+    console.log('📋 Unique state:', uniqueState);
 
     try {
         const response = await fetch(`/api/facebook?action=simple`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ code, redirectUri, workspaceId })
+            body: JSON.stringify({ code, redirectUri, workspaceId, state: uniqueState })
         });
 
         // 🔥 CRITICAL: Check if response is JSON before parsing
