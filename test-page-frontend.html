@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Facebook Page Connection Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .success { border-left: 4px solid #4CAF50; }
+        .info { border-left: 4px solid #2196F3; }
+        .warning { border-left: 4px solid #FF9800; }
+        .error { border-left: 4px solid #f44336; }
+        button {
+            background: #1877f2;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background: #166fe5; }
+        .page-info {
+            background: #e3f2fd;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .connection-item {
+            background: #f8f9fa;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 4px;
+            border-left: 4px solid #1877f2;
+        }
+        pre {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔗 Facebook Page Connection Test</h1>
+    
+    <div class="card info">
+        <h3>📋 Workspace Information</h3>
+        <p><strong>Workspace ID:</strong> <code>c9a454c5-a5f3-42dd-9fbd-cedd4c1c49a9</code></p>
+        <button onclick="setWorkspace()">Set Workspace ID</button>
+        <button onclick="checkConnections()">Check Connections</button>
+    </div>
+
+    <div class="card success">
+        <h3>📄 Facebook Page Connection</h3>
+        <div id="pageInfo">
+            <p>Loading page connection...</p>
+        </div>
+    </div>
+
+    <div class="card info">
+        <h3>🔍 Available Actions</h3>
+        <button onclick="testConnectionsAPI()">Test Connections API</button>
+        <button onclick="testPageConnection()">Test Page Connection</button>
+        <button onclick="connectToPage()">Connect to Page</button>
+        <button onclick="verifyPageToken()">Verify Page Token</button>
+    </div>
+
+    <div class="card">
+        <h3>📊 API Response</h3>
+        <pre id="apiResponse">Click a button above to test...</pre>
+    </div>
+
+    <script>
+        const WORKSPACE_ID = 'c9a454c5-a5f3-42dd-9fbd-cedd4c1c49a9';
+        const PAGE_ID = '991921717332604';
+        const PAGE_NAME = 'Engagehub Testing Page';
+
+        // Set workspace ID in localStorage
+        function setWorkspace() {
+            localStorage.setItem('current_workspace_id', WORKSPACE_ID);
+            updateStatus('Workspace ID set in localStorage', 'success');
+        }
+
+        // Check current connections
+        async function checkConnections() {
+            try {
+                const response = await fetch(`/api/facebook?action=connections&workspaceId=${WORKSPACE_ID}`);
+                const data = await response.json();
+                
+                displayConnections(data);
+                updateStatus('Connections loaded', 'success');
+            } catch (error) {
+                updateStatus('Error: ' + error.message, 'error');
+            }
+        }
+
+        // Test connections API
+        async function testConnectionsAPI() {
+            try {
+                const response = await fetch(`/api/facebook?action=connections&workspaceId=${WORKSPACE_ID}`);
+                const data = await response.json();
+                
+                document.getElementById('apiResponse').textContent = JSON.stringify(data, null, 2);
+                updateStatus('Connections API tested', 'success');
+            } catch (error) {
+                document.getElementById('apiResponse').textContent = 'Error: ' + error.message;
+                updateStatus('API test failed', 'error');
+            }
+        }
+
+        // Test page connection
+        async function testPageConnection() {
+            try {
+                const response = await fetch(`/api/facebook?action=verify-page`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        pageId: PAGE_ID,
+                        pageAccessToken: 'EAAd7mnK3tIsBQiG72i9Trl3WIGVJAia6HPZAHkjZCxjVgSt3yOzfjrqZB8tSsnWAhoNjgyct0ZAdQ7tA5zvFc6dyLL8ZAncddDotsz12OXd6YUUh5Qlvxk96lm5tThD2aBE00tgI12DVfIdKAg2FwZAvfWnSfvRTJe0Xk52Ui5Ixv8qspZCdUOOnAkzgkBWUzRwbgaeu'
+                    })
+                });
+                const data = await response.json();
+                
+                document.getElementById('apiResponse').textContent = JSON.stringify(data, null, 2);
+                updateStatus('Page connection tested', 'success');
+            } catch (error) {
+                document.getElementById('apiResponse').textContent = 'Error: ' + error.message;
+                updateStatus('Page test failed', 'error');
+            }
+        }
+
+        // Connect to page
+        async function connectToPage() {
+            try {
+                const response = await fetch(`/api/facebook?action=connect-page`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        pageId: PAGE_ID,
+                        pageAccessToken: 'EAAd7mnK3tIsBQiG72i9Trl3WIGVJAia6HPZAHkjZCxjVgSt3yOzfjrqZB8tSsnWAhoNjgyct0ZAdQ7tA5zvFc6dyLL8ZAncddDotsz12OXd6YUUh5Qlvxk96lm5tThD2aBE00tgI12DVfIdKAg2FwZAvfWnSfvRTJe0Xk52Ui5Ixv8qspZCdUOOnAkzgkBWUzRwbgaeu',
+                        workspaceId: WORKSPACE_ID,
+                        pageName: PAGE_NAME,
+                        instagramBusinessAccountId: '17841456685787301'
+                    })
+                });
+                const data = await response.json();
+                
+                document.getElementById('apiResponse').textContent = JSON.stringify(data, null, 2);
+                updateStatus('Page connection attempted', 'success');
+                
+                if (data.success) {
+                    displayPageInfo(data.pageConnection);
+                }
+            } catch (error) {
+                document.getElementById('apiResponse').textContent = 'Error: ' + error.message;
+                updateStatus('Page connection failed', 'error');
+            }
+        }
+
+        // Verify page token
+        async function verifyPageToken() {
+            try {
+                const response = await fetch(`/api/facebook?action=verify-page`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        pageId: PAGE_ID,
+                        pageAccessToken: 'EAAd7mnK3tIsBQiG72i9Trl3WIGVJAia6HPZAHkjZCxjVgSt3yOzfjrqZB8tSsnWAhoNjgyct0ZAdQ7tA5zvFc6dyLL8ZAncddDotsz12OXd6YUUh5Qlvxk96lm5tThD2aBE00tgI12DVfIdKAg2FwZAvfWnSfvRTJe0Xk52Ui5Ixv8qspZCdUOOnAkzgkBWUzRwbgaeu'
+                    })
+                });
+                const data = await response.json();
+                
+                document.getElementById('apiResponse').textContent = JSON.stringify(data, null, 2);
+                updateStatus('Page token verified', data.valid ? 'success' : 'warning');
+            } catch (error) {
+                document.getElementById('apiResponse').textContent = 'Error: ' + error.message;
+                updateStatus('Token verification failed', 'error');
+            }
+        }
+
+        // Display connections
+        function displayConnections(data) {
+            const container = document.getElementById('pageInfo');
+            
+            if (data.success && data.connections) {
+                let html = '<h4>📊 Facebook Connections</h4>';
+                
+                data.connections.forEach(conn => {
+                    html += `
+                        <div class="connection-item">
+                            <strong>${conn.displayName}</strong> (${conn.accountType})
+                            <br>📱 Instagram: ${conn.platformData?.hasInstagram ? '✅ Connected' : '❌ Not connected'}
+                            <br>📊 Category: ${conn.platformData?.category || 'N/A'}
+                            <br>🔑 Token: ${conn.accessToken ? 'Present' : 'Missing'}
+                            <br>📅 Status: ${conn.connectionStatus}
+                        </div>
+                    `;
+                });
+                
+                container.innerHTML = html;
+            } else {
+                container.innerHTML = '<p>No connections found or error occurred</p>';
+            }
+        }
+
+        // Display page info
+        function displayPageInfo(pageConnection) {
+            const container = document.getElementById('pageInfo');
+            
+            container.innerHTML = `
+                <div class="page-info">
+                    <h4>📄 ${pageConnection.pageName}</h4>
+                    <p><strong>Page ID:</strong> ${pageConnection.pageId}</p>
+                    <p><strong>Status:</strong> ${pageConnection.isConnected ? '✅ Connected' : '❌ Disconnected'}</p>
+                    <p><strong>Instagram:</strong> ${pageConnection.hasInstagram ? '✅ Connected' : '❌ Not connected'}</p>
+                    <p><strong>Connection ID:</strong> ${pageConnection.id}</p>
+                </div>
+            `;
+        }
+
+        // Update status
+        function updateStatus(message, type) {
+            console.log(`[${type.toUpperCase()}] ${message}`);
+        }
+
+        // Initialize
+        window.onload = function() {
+            setWorkspace();
+            checkConnections();
+        };
+    </script>
+</body>
+</html>
