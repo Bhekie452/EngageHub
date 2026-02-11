@@ -220,9 +220,9 @@ async function handleFacebookSimple(
     }));
 
     // ----- 5️⃣  Persist everything in Supabase ------------------
-    if (workspaceId && longTermToken && pageConnections.length > 0) {
+    if (workspaceId && longTermToken) {
       try {
-        // 5a – Upsert the **user** (profile) connection
+        // 5a – Upsert the **user** (profile) connection (ALWAYS save user profile)
         const { data: userConn, error: userErr } = await supabase
           .from('social_accounts')
           .upsert(
@@ -262,47 +262,51 @@ async function handleFacebookSimple(
 
         if (userErr) throw userErr;
 
-        // 5b – Upsert **each page** as its own connection
-        for (const page of pageConnections) {
-          const { data: pageConn, error: pageErr } = await supabase
-            .from('social_accounts')
-            .upsert(
-              {
-                workspace_id: workspaceId,
-                connected_by:
-                  '00000000-0000-0000-0000-000000000000', // TODO: replace with actual user ID
-                platform: 'facebook',
-                account_type: 'page',
-                account_id: page.pageId,
-                username: page.pageId,
-                display_name: page.pageName,
-                access_token: page.pageAccessToken,
-                platform_data: {
-                  instagram_business_account_id:
-                    page.instagramBusinessAccountId,
-                  category: page.category,
-                  hasInstagram: page.hasInstagram,
-                  parentUserConnectionId: userConn.id,
-                },
-                connection_status: 'connected',
-                last_sync_at: new Date().toISOString(),
-              },
-              {
-                onConflict: 'workspace_id,platform,account_id',
-              },
-            )
-            .select()
-            .single();
+        console.log('✅ Facebook user connection saved:', userConn.id);
 
-          if (pageErr) {
-            console.error(
-              `❌ Error saving page ${page.pageName}:`,
-              pageErr,
-            );
-          } else {
-            console.log(
-              `✅ Page saved: ${page.pageName} (${pageConn.id})`,
-            );
+        // 5b – Upsert **each page** as its own connection (only if pages exist)
+        if (pageConnections.length > 0) {
+          for (const page of pageConnections) {
+            const { data: pageConn, error: pageErr } = await supabase
+              .from('social_accounts')
+              .upsert(
+                {
+                  workspace_id: workspaceId,
+                  connected_by:
+                    '00000000-0000-0000-0000-000000000000', // TODO: replace with actual user ID
+                  platform: 'facebook',
+                  account_type: 'page',
+                  account_id: page.pageId,
+                  username: page.pageId,
+                  display_name: page.pageName,
+                  access_token: page.pageAccessToken,
+                  platform_data: {
+                    instagram_business_account_id:
+                      page.instagramBusinessAccountId,
+                    category: page.category,
+                    hasInstagram: page.hasInstagram,
+                    parentUserConnectionId: userConn.id,
+                  },
+                  connection_status: 'connected',
+                  last_sync_at: new Date().toISOString(),
+                },
+                {
+                  onConflict: 'workspace_id,platform,account_id',
+                },
+              )
+              .select()
+              .single();
+
+            if (pageErr) {
+              console.error(
+                `❌ Error saving page ${page.pageName}:`,
+                pageErr,
+              );
+            } else {
+              console.log(
+                `✅ Page saved: ${page.pageName} (${pageConn.id})`,
+              );
+            }
           }
         }
 
@@ -313,7 +317,7 @@ async function handleFacebookSimple(
         });
       } catch (dbErr: any) {
         console.error('❌ Database error while persisting connections:', dbErr);
-        // We still return the page list to the client – the UI can decide what to do.
+        // We still return page list to client – UI can decide what to do.
       }
     } else {
       console.warn('⚠️ No pages or missing workspaceId/long‑term token', {
