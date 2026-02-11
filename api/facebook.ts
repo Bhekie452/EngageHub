@@ -3,7 +3,7 @@
 // ------------------------------------------------------------
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { supabase } from './lib/supabase.js';
+import { supabase } from './lib/supabase';
 import { createHash } from 'crypto';
 
 // ------------------------------------------------------------------
