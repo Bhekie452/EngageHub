@@ -1,5 +1,20 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
 
+// Global storage type declaration (temporary until database is added)
+declare global {
+  var facebookConnections: Record<string, any[]>;
+  var usedCodes: Set<string>;
+}
+
+// Initialize global storage if needed
+if (!global.facebookConnections) {
+  global.facebookConnections = {};
+}
+
+if (!global.usedCodes) {
+  global.usedCodes = new Set();
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Enable CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -212,9 +227,80 @@ async function handleFacebookSimple(req: VercelRequest, res: VercelResponse) {
           hasPageTokens: connectionData.pages.some(p => p.pageAccessToken)
         });
         
-        // TODO: Actual database save:
-        // await saveFacebookConnection(connectionData);
-        console.log('⚠️ Database save not implemented - using localStorage fallback');
+        // 🔥 CRITICAL: Save connection to storage
+        if (workspaceId && longTermToken) {
+          console.log('💾 Saving Facebook connection...');
+          
+          try {
+            const connectionData = {
+              id: `fb_${Date.now()}`,
+              workspaceId: workspaceId,
+              platform: 'facebook',
+              platformType: 'facebook',
+              displayName: 'Facebook',
+              isConnected: true,
+              accessToken: longTermToken,
+              expiresIn: expiresIn,
+              expiresAt: new Date(Date.now() + (expiresIn * 1000)).toISOString(),
+              pages: pageConnections.map(page => ({
+                pageId: page.pageId,
+                pageName: page.pageName,
+                pageAccessToken: page.pageAccessToken,
+                instagramBusinessAccountId: page.instagramBusinessAccountId,
+                category: page.category,
+                hasInstagram: page.hasInstagram
+              })),
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString()
+            };
+            
+            // 🔥 TEMPORARY: Save to global storage (in-memory)
+            // Initialize global storage if needed
+            if (!global.facebookConnections) {
+              global.facebookConnections = {};
+            }
+            
+            // Save/update connection for this workspace
+            if (!global.facebookConnections[workspaceId]) {
+              global.facebookConnections[workspaceId] = [];
+            }
+            
+            // Check if connection already exists for this workspace
+            const existingIndex = (global.facebookConnections[workspaceId] as any[]).findIndex(
+              (conn: any) => conn.platform === 'facebook'
+            );
+            
+            if (existingIndex >= 0) {
+              // Update existing connection
+              (global.facebookConnections[workspaceId] as any[])[existingIndex] = connectionData;
+              console.log('✅ Updated existing Facebook connection');
+            } else {
+              // Add new connection
+              (global.facebookConnections[workspaceId] as any[]).push(connectionData);
+              console.log('✅ Added new Facebook connection');
+            }
+            
+            console.log('✅ Connection saved:', {
+              workspaceId: connectionData.workspaceId,
+              platform: connectionData.platform,
+              pagesCount: connectionData.pages.length,
+              pagesWithInstagram: connectionData.pages.filter(p => p.hasInstagram).length
+            });
+            
+            // TODO: Replace global storage with actual database:
+            // await db.connections.upsert({
+            //   where: { workspaceId_platform: { workspaceId, platform: 'facebook' } },
+            //   create: connectionData,
+            //   update: connectionData
+            // });
+            
+          } catch (saveError) {
+            console.error('❌ Save error:', saveError);
+            // Continue anyway - frontend will use localStorage fallback
+          }
+        } else {
+          console.warn('⚠️ Cannot save - missing workspaceId or token');
+        }
         
       } else {
         console.warn('⚠️ No Pages found or missing workspaceId');
@@ -245,9 +331,30 @@ async function handleFacebookSimple(req: VercelRequest, res: VercelResponse) {
 
       console.log('📋 Fetching stored connection for workspace:', workspaceId);
 
+      // 🔥 TEMPORARY: Return connection from global storage
       // TODO: Fetch from database
       // const connection = await getFacebookConnection(workspaceId);
-      const connection = null; // Not implemented yet
+      let connection = null;
+      
+      if (global.facebookConnections && global.facebookConnections[workspaceId]) {
+        const fbConnection = (global.facebookConnections[workspaceId] as any[]).find(
+          (conn: any) => conn.platform === 'facebook'
+        );
+        if (fbConnection) {
+          connection = {
+            id: fbConnection.id,
+            workspaceId: fbConnection.workspaceId,
+            platform: fbConnection.platform,
+            platformType: fbConnection.platformType,
+            displayName: fbConnection.displayName,
+            isConnected: fbConnection.isConnected,
+            accessToken: fbConnection.accessToken,
+            pages: fbConnection.pages,
+            createdAt: fbConnection.createdAt,
+            updatedAt: fbConnection.updatedAt
+          };
+        }
+      }
 
       if (!connection) {
         return res.status(404).json({ 
@@ -530,16 +637,23 @@ async function handleGetConnections(req: VercelRequest, res: VercelResponse) {
 
     console.log('📋 Fetching Facebook connections for workspace:', workspaceId);
 
-    // 🔥 CRITICAL: For now, return empty array - need database implementation
+    // 🔥 CRITICAL: Return connections from global storage
     // TODO: Replace with actual database query:
     // const connections = await getFacebookPageConnections(workspaceId);
-    const connections = []; // Empty array - no database storage yet
+    let connections: any[] = [];
+    
+    if (global.facebookConnections && global.facebookConnections[workspaceId]) {
+      connections = global.facebookConnections[workspaceId].filter(
+        (conn: any) => conn.platform === 'facebook'
+      );
+    }
+    
+    console.log(`✅ Found ${connections.length} connections for workspace ${workspaceId}`);
 
     return res.status(200).json({
       success: true,
       connections: connections,
-      workspaceId: workspaceId,
-      message: 'Database storage not implemented yet - using localStorage fallback'
+      count: connections.length
     });
 
   } catch (error: any) {

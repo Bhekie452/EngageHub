@@ -206,24 +206,20 @@ export const initFacebookSDK = () => {
 };
 
 /**
- * Clean up any existing OAuth state
+ * Clean up stale OAuth locks
  */
 export const cleanupOAuthState = (): void => {
     if (typeof window === 'undefined') return;
     
     console.log('🧹 Cleaning up OAuth state...');
     
-    // Clear all Facebook-related storage
-    sessionStorage.removeItem('facebook_oauth_lock');
-    sessionStorage.removeItem('fb_oauth_in_progress');
+    // Clear sessionStorage locks
+    sessionStorage.removeItem('facebook_oauth_in_progress');
     
-    // Clear any code keys
-    for (let i = 0; i < sessionStorage.length; i++) {
-        const key = sessionStorage.key(i);
-        if (key?.startsWith('fb_code_')) {
-            sessionStorage.removeItem(key);
-        }
-    }
+    // Clear all exchange tracking
+    Object.keys(sessionStorage)
+        .filter(key => key.startsWith('fb_exchange_'))
+        .forEach(key => sessionStorage.removeItem(key));
     
     // Clear global processing lock
     globalProcessingLock = false;
