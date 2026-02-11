@@ -340,6 +340,8 @@ async function handleFacebookSimple(
     // --------------------------------------------------------------
     return res.status(200).json({
       success: true,
+      accessToken: longTermToken, // 🔥 CRITICAL: Include the access token
+      expiresIn: expiresIn,         // 🔥 CRITICAL: Include expiration
       pages: pageConnections,
       message:
         pageConnections.length > 0
