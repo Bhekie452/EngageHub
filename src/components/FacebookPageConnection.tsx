@@ -85,7 +85,7 @@ export default function FacebookPageConnection() {
         return;
       }
 
-      const response = await fetch('/api/facebook-pages?action=list-pages', {
+      const response = await fetch('/api/facebook?action=list-pages', {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${userToken}`,
@@ -111,7 +111,7 @@ export default function FacebookPageConnection() {
     try {
       const workspaceId = localStorage.getItem('current_workspace_id') || 'c9a454c5-a5f3-42dd-9fbd-cedd4c1c49a9';
 
-      const response = await fetch('/api/facebook-pages?action=connect-page', {
+      const response = await fetch('/api/facebook?action=connect-page', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
