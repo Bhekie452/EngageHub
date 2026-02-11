@@ -705,32 +705,41 @@ async function handleGetConnections(
       .select('*')
       .eq('workspace_id', workspaceId)
       .eq('platform', 'facebook')
-      .eq('connection_status', 'connected');
+      .eq('connection_status', 'connected')
+      .order('account_type', { ascending: false }); // Pages first, then profiles
 
     if (error) throw error;
 
-    const transformed = (connections ?? []).map((c) => ({
-      id: c.id,
-      workspaceId: c.workspace_id,
-      platform: c.platform,
-      platformType: c.platform,
-      displayName: c.display_name,
-      isConnected: c.connection_status === 'connected',
-      accessToken: c.access_token,
-      pages: c.platform_data?.pages ?? [],
-      accountType: c.account_type,
-      accountId: c.account_id,
-      username: c.username,
-      avatarUrl: c.avatar_url,
-      profileUrl: c.profile_url,
-      connectionStatus: c.connection_status,
-      lastSyncAt: c.last_sync_at,
-      createdAt: c.created_at,
-      updatedAt: c.updated_at,
-    }));
+    // Prioritize page accounts over profiles
+    const pageConnections = (connections ?? []).filter(c => c.account_type === 'page');
+    const profileConnections = (connections ?? []).filter(c => c.account_type === 'profile');
+    
+    // Return page account if available, otherwise return profile
+    const primaryConnection = pageConnections.length > 0 ? pageConnections[0] : 
+                          (profileConnections.length > 0 ? profileConnections[0] : null);
+
+    const transformed = primaryConnection ? [{
+      id: primaryConnection.id,
+      workspaceId: primaryConnection.workspace_id,
+      platform: primaryConnection.platform,
+      platformType: primaryConnection.platform,
+      displayName: primaryConnection.display_name,
+      isConnected: primaryConnection.connection_status === 'connected',
+      accessToken: primaryConnection.access_token,
+      pages: primaryConnection.platform_data?.pages ?? [],
+      accountType: primaryConnection.account_type,
+      accountId: primaryConnection.account_id,
+      username: primaryConnection.username,
+      avatarUrl: primaryConnection.avatar_url,
+      profileUrl: primaryConnection.profile_url,
+      connectionStatus: primaryConnection.connection_status,
+      lastSyncAt: primaryConnection.last_sync_at,
+      createdAt: primaryConnection.created_at,
+      updatedAt: primaryConnection.updated_at,
+    }] : [];
 
     console.log(
-      `✅ Retrieved ${transformed.length} Facebook connections for workspace ${workspaceId}`,
+      `✅ Retrieved ${transformed.length} Facebook connections for workspace ${workspaceId} (pages: ${pageConnections.length}, profiles: ${profileConnections.length})`,
     );
 
     return res.status(200).json({
