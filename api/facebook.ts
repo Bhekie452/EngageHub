@@ -658,3 +658,79 @@ async function handleValidateToken(
     user: { id: data.id, name: data.name },
   });
 }
+
+// ------------------------------------------------------------------
+// 6️⃣ Get stored Facebook connections (used by UI)
+// ------------------------------------------------------------------
+async function handleGetConnections(
+  req: VercelRequest,
+  res: VercelResponse,
+) {
+  if (req.method !== 'GET')
+    return res.status(405).json({ error: 'Method not allowed' });
+
+  const { workspaceId } = req.query as { workspaceId?: string };
+  if (!workspaceId) {
+    return res
+      .status(400)
+      .json({ error: 'Missing workspaceId query parameter' });
+  }
+
+  if (
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+      workspaceId,
+    )
+  ) {
+    return res.status(400).json({
+      error: 'Invalid workspaceId format',
+      details: 'workspaceId must be a valid UUID',
+    });
+  }
+
+  try {
+    const { data: connections, error } = await supabase
+      .from('social_accounts')
+      .select('*')
+      .eq('workspace_id', workspaceId)
+      .eq('platform', 'facebook')
+      .eq('connection_status', 'connected');
+
+    if (error) throw error;
+
+    const transformed = (connections ?? []).map((c) => ({
+      id: c.id,
+      workspaceId: c.workspace_id,
+      platform: c.platform,
+      platformType: c.platform,
+      displayName: c.display_name,
+      isConnected: c.connection_status === 'connected',
+      accessToken: c.access_token,
+      pages: c.platform_data?.pages ?? [],
+      accountType: c.account_type,
+      accountId: c.account_id,
+      username: c.username,
+      avatarUrl: c.avatar_url,
+      profileUrl: c.profile_url,
+      connectionStatus: c.connection_status,
+      lastSyncAt: c.last_sync_at,
+      createdAt: c.created_at,
+      updatedAt: c.updated_at,
+    }));
+
+    console.log(
+      `✅ Retrieved ${transformed.length} Facebook connections for workspace ${workspaceId}`,
+    );
+
+    return res.status(200).json({
+      success: true,
+      connections: transformed,
+      count: transformed.length,
+    });
+  } catch (err: any) {
+    console.error('❌ DB fetch error (connections):', err);
+    return res.status(500).json({
+      error: 'Failed to fetch connections',
+      details: err?.message ?? 'unknown',
+    });
+  }
+}
