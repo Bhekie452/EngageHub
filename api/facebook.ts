@@ -1,19 +1,5 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
-
-// Global storage type declaration (temporary until database is added)
-declare global {
-  var facebookConnections: Record<string, any[]>;
-  var usedCodes: Set<string>;
-}
-
-// Initialize global storage if needed
-if (!global.facebookConnections) {
-  global.facebookConnections = {};
-}
-
-if (!global.usedCodes) {
-  global.usedCodes = new Set();
-}
+import { supabase } from './lib/supabase';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Enable CORS
@@ -227,75 +213,87 @@ async function handleFacebookSimple(req: VercelRequest, res: VercelResponse) {
           hasPageTokens: connectionData.pages.some(p => p.pageAccessToken)
         });
         
-        // 🔥 CRITICAL: Save connection to storage
+        // 🔥 CRITICAL: Save connection to Supabase database
         if (workspaceId && longTermToken) {
-          console.log('💾 Saving Facebook connection...');
+          console.log('💾 Saving Facebook connection to Supabase...');
           
           try {
-            const connectionData = {
-              id: `fb_${Date.now()}`,
+            // First, save the main Facebook user connection
+            const { data: userConnection, error: userError } = await supabase
+              .from('social_accounts')
+              .upsert({
+                workspace_id: workspaceId,
+                connected_by: '00000000-0000-0000-0000-000000000000', // TODO: Get actual user ID from auth
+                platform: 'facebook',
+                account_type: 'profile',
+                account_id: 'me', // Facebook user profile
+                display_name: 'Facebook Profile',
+                access_token: longTermToken,
+                token_expires_at: new Date(Date.now() + (expiresIn * 1000)).toISOString(),
+                scopes: ['email', 'public_profile', 'pages_show_list', 'instagram_basic', 'pages_read_engagement'],
+                platform_data: {
+                  pages: pageConnections,
+                  longTermUserToken: longTermToken,
+                  userTokenExpiresIn: expiresIn
+                },
+                connection_status: 'connected',
+                last_sync_at: new Date().toISOString()
+              }, {
+                onConflict: 'workspace_id,platform,account_id'
+              })
+              .select()
+              .single();
+
+            if (userError) {
+              console.error('❌ Error saving user connection:', userError);
+              throw userError;
+            }
+
+            console.log('✅ Facebook user connection saved:', userConnection.id);
+
+            // Now save each Facebook Page as a separate connection
+            for (const page of pageConnections) {
+              const { data: pageConnection, error: pageError } = await supabase
+                .from('social_accounts')
+                .upsert({
+                  workspace_id: workspaceId,
+                  connected_by: '00000000-0000-0000-0000-000000000000', // TODO: Get actual user ID from auth
+                  platform: 'facebook',
+                  account_type: 'page',
+                  account_id: page.pageId,
+                  username: page.pageId,
+                  display_name: page.pageName,
+                  access_token: page.pageAccessToken,
+                  platform_data: {
+                    instagram_business_account_id: page.instagramBusinessAccountId,
+                    category: page.category,
+                    hasInstagram: page.hasInstagram,
+                    parentUserConnectionId: userConnection.id
+                  },
+                  connection_status: 'connected',
+                  last_sync_at: new Date().toISOString()
+                }, {
+                  onConflict: 'workspace_id,platform,account_id'
+                })
+                .select()
+                .single();
+
+              if (pageError) {
+                console.error(`❌ Error saving page ${page.pageName}:`, pageError);
+              } else {
+                console.log(`✅ Facebook page saved: ${page.pageName} (${pageConnection.id})`);
+              }
+            }
+
+            console.log('✅ All Facebook connections saved to database:', {
               workspaceId: workspaceId,
-              platform: 'facebook',
-              platformType: 'facebook',
-              displayName: 'Facebook',
-              isConnected: true,
-              accessToken: longTermToken,
-              expiresIn: expiresIn,
-              expiresAt: new Date(Date.now() + (expiresIn * 1000)).toISOString(),
-              pages: pageConnections.map(page => ({
-                pageId: page.pageId,
-                pageName: page.pageName,
-                pageAccessToken: page.pageAccessToken,
-                instagramBusinessAccountId: page.instagramBusinessAccountId,
-                category: page.category,
-                hasInstagram: page.hasInstagram
-              })),
-              createdAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString()
-            };
-            
-            // 🔥 TEMPORARY: Save to global storage (in-memory)
-            // Initialize global storage if needed
-            if (!global.facebookConnections) {
-              global.facebookConnections = {};
-            }
-            
-            // Save/update connection for this workspace
-            if (!global.facebookConnections[workspaceId]) {
-              global.facebookConnections[workspaceId] = [];
-            }
-            
-            // Check if connection already exists for this workspace
-            const existingIndex = (global.facebookConnections[workspaceId] as any[]).findIndex(
-              (conn: any) => conn.platform === 'facebook'
-            );
-            
-            if (existingIndex >= 0) {
-              // Update existing connection
-              (global.facebookConnections[workspaceId] as any[])[existingIndex] = connectionData;
-              console.log('✅ Updated existing Facebook connection');
-            } else {
-              // Add new connection
-              (global.facebookConnections[workspaceId] as any[]).push(connectionData);
-              console.log('✅ Added new Facebook connection');
-            }
-            
-            console.log('✅ Connection saved:', {
-              workspaceId: connectionData.workspaceId,
-              platform: connectionData.platform,
-              pagesCount: connectionData.pages.length,
-              pagesWithInstagram: connectionData.pages.filter(p => p.hasInstagram).length
+              userConnectionId: userConnection.id,
+              pagesCount: pageConnections.length,
+              pagesWithInstagram: pageConnections.filter(p => p.hasInstagram).length
             });
             
-            // TODO: Replace global storage with actual database:
-            // await db.connections.upsert({
-            //   where: { workspaceId_platform: { workspaceId, platform: 'facebook' } },
-            //   create: connectionData,
-            //   update: connectionData
-            // });
-            
           } catch (saveError) {
-            console.error('❌ Save error:', saveError);
+            console.error('❌ Database save error:', saveError);
             // Continue anyway - frontend will use localStorage fallback
           }
         } else {
@@ -331,43 +329,67 @@ async function handleFacebookSimple(req: VercelRequest, res: VercelResponse) {
 
       console.log('📋 Fetching stored connection for workspace:', workspaceId);
 
-      // 🔥 TEMPORARY: Return connection from global storage
-      // TODO: Fetch from database
-      // const connection = await getFacebookConnection(workspaceId);
-      let connection = null;
-      
-      if (global.facebookConnections && global.facebookConnections[workspaceId]) {
-        const fbConnection = (global.facebookConnections[workspaceId] as any[]).find(
-          (conn: any) => conn.platform === 'facebook'
-        );
-        if (fbConnection) {
-          connection = {
-            id: fbConnection.id,
-            workspaceId: fbConnection.workspaceId,
-            platform: fbConnection.platform,
-            platformType: fbConnection.platformType,
-            displayName: fbConnection.displayName,
-            isConnected: fbConnection.isConnected,
-            accessToken: fbConnection.accessToken,
-            pages: fbConnection.pages,
-            createdAt: fbConnection.createdAt,
-            updatedAt: fbConnection.updatedAt
-          };
-        }
-      }
+      // 🔥 CRITICAL: Fetch connections from Supabase database
+      try {
+        const { data: connections, error } = await supabase
+          .from('social_accounts')
+          .select('*')
+          .eq('workspace_id', workspaceId)
+          .eq('platform', 'facebook')
+          .eq('connection_status', 'connected');
 
-      if (!connection) {
-        return res.status(404).json({ 
-          error: 'No Facebook connection found',
-          details: 'No stored Facebook connection for this workspace',
-          workspaceId: workspaceId
+        if (error) {
+          console.error('❌ Error fetching connections:', error);
+          return res.status(500).json({
+            error: 'Failed to fetch connections',
+            details: error.message
+          });
+        }
+
+        if (!connections || connections.length === 0) {
+          return res.status(404).json({
+            error: 'No Facebook connection found',
+            details: 'No stored Facebook connection for this workspace',
+            workspaceId: workspaceId
+          });
+        }
+
+        // Transform database records to match expected format
+        const transformedConnections = connections.map(conn => ({
+          id: conn.id,
+          workspaceId: conn.workspace_id,
+          platform: conn.platform,
+          platformType: conn.platform,
+          displayName: conn.display_name,
+          isConnected: conn.connection_status === 'connected',
+          accessToken: conn.access_token,
+          pages: conn.platform_data?.pages || [],
+          accountType: conn.account_type,
+          accountId: conn.account_id,
+          username: conn.username,
+          avatarUrl: conn.avatar_url,
+          profileUrl: conn.profile_url,
+          connectionStatus: conn.connection_status,
+          lastSyncAt: conn.last_sync_at,
+          createdAt: conn.created_at,
+          updatedAt: conn.updated_at
+        }));
+
+        console.log(`✅ Found ${transformedConnections.length} Facebook connections for workspace ${workspaceId}`);
+
+        return res.status(200).json({
+          success: true,
+          connections: transformedConnections,
+          count: transformedConnections.length
+        });
+
+      } catch (fetchError) {
+        console.error('❌ Database fetch error:', fetchError);
+        return res.status(500).json({
+          error: 'Database error',
+          details: fetchError.message
         });
       }
-
-      return res.status(200).json({
-        success: true,
-        connection: connection
-      });
     }
 
   } catch (error: any) {
@@ -637,31 +659,59 @@ async function handleGetConnections(req: VercelRequest, res: VercelResponse) {
 
     console.log('📋 Fetching Facebook connections for workspace:', workspaceId);
 
-    // 🔥 CRITICAL: Return connections from global storage
-    // TODO: Replace with actual database query:
-    // const connections = await getFacebookPageConnections(workspaceId);
-    let connections: any[] = [];
-    
-    if (global.facebookConnections && global.facebookConnections[workspaceId]) {
-      connections = global.facebookConnections[workspaceId].filter(
-        (conn: any) => conn.platform === 'facebook'
-      );
+    // 🔥 CRITICAL: Fetch connections from Supabase database
+    try {
+      const { data: connections, error } = await supabase
+        .from('social_accounts')
+        .select('*')
+        .eq('workspace_id', workspaceId)
+        .eq('platform', 'facebook')
+        .eq('connection_status', 'connected');
+
+      if (error) {
+        console.error('❌ Error fetching connections:', error);
+        return res.status(500).json({ 
+          error: 'Failed to fetch connections',
+          details: error.message
+        });
+      }
+
+      // Transform database records to match expected format
+      const transformedConnections = connections?.map(conn => ({
+        id: conn.id,
+        workspaceId: conn.workspace_id,
+        platform: conn.platform,
+        platformType: conn.platform,
+        displayName: conn.display_name,
+        isConnected: conn.connection_status === 'connected',
+        accessToken: conn.access_token,
+        pages: conn.platform_data?.pages || [],
+        accountType: conn.account_type,
+        accountId: conn.account_id,
+        username: conn.username,
+        avatarUrl: conn.avatar_url,
+        profileUrl: conn.profile_url,
+        connectionStatus: conn.connection_status,
+        lastSyncAt: conn.last_sync_at,
+        createdAt: conn.created_at,
+        updatedAt: conn.updated_at
+      })) || [];
+
+      console.log(`✅ Found ${transformedConnections.length} connections for workspace ${workspaceId}`);
+
+      return res.status(200).json({
+        success: true,
+        connections: transformedConnections,
+        count: transformedConnections.length
+      });
+
+    } catch (error: any) {
+      console.error('Get connections error:', error);
+      return res.status(500).json({ 
+        error: 'Failed to fetch connections',
+        details: error.message
+      });
     }
-    
-    console.log(`✅ Found ${connections.length} connections for workspace ${workspaceId}`);
-
-    return res.status(200).json({
-      success: true,
-      connections: connections,
-      count: connections.length
-    });
-
-  } catch (error: any) {
-    console.error('Get connections error:', error);
-    return res.status(500).json({ 
-      error: 'Failed to fetch connections',
-      details: error.message
-    });
   }
 }
 
