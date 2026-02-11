@@ -45,11 +45,14 @@ interface SimpleRequestBody {
 // ------------------------------------------------------------------
 //  Main entry point
 // ------------------------------------------------------------------
+// --------------------------------------------------------------
+//  Main entry point – part that was error‑prone
+// --------------------------------------------------------------
 export default async function handler(
   req: VercelRequest,
   res: VercelResponse,
-) {
-  // ------------- CORS ----------
+): Promise<VercelResponse> {
+  // ---------- CORS ----------
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader(
@@ -58,35 +61,51 @@ export default async function handler(
   );
 
   if (req.method === 'OPTIONS') {
+    // pre‑flight for POST/GET
     return res.status(200).end();
   }
 
+  // ---- `action` can be string | string[] | undefined → cast safely ----
   const { action } = req.query as { action?: string };
 
   try {
     switch (action) {
       case 'simple':
+        // handleOAuth → token exchange → pages → DB
         return await handleFacebookSimple(req, res);
+
       case 'pages':
+        // fetch pages using a *user* access token that you already have
         return await handleFacebookPages(req, res);
+
       case 'token':
+        // short‑term → long‑term token exchange (stand‑alone endpoint)
         return await handleFacebookToken(req, res);
+
       case 'diagnostics':
+        // env-check + simple Graph API ping
         return await handleFacebookDiagnostics(req, res);
+
       case 'validate':
+        // test whether a token is still good
         return await handleValidateToken(req, res);
+
       case 'connections':
+        // get all stored FB connections for a workspace
         return await handleGetConnections(req, res);
+
       default:
+        // Anything that is not one of the above actions
         return res
           .status(400)
           .json({ error: 'Invalid action parameter' });
     }
   } catch (error: any) {
-    console.error('Facebook API error:', error);
+    // Centralised error logger – UI will see a JSON error object
+    console.error('Facebook API error (handler):', error);
     return res.status(500).json({
       error: 'Facebook request failed',
-      details: error.message ?? 'unknown',
+      details: error?.message ?? 'unknown',
       timestamp: new Date().toISOString(),
     });
   }
@@ -428,4 +447,214 @@ async function handleFacebookSimple(
       details: err.message ?? 'unknown',
     });
   }
+}
+
+// ------------------------------------------------------------------
+// 2️⃣ Fetch pages (used by a UI that already owns a user token)
+// ------------------------------------------------------------------
+async function handleFacebookPages(
+  req: VercelRequest,
+  res: VercelResponse,
+) {
+  if (req.method !== 'GET')
+    return res.status(405).json({ error: 'Method not allowed' });
+
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  if (!token) {
+    return res
+      .status(400)
+      .json({ error: 'Missing access token in Authorization header' });
+  }
+
+  const pagesUrl = `https://graph.facebook.com/v21.0/me/accounts?` +
+    `fields=id,name,access_token,instagram_business_account,category` +
+    `&access_token=${token}`;
+
+  const resp = await fetch(pagesUrl);
+  const data = await resp.json();
+
+  if (data.error) {
+    return res.status(400).json({
+      error: 'Failed to fetch pages',
+      details: data.error.message ?? 'Unknown error',
+    });
+  }
+
+  return res.status(200).json({
+    success: true,
+    pages: data.data ?? [],
+  });
+}
+
+// ------------------------------------------------------------------
+// 3️⃣ Token exchange (short-term → long-term)
+// ------------------------------------------------------------------
+async function handleFacebookToken(
+  req: VercelRequest,
+  res: VercelResponse,
+) {
+  if (req.method !== 'POST')
+    return res.status(405).json({ error: 'Method not allowed' });
+
+  const { code, redirectUri } = req.body as {
+    code?: string;
+    redirectUri?: string;
+  };
+
+  if (!code) {
+    return res
+      .status(400)
+      .json({ error: 'Missing authorization code' });
+  }
+
+  const FACEBOOK_APP_ID =
+    process.env.FACEBOOK_APP_ID || process.env.VITE_FACEBOOK_APP_ID;
+  const FACEBOOK_APP_SECRET = process.env.FACEBOOK_APP_SECRET;
+
+  if (!FACEBOOK_APP_ID || !FACEBOOK_APP_SECRET) {
+    return res.status(500).json({
+      error: 'Server configuration error',
+      details: 'Facebook credentials not configured',
+    });
+  }
+
+  const tokenUrl = `https://graph.facebook.com/v21.0/oauth/access_token?` +
+    `client_id=${FACEBOOK_APP_ID}` +
+    `&client_secret=${FACEBOOK_APP_SECRET}` +
+    `&redirect_uri=${encodeURIComponent(redirectUri ?? '')}` +
+    `&code=${code}`;
+
+  const resp = await fetch(tokenUrl);
+  const data = await resp.json();
+
+  if (data.error) {
+    return res.status(400).json({
+      error: 'Token exchange failed',
+      details: data.error.message ?? 'Unknown error',
+    });
+  }
+
+  return res.status(200).json({
+    success: true,
+    accessToken: data.access_token,
+    expiresIn: data.expires_in,
+  });
+}
+
+// ------------------------------------------------------------------
+// 4️⃣ Diagnostics (env + Graph API sanity check)
+// ------------------------------------------------------------------
+async function handleFacebookDiagnostics(
+  _req: VercelRequest,
+  res: VercelResponse,
+) {
+  const FACEBOOK_APP_ID =
+    process.env.FACEBOOK_APP_ID || process.env.VITE_FACEBOOK_APP_ID;
+  const FACEBOOK_APP_SECRET = process.env.FACEBOOK_APP_SECRET;
+  const FACEBOOK_LONG_TERM_TOKEN = process.env.FACEBOOK_LONG_TERM_TOKEN;
+
+  const env = {
+    FACEBOOK_APP_ID: {
+      exists: !!FACEBOOK_APP_ID,
+      masked: FACEBOOK_APP_ID
+        ? `${FACEBOOK_APP_ID.slice(0, 6)}…${FACEBOOK_APP_ID.slice(-4)}` 
+        : null,
+    },
+    FACEBOOK_APP_SECRET: {
+      exists: !!FACEBOOK_APP_SECRET,
+      masked: FACEBOOK_APP_SECRET
+        ? `***${FACEBOOK_APP_SECRET.slice(-4)}` 
+        : null,
+    },
+    FACEBOOK_LONG_TERM_TOKEN: {
+      exists: !!FACEBOOK_LONG_TERM_TOKEN,
+      masked: FACEBOOK_LONG_TERM_TOKEN
+        ? `***${FACEBOOK_LONG_TERM_TOKEN.slice(-4)}` 
+        : null,
+    },
+  };
+
+  const recommendations: string[] = [];
+
+  if (!FACEBOOK_APP_ID) recommendations.push('❌ Set FACEBOOK_APP_ID');
+  else recommendations.push('✅ FACEBOOK_APP_ID is set');
+
+  if (!FACEBOOK_APP_SECRET) recommendations.push('❌ Set FACEBOOK_APP_SECRET');
+  else recommendations.push('✅ FACEBOOK_APP_SECRET is set');
+
+  if (!FACEBOOK_LONG_TERM_TOKEN) recommendations.push('⚠️ FACEBOOK_LONG_TERM_TOKEN not set (optional)');
+  else recommendations.push('✅ FACEBOOK_LONG_TERM_TOKEN is set');
+
+  // Simple Graph API ping (uses app ID - it does not need a user token)
+  let apiPing: any = null;
+  if (FACEBOOK_APP_ID) {
+    try {
+      const pingUrl = `https://graph.facebook.com/v21.0/${FACEBOOK_APP_ID}?fields=id,name`;
+      const pingResp = await fetch(pingUrl);
+      const pingData = await pingResp.json();
+
+      apiPing = {
+        reachable: pingResp.ok,
+        status: pingResp.status,
+        hasData: !!pingData.id,
+        appName: pingData.name ?? null,
+        error: pingData.error?.message ?? null,
+      };
+      if (pingResp.ok && pingData.id) {
+        recommendations.push('✅ Facebook API reachable & app ID valid');
+      } else {
+        recommendations.push('❌ Facebook API test failed - check app permissions');
+      }
+    } catch (e: any) {
+      apiPing = { reachable: false, error: e.message };
+      recommendations.push('❌ Facebook API unreachable - network issue?');
+    }
+  }
+
+  return res.status(200).json({
+    success: true,
+    environment: env,
+    recommendations,
+    apiPing,
+    deployment: {
+      vercelEnv: process.env.VERCEL_ENV ?? 'unknown',
+      nodeEnv: process.env.NODE_ENV ?? 'unknown',
+      region: process.env.VERCEL_REGION ?? 'unknown',
+      timestamp: new Date().toISOString(),
+    },
+  });
+}
+
+// ------------------------------------------------------------------
+// 5️⃣ Validate a token (user- or page-token)
+// ------------------------------------------------------------------
+async function handleValidateToken(
+  req: VercelRequest,
+  res: VercelResponse,
+) {
+  if (req.method !== 'POST')
+    return res.status(405).json({ error: 'Method not allowed' });
+
+  const { token } = req.body as { token?: string };
+  if (!token) {
+    return res
+      .status(400)
+      .json({ error: 'Missing access token in request body' });
+  }
+
+  const testUrl = `https://graph.facebook.com/v21.0/me?fields=id,name&access_token=${token}`;
+  const resp = await fetch(testUrl);
+  const data = await resp.json();
+
+  if (data.error) {
+    return res.status(400).json({
+      valid: false,
+      error: data.error.message ?? 'Invalid token',
+    });
+  }
+
+  return res.status(200).json({
+    valid: true,
+    user: { id: data.id, name: data.name },
+  });
 }
