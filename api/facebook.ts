@@ -318,19 +318,22 @@ async function handleFacebookSimple(req: VercelRequest, res: VercelResponse) {
 
     } else {
       // GET request - return stored connection
-      const { workspaceId } = req.query;
-
-      if (!workspaceId) {
-        return res.status(400).json({ 
-          error: 'Missing workspaceId',
-          details: 'workspaceId parameter required for GET requests'
-        });
-      }
-
-      console.log('📋 Fetching stored connection for workspace:', workspaceId);
-
-      // 🔥 CRITICAL: Fetch connections from Supabase database
       try {
+        const { workspaceId } = req.query;
+
+        // 🔥 CRITICAL: Validate workspaceId format
+        if (typeof workspaceId !== 'string' || !workspaceId.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
+          console.error('❌ Invalid workspaceId format:', workspaceId);
+          return res.status(400).json({
+            error: 'Invalid workspaceId format',
+            details: 'workspaceId must be a valid UUID',
+            received: workspaceId
+          });
+        }
+
+        console.log('📋 Fetching stored connection for workspace:', workspaceId);
+
+        // 🔥 CRITICAL: Fetch connections from Supabase database
         const { data: connections, error } = await supabase
           .from('social_accounts')
           .select('*')
@@ -655,6 +658,16 @@ async function handleGetConnections(req: VercelRequest, res: VercelResponse) {
 
     if (!workspaceId) {
       return res.status(400).json({ error: 'Missing workspaceId' });
+    }
+
+    // 🔥 CRITICAL: Validate workspaceId format
+    if (typeof workspaceId !== 'string' || !workspaceId.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
+      console.error('❌ Invalid workspaceId format:', workspaceId);
+      return res.status(400).json({
+        error: 'Invalid workspaceId format',
+        details: 'workspaceId must be a valid UUID',
+        received: workspaceId
+      });
     }
 
     console.log('📋 Fetching Facebook connections for workspace:', workspaceId);
