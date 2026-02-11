@@ -1,6 +1,5 @@
 {
   "version": 2,
-  "buildCommand": "echo 'Build timestamp: $(date)'",
   "functions": {
     "api/**/*.js": {
       "maxDuration": 30
