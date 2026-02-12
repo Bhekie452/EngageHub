@@ -13,9 +13,9 @@ const supabase = createClient(
 
 async function disconnectFacebook() {
   console.log('🔧 Disconnecting Facebook...');
-  
-  const workspaceId = '26caa666-2797-40f9-aa99-399be01d57eb';
-  
+
+  const WORKSPACE_ID = 'c9a454c5-a5f3-42dd-9fbd-cedd4c1c49a9';
+
   try {
     // Delete all Facebook connections for this workspace
     const { data, error } = await supabase
@@ -23,29 +23,29 @@ async function disconnectFacebook() {
       .delete()
       .eq('workspace_id', workspaceId)
       .eq('platform', 'facebook');
-    
+
     if (error) {
       console.error('❌ Error disconnecting:', error);
       return;
     }
-    
+
     console.log('✅ Facebook connections disconnected!');
     console.log(`📋 Deleted ${data?.length || 0} connection(s)`);
-    
+
     // Verify deletion
     const { data: remaining, error: checkError } = await supabase
       .from('social_accounts')
       .select('*')
       .eq('workspace_id', workspaceId)
       .eq('platform', 'facebook');
-    
+
     if (checkError) {
       console.error('❌ Error checking:', checkError);
       return;
     }
-    
+
     console.log(`📋 Remaining connections: ${remaining?.length || 0}`);
-    
+
   } catch (err) {
     console.error('❌ Unexpected error:', err);
   }

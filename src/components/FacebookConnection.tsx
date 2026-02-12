@@ -80,7 +80,7 @@ export default function FacebookConnection() {
     if (!workspaceId) {
       console.warn('No workspace ID found, defaulting to fallback or error');
       // Fallback or error handling
-      workspaceId = '26caa666-2797-40f9-aa99-399be01d57eb';
+      workspaceId = 'c9a454c5-a5f3-42dd-9fbd-cedd4c1c49a9';
     }
 
     // 1. Get connected accounts from DB
@@ -143,7 +143,7 @@ export default function FacebookConnection() {
   const handleConnectPage = async (page: FacebookPage) => {
     try {
       setProcessingId(page.pageId);
-      const workspaceId = localStorage.getItem('current_workspace_id') || '26caa666-2797-40f9-aa99-399be01d57eb';
+      const workspaceId = localStorage.getItem('current_workspace_id') || 'c9a454c5-a5f3-42dd-9fbd-cedd4c1c49a9';
 
       const response = await fetch('/api/facebook?action=connect-page', {
         method: 'POST',
@@ -177,7 +177,7 @@ export default function FacebookConnection() {
 
     try {
       setProcessingId(page.pageId);
-      const workspaceId = localStorage.getItem('current_workspace_id') || '26caa666-2797-40f9-aa99-399be01d57eb';
+      const workspaceId = localStorage.getItem('current_workspace_id') || 'c9a454c5-a5f3-42dd-9fbd-cedd4c1c49a9';
 
       const { error } = await supabase
         .from('social_accounts')
@@ -203,7 +203,7 @@ export default function FacebookConnection() {
 
     try {
       setLoading(true);
-      const workspaceId = localStorage.getItem('current_workspace_id') || '26caa666-2797-40f9-aa99-399be01d57eb';
+      const workspaceId = localStorage.getItem('current_workspace_id') || 'c9a454c5-a5f3-42dd-9fbd-cedd4c1c49a9';
 
       // Delete all facebook connections for this workspace
       const { error } = await supabase

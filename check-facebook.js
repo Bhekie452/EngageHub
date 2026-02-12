@@ -7,12 +7,12 @@ const SUPABASE_SERVICE_ROLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3Mi
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
 async function run() {
-  console.log('🔍 Checking Facebook connections for workspace: 26caa666-2797-40f9-aa99-399be01d57eb');
+  console.log('🔍 Checking Facebook connections for workspace: c9a454c5-a5f3-42dd-9fbd-cedd4c1c49a9');
   console.log('📋 Using Supabase URL:', SUPABASE_URL);
   console.log('');
 
   try {
-    const workspaceId = "26caa666-2797-40f9-aa99-399be01d57eb";
+    const workspaceId = "c9a454c5-a5f3-42dd-9fbd-cedd4c1c49a9";
 
     const { data, error } = await supabase
       .from("social_accounts")
@@ -47,21 +47,21 @@ async function run() {
       console.log(`   Connection Status: ${row.connection_status}`);
       console.log(`   Created: ${row.created_at}`);
       console.log(`   Last Sync: ${row.last_sync_at}`);
-      
+
       // Show token info (safely)
       if (row.access_token) {
         console.log(`   Access Token: ${row.access_token.substring(0, 20)}...${row.access_token.slice(-4)}`);
         console.log(`   Token Length: ${row.access_token.length} characters`);
       }
-      
+
       if (row.token_expires_at) {
         console.log(`   Token Expires: ${row.token_expires_at}`);
       }
-      
+
       // Show platform data
       if (row.platform_data) {
         console.log(`   Platform Data:`);
-        
+
         if (row.platform_data.pages) {
           console.log(`     Pages Count: ${row.platform_data.pages.length}`);
           row.platform_data.pages.forEach((page, i) => {
@@ -72,12 +72,12 @@ async function run() {
             }
           });
         }
-        
+
         if (row.platform_data.longTermUserToken) {
           console.log(`     Long-term User Token: ${row.platform_data.longTermUserToken.substring(0, 20)}...${row.platform_data.longTermUserToken.slice(-4)}`);
         }
       }
-      
+
       console.log('');
     });
 

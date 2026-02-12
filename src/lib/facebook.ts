@@ -968,7 +968,7 @@ export const loginWithFacebook = () => {
  */
 export const exchangeCodeForToken = async (code: string): Promise<any> => {
     const redirectUri = getRedirectURI();
-    const workspaceId = localStorage.getItem('current_workspace_id') || 'fallback-id';
+    const workspaceId = localStorage.getItem('current_workspace_id') || 'c9a454c5-a5f3-42dd-9fbd-cedd4c1c49a9';
     
     // 🔥 CRITICAL: Frontend duplicate prevention with unique state
     const exchangeKey = `fb_exchange_${code.substring(0, 20)}`;

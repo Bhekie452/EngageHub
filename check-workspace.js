@@ -13,21 +13,21 @@ const supabase = createClient(
 
 async function checkWorkspace(workspaceId) {
   console.log(`🔍 Checking Facebook connections for workspace: ${workspaceId}`);
-  
+
   try {
     const { data: connections, error } = await supabase
       .from('social_accounts')
       .select('*')
       .eq('workspace_id', workspaceId)
       .eq('platform', 'facebook');
-    
+
     if (error) {
       console.error('❌ Error:', error);
       return;
     }
-    
+
     console.log(`📊 Found ${connections?.length || 0} Facebook connections:`);
-    
+
     if (connections && connections.length > 0) {
       connections.forEach(conn => {
         console.log(`\n🔹 Connection ID: ${conn.id}`);
@@ -41,13 +41,13 @@ async function checkWorkspace(workspaceId) {
     } else {
       console.log('❌ No Facebook connections found for this workspace');
     }
-    
+
     // Check OAuth codes table too
     const { data: codes, error: codesError } = await supabase
       .from('fb_used_codes')
       .select('*')
       .limit(5);
-    
+
     if (codesError) {
       console.error('❌ Error checking codes:', codesError);
     } else {
@@ -56,7 +56,7 @@ async function checkWorkspace(workspaceId) {
         console.log(`   - ${code.code_hash.substring(0, 10)}... (${code.used_at})`);
       });
     }
-    
+
   } catch (err) {
     console.error('❌ Unexpected error:', err);
   }
@@ -71,4 +71,4 @@ checkWorkspace('c9a454c5-a5f3-42dd-9fbd-cedd4c1c49a9');
 console.log('\n' + '='.repeat(50) + '\n');
 
 // Check your original workspace
-checkWorkspace('26caa666-2797-40f9-aa99-399be01d57eb');
+checkWorkspace('c9a454c5-a5f3-42dd-9fbd-cedd4c1c49a9');
