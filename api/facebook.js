@@ -1,11 +1,6 @@
-"use strict";
-// ------------------------------------------------------------
-//   Facebook‑OAuth / Pages API handler (Vercel Serverless)
-// ------------------------------------------------------------
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.default = handler;
-const supabase_1 = require("./lib/supabase");
-const crypto_1 = require("crypto");
+import { supabase } from "./lib/supabase.js";
+import { createHash } from "crypto";
+
 // ------------------------------------------------------------------
 //  Database-backed OAuth code guard (shared across all Vercel instances)
 // ------------------------------------------------------------------
@@ -15,28 +10,33 @@ const crypto_1 = require("crypto");
  * `false` when a duplicate-key error occurred (code already used).
  */
 async function markCodeAsUsed(code) {
-    const hash = (0, crypto_1.createHash)('sha256')
+    const hash = createHash('sha256')
         .update(code)
         .digest('hex')
         .substring(0, 32); // 128-bit slice is plenty unique
-    const { error } = await supabase_1.supabase
+    const { error } = await supabase
         .from('fb_used_codes')
         .insert({ code_hash: hash })
         .single();
     // PostgreSQL (Supabase) reports duplicate-key as code '23505'
     if (error?.code === '23505')
         return false;
-    if (error)
+    if (error) {
+        // Only ignore if it's "relation does not exist" (e.g. migration hasn't run),
+        // but stricter is better. Let's warn but proceed if table missing to avoid blocking users.
+        if (error.code === '42P01') {
+            console.warn('⚠️ fb_used_codes table missing, skipping duplicate check');
+            return true;
+        }
         throw error; // any other DB problem
+    }
     return true;
 }
+
 // ------------------------------------------------------------------
-//  Main entry point
+//  Main entry point - Vercel Serverless Function
 // ------------------------------------------------------------------
-// --------------------------------------------------------------
-//  Main entry point – part that was error‑prone
-// --------------------------------------------------------------
-async function handler(req, res) {
+export default async function handler(req, res) {
     // ---------- CORS ----------
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
@@ -93,6 +93,7 @@ async function handler(req, res) {
         });
     }
 }
+
 // ------------------------------------------------------------------
 //  1️⃣  Simple flow – OAuth code → long‑term token → pages → DB
 // ------------------------------------------------------------------
@@ -111,8 +112,7 @@ async function handleFacebookSimple(req, res) {
     // POST – exchange `code`, fetch pages, persist in DB
     // --------------------------------------------------------------
     if (req.method === 'POST') {
-        const { code, redirectUri, workspaceId, state, // 🔥 Added unique state parameter
-        } = req.body;
+        const { code, redirectUri, workspaceId, state } = req.body;
         if (!code) {
             return res.status(400).json({
                 error: 'Missing authorization code',
@@ -125,19 +125,26 @@ async function handleFacebookSimple(req, res) {
             workspaceId,
             state: state ? `${state.substring(0, 10)}...` : 'none',
         });
-        // ----- 1️⃣  Database-backed single‑use guard (replaces in‑memory Set) -----
-        const fresh = await markCodeAsUsed(code);
-        if (!fresh) {
-            console.log('🛑 Backend: Code already used in DB - blocking duplicate');
-            return res.status(400).json({
-                error: 'Facebook API Error',
-                message: 'This authorization code has already been used',
-                type: 'OAuthException',
-                code: 'CODE_ALREADY_USED',
-                details: 'Authorization codes are single‑use only',
-            });
+
+        // ----- 1️⃣  Database-backed single‑use guard -----
+        try {
+            const fresh = await markCodeAsUsed(code);
+            if (!fresh) {
+                console.log('🛑 Backend: Code already used in DB - blocking duplicate');
+                return res.status(400).json({
+                    error: 'Facebook API Error',
+                    message: 'This authorization code has already been used',
+                    type: 'OAuthException',
+                    code: 'CODE_ALREADY_USED',
+                    details: 'Authorization codes are single‑use only',
+                });
+            }
+            console.log('✅ Code marked as used in DB:', code.substring(0, 20) + '...');
+        } catch (dbErr) {
+            console.error('⚠️ DB guard error:', dbErr);
+            // Proceed anyway if DB check fails to avoid blocking users due to DB issues
         }
-        console.log('✅ Code marked as used in DB:', code.substring(0, 20) + '...');
+
         // ----- 2️⃣  Exchange short‑term token -------------------------
         const shortTokenUrl = `https://graph.facebook.com/v21.0/oauth/access_token?` +
             `client_id=${FACEBOOK_APP_ID}` +
@@ -200,7 +207,7 @@ async function handleFacebookSimple(req, res) {
         if (workspaceId && longTermToken) {
             try {
                 // --- user (profile) connection ---------------------------------
-                const { data: userConn, error: userErr, } = await supabase_1.supabase
+                const { data: userConn, error: userErr, } = await supabase
                     .from('social_accounts')
                     .upsert({
                         workspace_id: workspaceId,
@@ -235,43 +242,6 @@ async function handleFacebookSimple(req, res) {
                 // 🔥 MODIFIED: Do NOT auto-connect pages. 
                 // We just return them to the frontend for manual selection.
 
-                /* 
-                // OLD AUTO-CONNECT LOGIC - COMMENTED OUT
-                if (pageConnections.length > 0) {
-                    for (const page of pageConnections) {
-                        const { data: pageConn, error: pageErr, } = await supabase_1.supabase
-                            .from('social_accounts')
-                            .upsert({
-                            workspace_id: workspaceId,
-                            connected_by: '00000000-0000-0000-0000-000000000000', // TODO: replace with real user ID
-                            platform: 'facebook',
-                            account_type: 'page',
-                            account_id: page.pageId,
-                            username: page.pageId,
-                            display_name: page.pageName,
-                            access_token: page.pageAccessToken,
-                            platform_data: {
-                                instagram_business_account_id: page.instagramBusinessAccountId,
-                                category: page.category,
-                                hasInstagram: page.hasInstagram,
-                                parentUserConnectionId: userConn.id,
-                            },
-                            connection_status: 'connected', // Was 'connected'
-                            last_sync_at: new Date().toISOString(),
-                        }, {
-                            onConflict: 'workspace_id,platform,account_id',
-                        })
-                            .select()
-                            .single();
-                        if (pageErr) {
-                            console.error(`❌ Error saving page ${page.pageName}:`, pageErr);
-                        }
-                        else {
-                            console.log(`✅ Page saved: ${page.pageName} (${pageConn.id})`);
-                        }
-                    }
-                }
-                */
                 console.log('✅ All Facebook connections saved', {
                     workspaceId,
                     userConnectionId: userConn.id,
@@ -312,7 +282,7 @@ async function handleFacebookSimple(req, res) {
             .json({ error: 'Missing workspaceId query parameter' });
     }
     // UUID validation (helps catch typos early)
-    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(workspaceId)) {
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(workspaceId)) {
         console.error('❌ Invalid workspaceId format:', workspaceId);
         return res.status(400).json({
             error: 'Invalid workspaceId format',
@@ -321,7 +291,7 @@ async function handleFacebookSimple(req, res) {
         });
     }
     try {
-        const { data: connections, error } = await supabase_1.supabase
+        const { data: connections, error } = await supabase
             .from('social_accounts')
             .select('*')
             .eq('workspace_id', workspaceId)
@@ -370,6 +340,7 @@ async function handleFacebookSimple(req, res) {
         });
     }
 }
+
 // ------------------------------------------------------------------
 // 2️⃣ Fetch pages (used by a UI that already owns a user token)
 // ------------------------------------------------------------------
@@ -561,7 +532,7 @@ async function handleGetConnections(req, res) {
         });
     }
     try {
-        const { data: connections, error } = await supabase_1.supabase
+        const { data: connections, error } = await supabase
             .from('social_accounts')
             .select('*')
             .eq('workspace_id', workspaceId)
@@ -633,7 +604,7 @@ async function handleConnectPage(req, res) {
             });
         }
         // Store page connection in database
-        const { data: pageConn, error: pageErr } = await supabase_1.supabase
+        const { data: pageConn, error: pageErr } = await supabase
             .from('social_accounts')
             .upsert({
                 workspace_id: workspaceId,
