@@ -85,9 +85,10 @@ export default function SelectFacebookPages() {
                 }
             }
 
-            // Clear sessionStorage
+            // Clear sessionStorage and callback flags
             sessionStorage.removeItem('facebook_pages_pending');
             sessionStorage.removeItem('facebook_connection_id');
+            sessionStorage.removeItem('fb_callback_processed'); // Allow future reconnections
 
             // Show success message
             const pageNames = pages
@@ -146,8 +147,8 @@ export default function SelectFacebookPages() {
                             <div
                                 key={page.pageId}
                                 className={`border rounded-lg p-4 cursor-pointer transition-all ${selectedPageIds.has(page.pageId)
-                                        ? 'border-blue-500 bg-blue-50'
-                                        : 'border-gray-200 hover:border-gray-300'
+                                    ? 'border-blue-500 bg-blue-50'
+                                    : 'border-gray-200 hover:border-gray-300'
                                     }`}
                                 onClick={() => togglePage(page.pageId)}
                             >

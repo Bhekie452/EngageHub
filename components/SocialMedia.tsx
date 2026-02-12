@@ -52,6 +52,32 @@ const SocialMedia: React.FC = () => {
       });
       fetchConnectedAccounts();
 
+      // Listen for hash changes (e.g., #social after page selection)
+      const handleHashChange = () => {
+        if (window.location.hash === '#social' || window.location.hash === '') {
+          console.log('Hash changed, refreshing accounts...');
+          fetchConnectedAccounts();
+        }
+      };
+      window.addEventListener('hashchange', handleHashChange);
+
+      // Listen for window focus (e.g., returning from page selection)
+      const handleFocus = () => {
+        console.log('Window focused, refreshing accounts...');
+        fetchConnectedAccounts();
+      };
+      window.addEventListener('focus', handleFocus);
+
+      // Cleanup listeners on unmount
+      return () => {
+        window.removeEventListener('hashchange', handleHashChange);
+        window.removeEventListener('focus', handleFocus);
+      };
+    }
+  }, [user]);
+
+  React.useEffect(() => {
+    if (user) {
       // Handle Facebook OAuth callback and errors
       const urlParams = new URLSearchParams(window.location.search);
       const code = urlParams.get('code');
