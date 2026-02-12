@@ -271,12 +271,25 @@ export const handleFacebookCallback = async (): Promise<any> => {
         // 🔥 CRITICAL: Create a unique key for this specific code
         const codeKey = `fb_code_${code.substring(0, 20)}`;
         
-        // Check if this exact code was already processed
-        if (sessionStorage.getItem(codeKey) === "processed") {
-            console.warn("🛑 This authorization code was already processed");
-            console.log('🔍 [DEBUG] Code already processed - skipping');
+        // Check if this exact code was already processed or is currently being processed
+        const existingStatus = sessionStorage.getItem(codeKey);
+        if (existingStatus === "processed" || existingStatus === "processing") {
+            const statusMsg = existingStatus === "processed" ? "already processed" : "currently being processed";
+            console.warn(`🛑 This authorization code is ${statusMsg} - skipping duplicate request`);
+            console.log(`🔍 [DEBUG] Code status: ${existingStatus} - skipping`);
+            
+            // Wait a moment for the original request to finish if it's still processing
+            if (existingStatus === "processing") {
+                await new Promise(resolve => setTimeout(resolve, 2000));
+            }
+            
             const existingToken = getStoredAccessToken();
-            return { success: !!existingToken, accessToken: existingToken, skipped: true };
+            return { 
+                success: !!existingToken, 
+                accessToken: existingToken, 
+                skipped: true,
+                message: existingStatus === "processing" ? "Request already in progress" : "Already connected"
+            };
         }
         
         // Mark this code as being processed IMMEDIATELY
