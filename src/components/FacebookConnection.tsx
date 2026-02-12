@@ -83,25 +83,69 @@ export default function FacebookConnection() {
       workspaceId = 'c9a454c5-a5f3-42dd-9fbd-cedd4c1c49a9';
     }
 
-    // 1. Get connected accounts from DB
-    const { data: dbConnections, error } = await supabase
-      .from('social_accounts')
-      .select('*')
-      .eq('workspace_id', workspaceId)
-      .eq('platform', 'facebook')
-      .eq('connection_status', 'connected')
-      .order('created_at', { ascending: false });
+    // Optimistic: Set loading false immediately, then handle data
+    setLoading(false);
+    setError(null);
 
-    if (error) {
-      throw error;
-    }
+    try {
+      // 1. Get connected accounts from DB (parallel with page fetch)
+      const results = await Promise.allSettled([
+        supabase
+          .from('social_accounts')
+          .select('*')
+          .eq('workspace_id', workspaceId)
+          .eq('platform', 'facebook')
+          .eq('connection_status', 'connected')
+          .order('created_at', { ascending: false }),
+        
+        // Check if profile exists for page fetch
+        (async () => {
+          const { data: tempConnections } = await supabase
+            .from('social_accounts')
+            .select('access_token')
+            .eq('workspace_id', workspaceId)
+            .eq('platform', 'facebook')
+            .eq('account_type', 'profile')
+            .eq('connection_status', 'connected')
+            .limit(1);
+          
+          const profile = tempConnections?.[0];
+          if (profile?.access_token) {
+            return fetch('/api/facebook?action=list-pages', {
+              headers: {
+                'Authorization': `Bearer ${profile.access_token}`
+              }
+            });
+          }
+          return { success: false, pages: [] };
+        })()
+      ]);
 
-    setConnections(dbConnections || []);
+      const dbConnections = results[0].status === 'fulfilled' ? results[0].value.data : [];
+      const pagesData = results[1].status === 'fulfilled' ? results[1].value : { success: false, pages: [] };
 
-    // 2. If profile is connected, fetch available pages from Facebook API
-    const profile = dbConnections?.find(c => c.account_type === 'profile');
-    if (profile && profile.access_token) {
-      await fetchAvailablePages(profile.access_token, dbConnections || []);
+      setConnections(dbConnections || []);
+
+      // 2. If profile is connected, merge available pages
+      if (pagesData.success && pagesData.pages) {
+        // Merge with connection status
+        const pagesWithStatus = pagesData.pages.map((page: any) => {
+          const existingConn = dbConnections.find(
+            c => c.account_type === 'page' && c.account_id === page.pageId
+          );
+          return {
+            ...page,
+            connected: !!existingConn,
+            connectionId: existingConn?.id
+          };
+        });
+
+        setAvailablePages(pagesWithStatus);
+        console.log(`📄 Loaded ${pagesWithStatus.length} available pages`);
+      }
+    } catch (error) {
+      console.error('Error loading data:', error);
+      setError('Failed to load Facebook data');
     }
   };
 
@@ -225,7 +269,7 @@ export default function FacebookConnection() {
   };
 
   if (loading) {
-    return <div className="p-8 text-center text-gray-500">Loading Facebook connections...</div>;
+    return <div className="p-8 text-center text-gray-500">Loading...</div>;
   }
 
   // Separate profile connection
