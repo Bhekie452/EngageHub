@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { BarChart2, MessageCircle, ThumbsUp, Share2, Eye, Users } from 'lucide-react';
+import { BarChart2, MessageCircle, ThumbsUp, Share2, Eye, Users, Youtube } from 'lucide-react';
 import { likeYouTubeVideoClient, getYouTubeVideoCommentsClient, fetchYouTubeVideosClient } from '../src/utils/youtube-client';
 
 interface Video {
@@ -34,10 +34,20 @@ export default function YouTubeEngagement() {
     try {
       setLoading(true);
       const workspaceId = localStorage.getItem('current_workspace_id') || '';
+      
+      if (!workspaceId) {
+        console.error('No workspace ID found');
+        return;
+      }
+      
+      console.log('Fetching YouTube videos for workspace:', workspaceId);
       const response = await fetchYouTubeVideosClient(workspaceId, 20);
+      console.log('YouTube videos response:', response);
       
       if (response?.videos) {
         setVideos(response.videos);
+      } else {
+        console.log('No videos in response:', response);
       }
     } catch (error) {
       console.error('Failed to fetch videos:', error);
@@ -125,6 +135,34 @@ export default function YouTubeEngagement() {
       {loading && (
         <div className="flex justify-center items-center py-12">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        </div>
+      )}
+
+      {!loading && videos.length === 0 && (
+        <div className="bg-white rounded-xl border border-gray-200 p-12 text-center space-y-6 shadow-sm">
+          <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center text-red-600 mx-auto">
+            <Youtube size={32} />
+          </div>
+          <div className="space-y-2">
+            <h3 className="text-lg font-bold text-gray-800">No YouTube Data Found</h3>
+            <p className="text-sm text-gray-500 max-w-sm mx-auto leading-relaxed">
+              Please connect your YouTube account to see your videos, comments, and engagement metrics.
+            </p>
+          </div>
+          <div className="flex justify-center gap-3">
+            <button 
+              onClick={() => window.location.href = '/social-media'}
+              className="px-6 py-2 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700 transition-all text-sm shadow-lg shadow-blue-100"
+            >
+              Connect YouTube Account
+            </button>
+            <button 
+              onClick={fetchVideos}
+              className="px-6 py-2 bg-white border border-gray-200 text-gray-600 rounded-lg font-bold hover:bg-gray-50 transition-all text-sm"
+            >
+              Refresh
+            </button>
+          </div>
         </div>
       )}
 
