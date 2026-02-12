@@ -43,10 +43,10 @@ async function handleFacebookAuth(req, res) {
     }
 
     const FACEBOOK_APP_ID = process.env.FACEBOOK_APP_ID || process.env.VITE_FACEBOOK_APP_ID;
-    // Fallback redirect URI if not provided - must be the backend callback
-    const REDIRECT_URI = customRedirect || (process.env.VERCEL_URL
-        ? `https://${process.env.VERCEL_URL}/api/facebook?action=callback`
-        : `http://localhost:3000/api/facebook?action=callback`);
+
+    // 🔥 CRITICAL: Use the FRONTEND callback URL which is whitelisted in Meta
+    const origin = req.headers.referer ? new URL(req.headers.referer).origin : (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
+    const REDIRECT_URI = customRedirect || `${origin}/auth/facebook/callback`;
 
     // We pass workspaceId in the 'state' parameter to recover it in the callback
     const state = JSON.stringify({ workspaceId, origin: req.headers.referer });
@@ -62,9 +62,9 @@ async function handleFacebookAuth(req, res) {
 }
 
 // ------------------------------------------------------------------
-//  0️⃣  Auth Callback – Exchange code and store
+//  0️⃣  Auth Exchange – Receive code from frontend and store
 // ------------------------------------------------------------------
-async function handleFacebookCallbackAction(req, res) {
+async function handleFacebookExchangeAction(req, res) {
     const { code, state, error, error_description } = req.query;
 
     if (error) {
@@ -90,9 +90,8 @@ async function handleFacebookCallbackAction(req, res) {
     // 1. Exchange code for token
     const FACEBOOK_APP_ID = process.env.FACEBOOK_APP_ID || process.env.VITE_FACEBOOK_APP_ID;
     const FACEBOOK_APP_SECRET = process.env.FACEBOOK_APP_SECRET;
-    const REDIRECT_URI = process.env.VERCEL_URL
-        ? `https://${process.env.VERCEL_URL}/api/facebook?action=callback`
-        : `http://localhost:3000/api/facebook?action=callback`;
+    // 🔥 CRITICAL: Must be the SAME frontend callback URL used in the auth request
+    const REDIRECT_URI = `${origin}/auth/facebook/callback`;
 
     try {
         // Exchange for short-term token
@@ -229,9 +228,9 @@ export default async function handler(req, res) {
             case 'auth':
                 // Redirect user to Facebook Auth
                 return await handleFacebookAuth(req, res);
-            case 'callback':
-                // Handle Facebook Auth callback
-                return await handleFacebookCallbackAction(req, res);
+            case 'exchange':
+                // Receive code from frontend and exchange
+                return await handleFacebookExchangeAction(req, res);
             case 'diagnostics':
                 // env-check + simple Graph API ping
                 return await handleFacebookDiagnostics(req, res);
