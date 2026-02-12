@@ -1,0 +1,39 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  font-family: 'Inter', sans-serif;
+  transition: background-color 0.3s ease;
+}
+
+:root {
+  --brand-color: #2563eb;
+  --brand-color-50: #eff6ff;
+  --brand-color-100: #dbeafe;
+  --brand-color-700: #1d4ed8;
+  --sidebar-bg: #ffffff;
+  --sidebar-text: #64748b;
+  --sidebar-active-bg: #eff6ff;
+  --sidebar-active-text: #2563eb;
+}
+
+.dark {
+  background-color: #0f172a;
+  color: #f8fafc;
+}
+
+/* Custom scrollbar */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Smooth transition for theme colors */
+.theme-transition {
+  transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+}

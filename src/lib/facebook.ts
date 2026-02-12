@@ -1019,7 +1019,13 @@ export const exchangeCodeForToken = async (code: string): Promise<any> => {
         console.log('📋 Token length:', data.accessToken?.length || 0);
         console.log('📋 Expires in:', data.expiresIn);
 
-        return { accessToken: data.accessToken, expiresIn: data.expiresIn, pages: data.pages, message: data.message };
+        return { 
+            success: true,
+            accessToken: data.accessToken, 
+            expiresIn: data.expiresIn, 
+            pages: data.pages, 
+            message: data.message 
+        };
         
     } catch (error: any) {
         console.error('❌ Token exchange failed:', error);

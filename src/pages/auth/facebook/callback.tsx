@@ -23,28 +23,27 @@ export default function FacebookCallback() {
         const result = await handleFacebookCallback();
 
         if (result?.success) {
-          setStatus(' Facebook connected successfully!');
+          setStatus("success");
           console.log(' Facebook connection successful');
 
           // Redirect after success
           setTimeout(() => {
-            // navigate('/dashboard'); Use window location due to no Router context in index.tsx
-            window.location.href = '/'; // Go to root, which renders App -> Dashboard if logged in
-          }, 2000);
+            window.location.href = '/';
+          }, 1500);
         } else if (result?.skipped) {
-          setStatus(' Connection already processed');
+          setStatus("success");
           console.log(' Connection already processed');
 
           setTimeout(() => {
             window.location.href = '/';
-          }, 2000);
+          }, 1500);
         } else {
-          setStatus(' Connection failed');
+          setStatus("failed");
           console.log(' No result from callback');
         }
       } catch (err: any) {
         setError(err.message || 'Failed to connect Facebook');
-        setStatus(' Connection failed');
+        setStatus("failed");
         console.error('Facebook callback error:', err);
       }
     };
