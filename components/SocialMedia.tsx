@@ -130,8 +130,11 @@ const SocialMedia: React.FC = () => {
         }
       }
 
+      // REMOVED: Facebook OAuth callback handling - now handled by dedicated /auth/facebook/callback page
+      // This was causing CODE_ALREADY_USED errors due to duplicate processing
       if (code && state === 'facebook_oauth') {
-        handleFacebookCallback(code);
+        // Do nothing - the callback page handles this
+        console.log('📍 Facebook OAuth detected - handled by callback page');
       } else if (code && state === 'instagram_oauth') {
         handleInstagramCallback(code);
       } else if (code && state === 'linkedin_oauth') {
