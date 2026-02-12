@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { Facebook, Instagram } from 'lucide-react'; // Assuming you have lucide-react, otherwise use text/svg
+import { Facebook, Instagram } from 'lucide-react';
+import { initiateFacebookOAuth } from '../lib/facebook';
 
 interface FacebookConnection {
   id: string;
@@ -134,22 +135,9 @@ export default function FacebookConnection() {
   };
 
   const handleConnectFacebook = () => {
-    // Clear any existing OAuth state
-    Object.keys(sessionStorage).filter(key => key.startsWith('fb_')).forEach(key => sessionStorage.removeItem(key));
-
-    // Generate unique state for OAuth
-    const state = `${Date.now()}_${Math.random().toString(36).substring(2)}`;
-    sessionStorage.setItem('fb_oauth_state', state);
-
-    // Redirect to Facebook OAuth
-    const facebookOAuthUrl = `https://www.facebook.com/v21.0/dialog/oauth?` +
-      `client_id=${import.meta.env.VITE_FACEBOOK_APP_ID}` +
-      `&redirect_uri=${encodeURIComponent(window.location.origin + '/auth/facebook/callback')}` +
-      `&scope=${encodeURIComponent('public_profile,email,pages_show_list,pages_read_engagement,instagram_basic,instagram_content_publish,instagram_manage_comments,instagram_manage_insights')}` +
-      `&response_type=code` +
-      `&state=${state}`;
-
-    window.location.href = facebookOAuthUrl;
+    // Use the centralized OAuth initiator from the library
+    // This ensures state matches what the callback handler expects ('facebook_oauth')
+    initiateFacebookOAuth();
   };
 
   const handleConnectPage = async (page: FacebookPage) => {
