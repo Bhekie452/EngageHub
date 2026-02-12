@@ -9,14 +9,45 @@ export default function FacebookCallback() {
   const hasProcessed = useRef(false);
 
   useEffect(() => {
-    // CRITICAL: Only process once
+    // 🔥 CRITICAL: Check if this callback was already processed
+    const alreadyProcessed = sessionStorage.getItem('fb_callback_processed');
+    if (alreadyProcessed) {
+      console.log('🛑 Callback already processed - redirecting to home');
+      setStatus("success");
+      setTimeout(() => {
+        window.location.href = '/';
+      }, 500);
+      return;
+    }
+
+    // 🔥 CRITICAL: Immediately extract and clear code from URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const code = urlParams.get('code');
+    const state = urlParams.get('state');
+
+    if (!code || state !== 'facebook_oauth') {
+      console.log('❌ No Facebook OAuth code found');
+      setStatus("failed");
+      setError('No authorization code found');
+      return;
+    }
+
+    // 🔥 CRITICAL: Mark as processed IMMEDIATELY (before any async calls)
+    sessionStorage.setItem('fb_callback_processed', 'true');
+
+    // 🔥 CRITICAL: Clear code from URL IMMEDIATELY
+    const cleanUrl = window.location.pathname;
+    window.history.replaceState({}, '', cleanUrl);
+    console.log('🗑️ OAuth code cleared from URL');
+
+    // CRITICAL: Only process once with useRef
     if (hasProcessed.current) {
-      console.log(' Already processed this callback - skipping');
+      console.log('⚠️ Already processed this callback - skipping');
       return;
     }
 
     hasProcessed.current = true;
-    console.log(' Starting Facebook callback processing...');
+    console.log('✅ Starting Facebook callback processing...');
 
     const processCallback = async () => {
       try {
@@ -34,7 +65,7 @@ export default function FacebookCallback() {
 
         if (result?.success) {
           setStatus("success");
-          console.log(' Facebook connection successful');
+          console.log('✅ Facebook connection successful');
 
           // Redirect after success
           setTimeout(() => {
@@ -42,14 +73,14 @@ export default function FacebookCallback() {
           }, 1500);
         } else if (result?.skipped) {
           setStatus("success");
-          console.log(' Connection already processed');
+          console.log('✅ Connection already processed');
 
           setTimeout(() => {
             window.location.href = '/';
           }, 1500);
         } else {
           setStatus("failed");
-          console.log(' No result from callback');
+          console.log('❌ No result from callback');
         }
       } catch (err: any) {
         setError(err.message || 'Failed to connect Facebook');
