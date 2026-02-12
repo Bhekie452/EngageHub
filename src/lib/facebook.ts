@@ -300,6 +300,9 @@ export const handleFacebookCallback = async (): Promise<any> => {
         const result = await exchangeCodeForToken(code);
         
         if (result && result.success) {
+            // 🔥 CRITICAL: Mark this code as processed
+            sessionStorage.setItem(codeKey, "processed");
+            
             // 🔥 CRITICAL: Store Page tokens (not user token)
             if (result.pages && result.pages.length > 0) {
                 storePageTokens(result.pages);
@@ -970,33 +973,17 @@ export const exchangeCodeForToken = async (code: string): Promise<any> => {
     const redirectUri = getRedirectURI();
     const workspaceId = localStorage.getItem('current_workspace_id') || 'c9a454c5-a5f3-42dd-9fbd-cedd4c1c49a9';
     
-    // 🔥 CRITICAL: Frontend duplicate prevention with unique state
-    const exchangeKey = `fb_exchange_${code.substring(0, 20)}`;
-    const existingExchange = sessionStorage.getItem(exchangeKey);
-    
-    if (existingExchange) {
-        console.log('🛑 Frontend: Code already being exchanged - blocking duplicate');
-        throw new Error('This authorization code is already being processed');
-    }
-    
-    // Mark as processing immediately
-    sessionStorage.setItem(exchangeKey, 'processing');
-    
-    // Add unique state to prevent race conditions
-    const uniqueState = `${Date.now()}_${Math.random().toString(36).substring(2)}`;
-    sessionStorage.setItem(exchangeKey, uniqueState);
-    
     console.log('🔄 Exchanging authorization code for access token...');
     console.log('📋 Code length:', code.length);
     console.log('📋 Redirect URI:', redirectUri);
     console.log('📋 Workspace ID:', workspaceId);
-    console.log('📋 Unique state:', uniqueState);
 
     try {
+        // 🎯 THIS IS THE API CALL TO /api/facebook?action=simple
         const response = await fetch(`/api/facebook?action=simple`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ code, redirectUri, workspaceId, state: uniqueState })
+            body: JSON.stringify({ code, redirectUri, workspaceId })
         });
 
         // 🔥 CRITICAL: Check if response is JSON before parsing
@@ -1010,9 +997,6 @@ export const exchangeCodeForToken = async (code: string): Promise<any> => {
             console.error('❌ JSON parse error:', parseError);
             console.error('❌ Response text:', responseText);
             
-            // Mark as failed to allow retry
-            sessionStorage.removeItem(exchangeKey);
-            
             // Check if it's an HTML error page
             if (responseText.includes('<!DOCTYPE html>') || responseText.includes('<html>')) {
                 throw new Error('Server returned HTML error page instead of JSON. Check server logs.');
@@ -1024,9 +1008,6 @@ export const exchangeCodeForToken = async (code: string): Promise<any> => {
         if (!response.ok) {
             console.error('❌ Backend error response:', data);
             
-            // Mark as failed to allow retry
-            sessionStorage.removeItem(exchangeKey);
-            
             if (data.error?.includes('already been used')) {
                 throw new Error('This authorization code has already been used');
             }
@@ -1034,9 +1015,6 @@ export const exchangeCodeForToken = async (code: string): Promise<any> => {
             throw new Error(data.error || 'Token exchange failed');
         }
 
-        // Mark as completed
-        sessionStorage.setItem(exchangeKey, 'completed');
-        
         console.log('✅ Token exchange successful');
         console.log('📋 Token length:', data.accessToken?.length || 0);
         console.log('📋 Expires in:', data.expiresIn);
@@ -1045,10 +1023,6 @@ export const exchangeCodeForToken = async (code: string): Promise<any> => {
         
     } catch (error: any) {
         console.error('❌ Token exchange failed:', error);
-        
-        // Mark as failed to allow retry
-        sessionStorage.removeItem(exchangeKey);
-        
         throw error;
     }
 };
@@ -1140,7 +1114,8 @@ export const getPageTokens = async (userAccessToken?: string): Promise<any[]> =>
                 
                 return pages;
             } else {
-                const response = await fetch('/api/facebook?action=simple');
+                const workspaceId = localStorage.getItem('current_workspace_id') || 'c9a454c5-a5f3-42dd-9fbd-cedd4c1c49a9';
+                const response = await fetch(`/api/facebook?action=simple&workspaceId=${workspaceId}`);
                 const data = await response.json();
                 if (!response.ok || data.error) throw new Error(data.error || 'Failed to fetch pages');
                 return data.pages || [];

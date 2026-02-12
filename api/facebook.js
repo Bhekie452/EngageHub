@@ -265,6 +265,8 @@ async function handleFacebookSimple(req, res) {
         // --------------------------------------------------------------
         return res.status(200).json({
             success: true,
+            accessToken: longTermToken,  // 🔥 CRITICAL: Return the token!
+            expiresIn: expiresIn,          // 🔥 CRITICAL: Return expiration!
             pages: pageConnections,
             message: pageConnections.length > 0
                 ? `Found ${pageConnections.length} Facebook page(s)`
