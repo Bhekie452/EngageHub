@@ -19,20 +19,42 @@ export default function SelectFacebookPages() {
     const [isSaving, setIsSaving] = useState(false);
 
     useEffect(() => {
-        // Load pages from sessionStorage
-        const pagesData = sessionStorage.getItem('facebook_pages_pending');
-        if (pagesData) {
-            const parsedPages = JSON.parse(pagesData);
-            setPages(parsedPages);
-            // Auto-select all by default
-            const pageIds = parsedPages.map((p: FacebookPage) => p.pageId);
-            setSelectedPageIds(new Set(pageIds));
-        } else {
-            // No pages found, redirect home
-            setTimeout(() => {
-                window.location.href = '/';
-            }, 2000);
-        }
+        const fetchPendingPages = async () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const workspaceId = urlParams.get('workspaceId');
+            const connectionId = urlParams.get('connectionId');
+
+            if (workspaceId && connectionId) {
+                console.log('🔍 Fetching pending pages for connection:', connectionId);
+                const { data, error } = await supabase
+                    .from('social_accounts')
+                    .select('platform_data')
+                    .eq('id', connectionId)
+                    .single();
+
+                if (!error && data?.platform_data?.pages) {
+                    const fetchedPages = data.platform_data.pages;
+                    setPages(fetchedPages);
+                    setSelectedPageIds(new Set(fetchedPages.map((p: any) => p.pageId)));
+                    return;
+                }
+            }
+
+            // Fallback to sessionStorage for backward compatibility during transition
+            const pagesData = sessionStorage.getItem('facebook_pages_pending');
+            if (pagesData) {
+                const parsedPages = JSON.parse(pagesData);
+                setPages(parsedPages);
+                setSelectedPageIds(new Set(parsedPages.map((p: FacebookPage) => p.pageId)));
+            } else {
+                console.warn('⚠️ No pending pages found');
+                setTimeout(() => {
+                    window.location.href = '/#social';
+                }, 2000);
+            }
+        };
+
+        fetchPendingPages();
     }, []);
 
     const togglePage = (pageId: string) => {

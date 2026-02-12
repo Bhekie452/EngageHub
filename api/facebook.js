@@ -34,6 +34,155 @@ async function markCodeAsUsed(code) {
 }
 
 // ------------------------------------------------------------------
+//  0️⃣  Auth Initiation – Redirect user to Facebook
+// ------------------------------------------------------------------
+async function handleFacebookAuth(req, res) {
+    const { workspaceId, redirectUri: customRedirect } = req.query;
+    if (!workspaceId) {
+        return res.status(400).json({ error: 'Missing workspaceId' });
+    }
+
+    const FACEBOOK_APP_ID = process.env.FACEBOOK_APP_ID || process.env.VITE_FACEBOOK_APP_ID;
+    // Fallback redirect URI if not provided - must be the backend callback
+    const REDIRECT_URI = customRedirect || (process.env.VERCEL_URL
+        ? `https://${process.env.VERCEL_URL}/api/facebook?action=callback`
+        : `http://localhost:3000/api/facebook?action=callback`);
+
+    // We pass workspaceId in the 'state' parameter to recover it in the callback
+    const state = JSON.stringify({ workspaceId, origin: req.headers.referer });
+
+    const authUrl = `https://www.facebook.com/v21.0/dialog/oauth?` +
+        `client_id=${FACEBOOK_APP_ID}` +
+        `&redirect_uri=${encodeURIComponent(REDIRECT_URI)}` +
+        `&state=${encodeURIComponent(state)}` +
+        `&scope=email,public_profile,pages_show_list,instagram_basic,pages_read_engagement,pages_manage_posts`;
+
+    console.log('🔗 Redirecting to Facebook Auth:', authUrl);
+    return res.redirect(authUrl);
+}
+
+// ------------------------------------------------------------------
+//  0️⃣  Auth Callback – Exchange code and store
+// ------------------------------------------------------------------
+async function handleFacebookCallbackAction(req, res) {
+    const { code, state, error, error_description } = req.query;
+
+    if (error) {
+        console.error('❌ Facebook Auth Error:', error, error_description);
+        return res.redirect(`/#social?error=${encodeURIComponent(error_description || error)}`);
+    }
+
+    if (!code || !state) {
+        return res.status(400).json({ error: 'Missing code or state' });
+    }
+
+    let workspaceId, origin;
+    try {
+        const stateData = JSON.parse(decodeURIComponent(state));
+        workspaceId = stateData.workspaceId;
+        origin = stateData.origin || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
+    } catch (e) {
+        return res.status(400).json({ error: 'Invalid state parameter' });
+    }
+
+    console.log('✅ Received Callback for workspace:', workspaceId);
+
+    // 1. Exchange code for token
+    const FACEBOOK_APP_ID = process.env.FACEBOOK_APP_ID || process.env.VITE_FACEBOOK_APP_ID;
+    const FACEBOOK_APP_SECRET = process.env.FACEBOOK_APP_SECRET;
+    const REDIRECT_URI = process.env.VERCEL_URL
+        ? `https://${process.env.VERCEL_URL}/api/facebook?action=callback`
+        : `http://localhost:3000/api/facebook?action=callback`;
+
+    try {
+        // Exchange for short-term token
+        const shortTokenUrl = `https://graph.facebook.com/v21.0/oauth/access_token?` +
+            `client_id=${FACEBOOK_APP_ID}` +
+            `&client_secret=${FACEBOOK_APP_SECRET}` +
+            `&redirect_uri=${encodeURIComponent(REDIRECT_URI)}` +
+            `&code=${code}`;
+
+        const shortResp = await fetch(shortTokenUrl);
+        const shortData = await shortResp.json();
+
+        if (shortData.error) {
+            console.error('❌ Token exchange failed:', shortData.error);
+            return res.redirect(`${origin}/#social?error=token_exchange_failed`);
+        }
+
+        const shortTermToken = shortData.access_token;
+
+        // Exchange for long-term token
+        const longTokenUrl = `https://graph.facebook.com/v21.0/oauth/access_token?` +
+            `grant_type=fb_exchange_token` +
+            `&client_id=${FACEBOOK_APP_ID}` +
+            `&client_secret=${FACEBOOK_APP_SECRET}` +
+            `&fb_exchange_token=${shortTermToken}`;
+
+        const longResp = await fetch(longTokenUrl);
+        const longData = await longResp.json();
+
+        if (longData.error) {
+            console.error('❌ Long-term token exchange failed:', longData.error);
+            return res.redirect(`${origin}/#social?error=long_token_failed`);
+        }
+
+        const longTermToken = longData.access_token;
+        const expiresIn = longData.expires_in;
+
+        // 2. Fetch Pages
+        const pagesUrl = `https://graph.facebook.com/v21.0/me/accounts?` +
+            `fields=id,name,access_token,instagram_business_account,category` +
+            `&access_token=${longTermToken}`;
+        const pagesResp = await fetch(pagesUrl);
+        const pagesData = await pagesResp.json();
+        const pages = pagesData.data ?? [];
+
+        const pageConnections = pages.map((p) => ({
+            pageId: p.id,
+            pageName: p.name,
+            pageAccessToken: p.access_token,
+            instagramBusinessAccountId: p.instagram_business_account?.id,
+            category: p.category,
+            hasInstagram: !!p.instagram_business_account,
+        }));
+
+        // 3. Store Profile and Pages info in Supabase
+        const { data: userConn, error: userErr } = await supabase
+            .from('social_accounts')
+            .upsert({
+                workspace_id: workspaceId,
+                connected_by: '00000000-0000-0000-0000-000000000000', // System user or handle correctly
+                platform: 'facebook',
+                account_type: 'profile',
+                account_id: 'me',
+                display_name: 'Connected Profile', // Will be updated on first sync
+                access_token: longTermToken,
+                token_expires_at: new Date(Date.now() + expiresIn * 1000).toISOString(),
+                platform_data: {
+                    pages: pageConnections,
+                    longTermUserToken: longTermToken,
+                },
+                connection_status: 'connected',
+                last_sync_at: new Date().toISOString(),
+            }, { onConflict: 'workspace_id,platform,account_id' })
+            .select()
+            .single();
+
+        if (userErr) throw userErr;
+
+        // 4. Redirect to Frontend Page Selection
+        const redirectPath = `/select-facebook-pages?workspaceId=${workspaceId}&connectionId=${userConn.id}`;
+        console.log('🚀 Redirecting back to frontend:', redirectPath);
+        return res.redirect(`${origin}${redirectPath}`);
+
+    } catch (e) {
+        console.error('❌ Handshake error:', e);
+        return res.redirect(`${origin}/#social?error=handshake_error`);
+    }
+}
+
+// ------------------------------------------------------------------
 //  Main entry point - Vercel Serverless Function
 // ------------------------------------------------------------------
 export default async function handler(req, res) {
@@ -58,6 +207,12 @@ export default async function handler(req, res) {
             case 'token':
                 // short‑term → long‑term token exchange (stand‑alone endpoint)
                 return await handleFacebookToken(req, res);
+            case 'auth':
+                // Redirect user to Facebook Auth
+                return await handleFacebookAuth(req, res);
+            case 'callback':
+                // Handle Facebook Auth callback
+                return await handleFacebookCallbackAction(req, res);
             case 'diagnostics':
                 // env-check + simple Graph API ping
                 return await handleFacebookDiagnostics(req, res);

@@ -375,69 +375,16 @@ export const handleFacebookCallback = async (): Promise<any> => {
  * Initiate Facebook OAuth flow with URL-based deduplication
  */
 export const initiateFacebookOAuth = () => {
-    if (typeof window === 'undefined') {
-        console.log('❌ Window not available');
-        return;
-    }
+    if (typeof window === 'undefined') return;
 
-    // 🔥 CRITICAL: Global lock to prevent ANY duplicate processing
-    if (globalProcessingLock) {
-        console.log('🛑 Facebook OAuth already in progress - ignoring duplicate request');
-        return;
-    }
-
-    // 🔥 CRITICAL: Session-based lock to prevent multiple tabs/windows
-    const oauthInProgress = sessionStorage.getItem('facebook_oauth_in_progress');
-    if (oauthInProgress) {
-        const lockAge = Date.now() - parseInt(oauthInProgress);
-        // Lock expires after 2 minutes
-        if (lockAge < 120000) {
-            console.log('🛑 Facebook OAuth already in progress in another tab - ignoring duplicate request');
-            console.log('🔍 [DEBUG] Duplicate blocked - OAuth already in progress');
-            return;
-        } else {
-            console.log('🔓 OAuth lock expired, clearing...');
-            sessionStorage.removeItem('facebook_oauth_in_progress');
-        }
-    }
-
-    // 🔥 CRITICAL: Prevent multiple requests
-    if (ongoingRequest) {
-        console.log('🛑 Request already in progress, ignoring duplicate');
-        return;
-    }
-
-    // Set all locks
-    globalProcessingLock = true;
-    sessionStorage.setItem('facebook_oauth_in_progress', Date.now().toString());
+    const workspaceId = localStorage.getItem('current_workspace_id') || 'c9a454c5-a5f3-42dd-9fbd-cedd4c1c49a9';
+    const baseUrl = window.location.origin;
     
-    console.log('🚀 Initiating Facebook OAuth...');
-    console.log('🔍 [DEBUG] Current OAuth state:', {
-        hasExisting: !!oauthInProgress,
-        existingValue: oauthInProgress,
-        allKeys: Object.keys(sessionStorage),
-        timestamp: new Date().toISOString()
-    });
-
-    const FACEBOOK_APP_ID = import.meta.env.VITE_FACEBOOK_APP_ID || '2106228116796555';
-    const redirectUri = getRedirectURI();
-    const scope = getLoginScope();
-    const state = 'facebook_oauth';
-
-    // Build OAuth URL
-    const authUrl = `https://www.facebook.com/v21.0/dialog/oauth?` +
-        `client_id=${FACEBOOK_APP_ID}` +
-        `&redirect_uri=${encodeURIComponent(redirectUri)}` +
-        `&scope=${encodeURIComponent(scope)}` +
-        `&response_type=code` +
-        `&state=${state}` +
-        `&display=popup`;  // Better UX
-
-    console.log('🔗 Redirecting to Facebook OAuth:', authUrl.substring(0, 100) + '...');
+    // Redirect to backend auth endpoint instead of managing it here
+    const backendAuthUrl = `${baseUrl}/api/facebook?action=auth&workspaceId=${workspaceId}`;
     
-    // 🔥 CRITICAL: Use redirect instead of popup to avoid blocking
-    console.log('🔄 Using redirect flow (more reliable than popup)');
-    window.location.href = authUrl;
+    console.log('🚀 Redirecting to Backend Facebook OAuth Handshake...');
+    window.location.href = backendAuthUrl;
 };
 
 /**
@@ -947,45 +894,10 @@ if (typeof window !== 'undefined') {
     console.log('🔥 Facebook functions attached to window for testing');
 }
 export const loginWithFacebook = () => {
-    return new Promise((resolve, reject) => {
-        const urlParams = new URLSearchParams(window.location.search);
-        const code = urlParams.get('code');
-        const state = urlParams.get('state');
-        const error = urlParams.get('error');
-
-        if (error) {
-            reject(`Facebook login error: ${error}`);
-            return;
-        }
-
-        // DON'T call handleFacebookCallback here - it's already called by the callback page
-        // This prevents double exchange when loginWithFacebook is used on callback page
-        if (code && state === 'facebook_oauth') {
-            // Just resolve with existing result or let callback page handle it
-            const existingToken = getStoredAccessToken();
-            if (existingToken) {
-                resolve({ success: true, accessToken: existingToken });
-            } else {
-                // Let the callback page handle the exchange
-                resolve({ success: false, message: 'Callback processing...' });
-            }
-            return;
-        }
-
-        const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-        const isHTTP = window.location.protocol === 'http:';
-        if (isLocalhost && isHTTP) {
-            reject(new Error(
-                'LOCALHOST_SETUP_REQUIRED: Facebook integration on localhost requires:\n\n' +
-                '1. Add "localhost" to Facebook App Domains\n' +
-                '2. Add "http://localhost:3000" to Valid OAuth Redirect URIs\n' +
-                '3. Set up a backend endpoint for secure token exchange\n\n' +
-                'OR use ngrok/HTTPS tunnel for development.'
-            ));
-            return;
-        }
-
+    return new Promise((resolve) => {
         initiateFacebookOAuth();
+        // Resolve quickly - the redirect will take over
+        resolve({ success: true, message: 'Redirecting to Facebook...' });
     });
 };
 
