@@ -20,6 +20,7 @@
     "@hookform/resolvers": "^3.9.1",
     "@stripe/stripe-js": "^4.10.0",
     "@supabase/supabase-js": "^2.94.0",
+    "@tailwindcss/postcss": "^4.1.18",
     "@tanstack/react-query": "^5.67.0",
     "axios": "^1.13.4",
     "cors": "^2.8.6",
