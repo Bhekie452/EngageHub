@@ -29,6 +29,7 @@ import { SubscriptionCheckoutPage } from './components/pages/SubscriptionCheckou
 import { LoginForm } from './src/components/auth/LoginForm';
 import { RegisterForm } from './src/components/auth/RegisterForm';
 import FacebookCallback from './src/pages/auth/facebook/callback';
+import SelectFacebookPages from './src/pages/select-facebook-pages';
 import App from './App';
 import './src/index.css';
 
@@ -169,6 +170,9 @@ const Router: React.FC = () => {
     default: {
       if (pathname === '/auth/facebook/callback') {
         return <FacebookCallback />;
+      }
+      if (pathname === '/select-facebook-pages') {
+        return <SelectFacebookPages />;
       }
       const onSignIn = () => setCurrentView('login');
       const onGetStarted = () => setCurrentView('register');

@@ -22,6 +22,16 @@ export default function FacebookCallback() {
       try {
         const result = await handleFacebookCallback();
 
+        // NEW: If pages are available, redirect to selection screen
+        if (result?.needsPageSelection) {
+          setStatus("success");
+          console.log('📄 Redirecting to page selection screen');
+          setTimeout(() => {
+            window.location.href = '/select-facebook-pages';
+          }, 1000);
+          return;
+        }
+
         if (result?.success) {
           setStatus("success");
           console.log(' Facebook connection successful');

@@ -316,10 +316,16 @@ export const handleFacebookCallback = async (): Promise<any> => {
             // 🔥 CRITICAL: Mark this code as processed
             sessionStorage.setItem(codeKey, "processed");
             
-            // 🔥 CRITICAL: Store Page tokens (not user token)
+            // 🔥 NEW: Store pages for selection screen
             if (result.pages && result.pages.length > 0) {
-                storePageTokens(result.pages);
-                console.log(`📄 Stored ${result.pages.length} Facebook Page tokens`);
+                console.log(`📄 Found ${result.pages.length} Facebook Pages - preparing for selection`);
+                sessionStorage.setItem('facebook_pages_pending', JSON.stringify(result.pages));
+                return { 
+                    success: true, 
+                    needsPageSelection: true,
+                    pages: result.pages,
+                    message: 'Pages available for selection' 
+                };
             }
             
             // Also store user token for refreshing Page tokens
