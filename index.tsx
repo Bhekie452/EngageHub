@@ -130,6 +130,14 @@ const Router: React.FC = () => {
     };
   }, []);
 
+  // 1️⃣  OAuth & Callback routes take absolute precedence
+  if (pathname === '/auth/facebook/callback') {
+    return <FacebookCallback />;
+  }
+  if (pathname === '/select-facebook-pages') {
+    return <SelectFacebookPages />;
+  }
+
   // Show loading state
   if (loading) {
     return (
@@ -168,12 +176,6 @@ const Router: React.FC = () => {
       return <RegisterForm onSwitchToLogin={() => setCurrentView('login')} />;
     case 'landing':
     default: {
-      if (pathname === '/auth/facebook/callback') {
-        return <FacebookCallback />;
-      }
-      if (pathname === '/select-facebook-pages') {
-        return <SelectFacebookPages />;
-      }
       const onSignIn = () => setCurrentView('login');
       const onGetStarted = () => setCurrentView('register');
       const layoutProps = { onSignIn, onGetStarted };

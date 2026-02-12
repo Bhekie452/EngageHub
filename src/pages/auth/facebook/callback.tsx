@@ -96,7 +96,7 @@ export default function FacebookCallback() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4"></div>
           <h2 className="text-xl font-semibold text-gray-700">Connecting to Facebook...</h2>
           <p className="text-gray-500 mt-2">Please wait while we complete the connection.</p>
         </div>
@@ -130,7 +130,7 @@ export default function FacebookCallback() {
           </svg>
         </div>
         <h2 className="text-2xl font-bold text-red-700 mb-2">Connection Failed</h2>
-        <p className="text-gray-600 mb-4">{error}</p>
+        <p className="text-gray-600 mb-4">{error || "An unknown error occurred"}</p>
 
         <button
           onClick={() => (window.location.href = "/")}

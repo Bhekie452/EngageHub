@@ -107,6 +107,25 @@ async function handleFacebookCallbackAction(req, res) {
 
         if (shortData.error) {
             console.error('❌ Token exchange failed:', shortData.error);
+
+            // IDEMPOTENCY CHECK on callback action as well
+            if (shortData.error.code === 100 || shortData.error.message?.includes('already been used')) {
+                console.log('🛑 Backend Callback: Code used - checking for recent connection');
+                const { data: recentConns } = await supabase
+                    .from('social_accounts')
+                    .select('id')
+                    .eq('workspace_id', workspaceId)
+                    .eq('platform', 'facebook')
+                    .eq('account_type', 'profile')
+                    .gt('created_at', new Date(Date.now() - 60000).toISOString())
+                    .limit(1);
+
+                if (recentConns && recentConns.length > 0) {
+                    console.log('✅ Idempotency Match in Callback: Redirecting to frontend safely');
+                    return res.redirect(`${origin}/select-facebook-pages?workspaceId=${workspaceId}&connectionId=${recentConns[0].id}`);
+                }
+            }
+
             return res.redirect(`${origin}/#social?error=token_exchange_failed`);
         }
 
@@ -281,17 +300,41 @@ async function handleFacebookSimple(req, res) {
             state: state ? `${state.substring(0, 10)}...` : 'none',
         });
 
-        // ----- 1️⃣  Database-backed single‑use guard -----
+        // ----- 1️⃣  Database-backed single-use guard with Idempotency Support -----
         try {
             const fresh = await markCodeAsUsed(code);
             if (!fresh) {
-                console.log('🛑 Backend: Code already used in DB - blocking duplicate');
+                console.log('🛑 Backend: Code already used in DB - checking for recent connection (idempotency)');
+
+                // IDEMPOTENCY CHECK: If the same workspace just created a Facebook connection in the last 60 seconds,
+                // we treat this duplicate request as a success and return the existing data.
+                const { data: recentConns, error: recentErr } = await supabase
+                    .from('social_accounts')
+                    .select('id, platform_data, access_token')
+                    .eq('workspace_id', workspaceId)
+                    .eq('platform', 'facebook')
+                    .eq('account_type', 'profile')
+                    .gt('created_at', new Date(Date.now() - 60000).toISOString())
+                    .limit(1);
+
+                if (!recentErr && recentConns && recentConns.length > 0) {
+                    const recent = recentConns[0];
+                    console.log('✅ Idempotency Match Found: Returning existing connection data');
+                    return res.status(200).json({
+                        success: true,
+                        accessToken: recent.access_token,
+                        pages: recent.platform_data?.pages || [],
+                        message: 'Facebook connection restored (idempotent)',
+                        workspaceId,
+                    });
+                }
+
                 return res.status(400).json({
                     error: 'Facebook API Error',
                     message: 'This authorization code has already been used',
                     type: 'OAuthException',
                     code: 'CODE_ALREADY_USED',
-                    details: 'Authorization codes are single‑use only',
+                    details: 'Authorization codes are single-use only',
                 });
             }
             console.log('✅ Code marked as used in DB:', code.substring(0, 20) + '...');
