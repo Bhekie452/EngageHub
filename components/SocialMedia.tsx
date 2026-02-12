@@ -25,6 +25,7 @@ import {
   Power
 } from 'lucide-react';
 import YouTubeContextualConnect from './YouTubeContextualConnect';
+import YouTubeEngagement from './YouTubeEngagement';
 import { useAuth } from '../src/hooks/useAuth';
 import { supabase } from '../src/lib/supabase';
 import { initFacebookSDK, loginWithFacebook, getPageTokens, getFacebookProfile, getInstagramAccount, exchangeCodeForToken as exchangeFacebookCodeForToken } from '../src/lib/facebook';
@@ -1381,45 +1382,9 @@ const SocialMedia: React.FC = () => {
           </div>
         );
       case 'engagement':
-        return (
-          <div className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
-                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Total Likes</p>
-                <p className="text-2xl font-bold mt-1 text-gray-900">12,402</p>
-                <div className="flex items-center gap-1 mt-1">
-                  <span className="text-[10px] text-green-500 font-bold">+14%</span>
-                  <span className="text-[10px] text-gray-400 font-medium">vs last month</span>
-                </div>
-              </div>
-              <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
-                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Total Shares</p>
-                <p className="text-2xl font-bold mt-1 text-gray-900">842</p>
-                <div className="flex items-center gap-1 mt-1">
-                  <span className="text-[10px] text-green-500 font-bold">+3%</span>
-                  <span className="text-[10px] text-gray-400 font-medium">vs last month</span>
-                </div>
-              </div>
-              <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
-                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Profile Visits</p>
-                <p className="text-2xl font-bold mt-1 text-gray-900">3,200</p>
-                <div className="flex items-center gap-1 mt-1">
-                  <span className="text-[10px] text-red-500 font-bold">-2%</span>
-                  <span className="text-[10px] text-gray-400 font-medium">vs last month</span>
-                </div>
-              </div>
-            </div>
-            <div className="bg-white p-12 rounded-xl border border-gray-200 h-64 flex flex-col items-center justify-center text-gray-400 gap-4">
-              <div className="p-4 bg-gray-50 rounded-full">
-                <BarChart2 size={32} />
-              </div>
-              <div className="text-center">
-                <p className="text-sm font-bold text-gray-600">Engagement Visualization</p>
-                <p className="text-xs text-gray-400">Sync more accounts to see comparative metrics across platforms.</p>
-              </div>
-            </div>
-          </div>
-        );
+        return <YouTubeEngagement />;
+      case 'comments':
+        return <YouTubeEngagement />;
       default:
         return (
           <div className="bg-white rounded-xl border border-gray-200 p-12 text-center space-y-6 shadow-sm">

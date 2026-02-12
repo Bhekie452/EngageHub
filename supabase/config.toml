@@ -4,6 +4,24 @@ verify_jwt = false
 import_map = "./functions/youtube-oauth/deno.json"
 entrypoint = "./functions/youtube-oauth/index.ts"
 
+[functions.youtube-like]
+enabled = true
+verify_jwt = false
+import_map = "./functions/youtube-like/deno.json"
+entrypoint = "./functions/youtube-like/index.ts"
+
+[functions.youtube-comment]
+enabled = true
+verify_jwt = false
+import_map = "./functions/youtube-comment/deno.json"
+entrypoint = "./functions/youtube-comment/index.ts"
+
+[functions.youtube-sync]
+enabled = true
+verify_jwt = false
+import_map = "./functions/youtube-sync/deno.json"
+entrypoint = "./functions/youtube-sync/index.ts"
+
 [functions.youtube-api]
 enabled = true
 verify_jwt = false
