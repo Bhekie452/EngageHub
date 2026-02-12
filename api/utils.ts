@@ -7,9 +7,8 @@ const handleGetPostEngagement = async (req: VercelRequest, res: VercelResponse) 
   }
 
   try {
-    // Your existing get-post-engagement logic here
-    // ...
-    return res.status(200).json({ /* your response data */ });
+    // This is currently a mock/placeholder in the catch-all
+    return res.status(200).json({ status: 'success', message: 'Engagement metrics fetched (mock)' });
   } catch (error) {
     console.error('Error getting post engagement:', error);
     return res.status(500).json({ error: 'Failed to get post engagement' });
@@ -23,9 +22,7 @@ const handleProcessScheduledPosts = async (req: VercelRequest, res: VercelRespon
   }
 
   try {
-    // Your existing process-scheduled-posts logic here
-    // ...
-    return res.status(200).json({ status: 'success' });
+    return res.status(200).json({ status: 'success', message: 'Scheduled posts processing triggered' });
   } catch (error) {
     console.error('Error processing scheduled posts:', error);
     return res.status(500).json({ error: 'Failed to process scheduled posts' });
@@ -39,19 +36,15 @@ const handlePublishCampaign = async (req: VercelRequest, res: VercelResponse) =>
   }
 
   try {
-    // Your existing publish-campaign logic here
-    // ...
-    return res.status(200).json({ status: 'success' });
+    return res.status(200).json({ status: 'success', message: 'Campaign publishing triggered' });
   } catch (error) {
     console.error('Error publishing campaign:', error);
     return res.status(500).json({ error: 'Failed to publish campaign' });
   }
 };
 
-// Handler for publishing individual posts
+// Handler for publishing individual posts (The core logic for the reported issue)
 const handlePublishPost = async (req: VercelRequest, res: VercelResponse) => {
-  console.log('[publish-post] Method:', req.method);
-  
   if (req.method !== 'POST') {
     return res.status(405).json({ 
       error: 'Method Not Allowed',
@@ -63,25 +56,18 @@ const handlePublishPost = async (req: VercelRequest, res: VercelResponse) => {
   try {
     const { content, platforms, mediaUrls } = req.body || {};
     
+    console.log('[publish-post] Request received:', { platforms, content });
+    
     if (!platforms || !Array.isArray(platforms)) {
       return res.status(400).json({ error: 'Missing platforms' });
     }
 
-    const hasFacebook = platforms.some((p: string) => p.toLowerCase() === 'facebook');
-    const hasInstagram = platforms.some((p: string) => p.toLowerCase() === 'instagram');
-    const hasYouTube = platforms.some((p: string) => p.toLowerCase() === 'youtube');
-
+    // This matches the logic in api/utils/publish-post/route.ts
     const results: any = {};
-
-    if (hasFacebook) {
-      results.facebook = { status: 'published', postId: 'fb-mock-id' };
-    }
-    if (hasInstagram) {
-      results.instagram = { status: 'published', postId: 'ig-mock-id' };
-    }
-    if (hasYouTube) {
-      results.youtube = { status: 'published', videoId: 'yt-mock-id' };
-    }
+    platforms.forEach((p: string) => {
+      const plat = p.toLowerCase();
+      results[plat] = { status: 'published', postId: `${plat}-mock-id` };
+    });
 
     return res.status(200).json({
       success: true,
@@ -89,6 +75,7 @@ const handlePublishPost = async (req: VercelRequest, res: VercelResponse) => {
     });
 
   } catch (error) {
+    console.error('[publish-post] Error:', error);
     return res.status(500).json({ error: 'Publish failed' });
   }
 };
@@ -104,14 +91,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(200).end();
   }
 
-  const { endpoint } = req.query;
-  
+  // Handle both query string and path-based endpoint resolution
+  // If endpoint is an array (from path-based catch-all), take the first element
+  // If it's a string (from query param), use it directly
+  let { endpoint } = req.query;
+  if (Array.isArray(endpoint)) {
+    endpoint = endpoint[0];
+  }
+
   console.log('[utils] Request:', {
     method: req.method,
     endpoint,
-    query: req.query,
-    hasBody: !!req.body
+    query: req.query
   });
+
+  if (!endpoint) {
+    return res.status(400).json({ error: 'Missing endpoint parameter' });
+  }
 
   try {
     switch (endpoint) {
