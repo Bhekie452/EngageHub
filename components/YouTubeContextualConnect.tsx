@@ -12,11 +12,11 @@ interface YouTubeContextualConnectProps {
 }
 
 const YouTubeContextualConnect: React.FC<YouTubeContextualConnectProps> = ({
-  onConnect, 
+  onConnect,
   onSkip,
   context,
   compact = false,
-  showSkip = true 
+  showSkip = true
 }: YouTubeContextualConnectProps) => {
   // Hardcode the workspaceId that we know works
   const workspaceId = 'c9a454c5-a5f3-42dd-9fbd-cedd4c1c49a9'
@@ -32,7 +32,7 @@ const YouTubeContextualConnect: React.FC<YouTubeContextualConnectProps> = ({
       console.log('WorkspaceId available:', workspaceId)
       const cachedState = localStorage.getItem(`youtube-connected-${workspaceId}`)
       console.log('Cached state from localStorage:', cachedState)
-      
+
       if (cachedState === 'true') {
         console.log('Restored YouTube connection from localStorage')
         setIsConnected(true)
@@ -69,14 +69,14 @@ const YouTubeContextualConnect: React.FC<YouTubeContextualConnectProps> = ({
   useEffect(() => {
     // Check for various OAuth callback patterns
     const url = window.location.href
-    const isOAuthCallback = url.includes('youtube-oauth') || 
-                           url.includes('code=') || 
-                           url.includes('state=') ||
-                           url.includes('access_token=') ||
-                           document.referrer.includes('youtube-oauth')
-    
+    const isOAuthCallback = url.includes('youtube-oauth') ||
+      url.includes('code=') ||
+      url.includes('state=') ||
+      url.includes('access_token=') ||
+      document.referrer.includes('youtube-oauth')
+
     console.log('Checking for OAuth callback:', { url, isOAuthCallback, referrer: document.referrer })
-    
+
     if (isOAuthCallback && workspaceId) {
       const timer = setTimeout(() => {
         console.log('Detected OAuth callback, setting connected state immediately...')
@@ -110,26 +110,26 @@ const YouTubeContextualConnect: React.FC<YouTubeContextualConnectProps> = ({
 
   const checkConnection = async () => {
     let currentWorkspaceId = workspaceId
-    
+
     if (!currentWorkspaceId) {
       console.log('Missing workspaceId, trying fallback from localStorage')
       currentWorkspaceId = localStorage.getItem('current-workspace-id')
       console.log('Fallback workspaceId:', currentWorkspaceId)
     }
-    
+
     if (!currentWorkspaceId) {
       console.log('Missing workspaceId, cannot check connection')
       setLoading(false)
       return
     }
-    
+
     try {
       console.log('Checking YouTube connection for workspace:', currentWorkspaceId)
-      
+
       // First check localStorage for immediate response
       const cachedState = localStorage.getItem(`youtube-connected-${currentWorkspaceId}`)
       console.log('Cached state from localStorage:', cachedState)
-      
+
       if (cachedState === 'true') {
         console.log('Using cached state: CONNECTED')
         setIsConnected(true)
@@ -137,24 +137,24 @@ const YouTubeContextualConnect: React.FC<YouTubeContextualConnectProps> = ({
         setLoading(false)
         return
       }
-      
+
       // Only check database if no cached state
       const status = await checkYouTubeConnectionStatus(currentWorkspaceId)
       console.log('YouTube connection status result:', status)
-      
+
       // Only update state if we get a definitive response
       if (status && typeof status.connected === 'boolean') {
         setIsConnected(status.connected)
         setForceRender(prev => prev + 1) // Force re-render
-        
+
         // Save to localStorage for persistence
         if (currentWorkspaceId) {
           localStorage.setItem(`youtube-connected-${currentWorkspaceId}`, status.connected.toString())
         }
-        
+
         console.log('Connection state updated to:', status.connected)
       }
-      
+
       // Show prompt if not connected and this is the first check
       if (status && !status.connected && !compact) {
         setShowPrompt(true)
@@ -178,20 +178,20 @@ const YouTubeContextualConnect: React.FC<YouTubeContextualConnectProps> = ({
 
   const handleDisconnect = async () => {
     if (!workspaceId || disconnecting) return
-    
+
     try {
       setDisconnecting(true)
       console.log('Disconnecting YouTube account for workspace:', workspaceId)
-      
+
       const result = await disconnectYouTubeAccount(workspaceId)
       console.log('Disconnect result:', result)
-      
+
       setIsConnected(false)
       setShowPrompt(true)
-      
+
       // Clear localStorage cache
       localStorage.removeItem(`youtube-connected-${workspaceId}`)
-      
+
       console.log('YouTube account disconnected successfully')
     } catch (error) {
       console.error('Error disconnecting YouTube account:', error)
@@ -207,7 +207,7 @@ const YouTubeContextualConnect: React.FC<YouTubeContextualConnectProps> = ({
       // Try to get workspaceId from localStorage as fallback
       const fallbackWorkspaceId = localStorage.getItem('current-workspace-id')
       console.log('Fallback workspaceId from localStorage:', fallbackWorkspaceId)
-      
+
       if (fallbackWorkspaceId) {
         console.log('Using fallback workspaceId for OAuth')
         const returnUrl = window.location.href
@@ -216,17 +216,17 @@ const YouTubeContextualConnect: React.FC<YouTubeContextualConnectProps> = ({
         window.location.href = oauthUrl
         return
       }
-      
+
       alert('Workspace not available. Please refresh the page and try again.')
       return
     }
-    
+
     console.log('Starting YouTube OAuth with workspaceId:', workspaceId)
     console.log('User ID:', workspaceId)
-    
+
     const returnUrl = window.location.href
     const oauthUrl = `https://zourlqrkoyugzymxkbgn.functions.supabase.co/youtube-oauth/start?workspace_id=${workspaceId}&return_url=${encodeURIComponent(returnUrl)}`
-    
+
     console.log('OAuth URL:', oauthUrl)
     window.location.href = oauthUrl
   }
@@ -264,38 +264,65 @@ const YouTubeContextualConnect: React.FC<YouTubeContextualConnectProps> = ({
   }
 
   if (isConnected) {
-    console.log('YouTubeContextualConnect: Rendering connected state with new styling')
+    if (compact) {
+      return (
+        <div className="flex items-center gap-2">
+          <button
+            className="flex items-center gap-2 px-3 py-1.5 bg-green-600 text-white text-xs rounded-full hover:bg-green-700 transition-colors shadow-sm"
+            onClick={checkConnection}
+            title="YouTube Connected"
+          >
+            <Youtube className="w-3 h-3" />
+            <span className="font-bold uppercase tracking-wider">Live</span>
+            <CheckCircle2 className="w-3 h-3" />
+          </button>
+          <button
+            onClick={handleDisconnect}
+            disabled={disconnecting}
+            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-full transition-all disabled:opacity-50"
+            title="Disconnect YouTube account"
+          >
+            {disconnecting ? (
+              <div className="w-3 h-3 border border-red-600 border-t-transparent rounded-full animate-spin" />
+            ) : (
+              <LogOut className="w-3.5 h-3.5" />
+            )}
+          </button>
+        </div>
+      );
+    }
+
     return (
       <div className="flex items-center gap-2">
         <button
-          className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+          className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors shadow-md"
           onClick={checkConnection}
           title="YouTube Connected - Click to refresh"
         >
           <Youtube className="w-4 h-4" />
-          <span>Connected</span>
+          <span className="font-semibold">YouTube Connected</span>
           <CheckCircle2 className="w-4 h-4" />
         </button>
         <button
           onClick={handleDisconnect}
           disabled={disconnecting}
-          className="flex items-center gap-1 px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg border border-red-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          className="flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg border border-red-200 transition-colors disabled:opacity-50 shadow-sm"
           title="Disconnect YouTube account"
         >
           {disconnecting ? (
             <>
               <div className="w-3 h-3 border border-red-600 border-t-transparent rounded-full animate-spin" />
-              Disconnecting...
+              <span>Disconnecting...</span>
             </>
           ) : (
             <>
-              <LogOut className="w-3 h-3" />
-              Disconnect
+              <LogOut className="w-4 h-4" />
+              <span>Disconnect</span>
             </>
           )}
         </button>
       </div>
-    )
+    );
   }
 
   // Debug: Add temporary force-connected button for testing
@@ -307,10 +334,10 @@ const YouTubeContextualConnect: React.FC<YouTubeContextualConnectProps> = ({
           // Simple direct OAuth without workspaceId complications
           const workspaceIdToUse = workspaceId || 'c9a454c5-a5f3-42dd-9fbd-cedd4c1c49a9' // Use the one from logs
           console.log('Direct connect with workspaceId:', workspaceIdToUse)
-          
+
           const returnUrl = window.location.href
           const oauthUrl = `https://zourlqrkoyugzymxkbgn.functions.supabase.co/youtube-oauth/start?workspace_id=${workspaceIdToUse}&return_url=${encodeURIComponent(returnUrl)}`
-          
+
           console.log('Direct OAuth URL:', oauthUrl)
           window.location.href = oauthUrl
         }}
@@ -476,7 +503,7 @@ export function useYouTubeConnection() {
       setLoading(false)
       return
     }
-    
+
     try {
       console.log('Hook: Checking YouTube connection for workspace:', workspaceId)
       const status = await checkYouTubeConnectionStatus(workspaceId)
@@ -492,7 +519,7 @@ export function useYouTubeConnection() {
 
   const disconnect = async () => {
     if (!workspaceId) return
-    
+
     try {
       await disconnectYouTubeAccount(workspaceId)
       setIsConnected(false)

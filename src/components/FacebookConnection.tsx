@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { Facebook, Instagram } from 'lucide-react';
+import { Facebook, Instagram, LogOut } from 'lucide-react';
 import { initiateFacebookOAuth } from '../lib/facebook';
 
 interface FacebookConnection {
@@ -97,7 +97,7 @@ export default function FacebookConnection() {
           .eq('platform', 'facebook')
           .eq('connection_status', 'connected')
           .order('created_at', { ascending: false }),
-        
+
         // Check if profile exists for page fetch
         (async () => {
           const { data: tempConnections } = await supabase
@@ -108,7 +108,7 @@ export default function FacebookConnection() {
             .eq('account_type', 'profile')
             .eq('connection_status', 'connected')
             .limit(1);
-          
+
           const profile = tempConnections?.[0];
           if (profile?.access_token) {
             return fetch('/api/facebook?action=list-pages', {
@@ -122,7 +122,9 @@ export default function FacebookConnection() {
       ]);
 
       const dbConnections = results[0].status === 'fulfilled' ? results[0].value.data : [];
-      const pagesData = results[1].status === 'fulfilled' ? results[1].value : { success: false, pages: [] };
+      const pagesData = results[1].status === 'fulfilled'
+        ? (results[1].value as any)
+        : { success: false, pages: [] };
 
       setConnections(dbConnections || []);
 
@@ -277,45 +279,48 @@ export default function FacebookConnection() {
 
   if (!profileConnection) {
     return (
-      <div className="bg-white border rounded-lg p-6 max-w-md mx-auto text-center">
-        <h2 className="text-2xl font-bold mb-4">Connect Facebook</h2>
-        <p className="text-gray-600 mb-6">
-          Connect your Facebook account to manage pages and publish content.
-          You'll be able to select which pages to connect in the next step.
+      <div className="bg-white border border-gray-100 rounded-2xl p-8 text-center shadow-xl shadow-blue-50/50 border-b-4 border-b-blue-500 animate-in fade-in slide-in-from-top-4 duration-500">
+        <div className="w-20 h-20 bg-gradient-to-br from-[#1877F2] to-[#0d62d1] rounded-2xl flex items-center justify-center text-white mx-auto mb-6 shadow-lg shadow-blue-200">
+          <Facebook size={40} />
+        </div>
+        <h2 className="text-2xl font-black text-gray-900 mb-3 tracking-tight">Connect Facebook</h2>
+        <p className="text-gray-500 mb-8 max-w-sm mx-auto leading-relaxed font-medium">
+          Manage your Facebook Pages and Instagram Business accounts directly from EngageHub.
         </p>
         <button
           onClick={handleConnectFacebook}
-          className="w-full bg-[#1877F2] text-white py-3 px-4 rounded-lg hover:bg-[#166fe5] font-semibold flex items-center justify-center transition-colors"
+          className="w-full max-w-xs mx-auto bg-gradient-to-r from-[#1877F2] to-[#166fe5] text-white py-4 px-8 rounded-xl hover:from-[#166fe5] hover:to-[#1464cc] font-bold flex items-center justify-center transition-all shadow-lg shadow-blue-200/50 hover:scale-[1.02] active:scale-95 group"
         >
-          <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 24 24">
-            <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
-          </svg>
-          Connect Facebook Profile
+          <Facebook className="w-5 h-5 mr-3 transition-transform group-hover:scale-110" />
+          Connect Facebook Account
         </button>
       </div>
     );
   }
 
   return (
-    <div className="bg-white border rounded-lg p-6 max-w-2xl mx-auto">
-      <div className="flex items-center justify-between mb-6 pb-6 border-b">
-        <div className="flex items-center space-x-3">
-          <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center text-xl">
-            👤
+    <div className="bg-white border border-gray-200 rounded-2xl p-8 shadow-sm">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8 pb-8 border-b border-gray-100">
+        <div className="flex items-center space-x-5">
+          <div className="w-16 h-16 bg-gradient-to-br from-blue-50 to-blue-100 rounded-2xl flex items-center justify-center text-2xl shadow-inner border border-blue-200/50">
+            <Facebook className="text-blue-600 w-8 h-8" />
           </div>
           <div>
-            <h2 className="text-xl font-bold text-gray-900">{profileConnection.display_name}</h2>
-            <p className="text-green-600 text-sm font-medium flex items-center">
-              <span className="w-2 h-2 bg-green-500 rounded-full mr-1"></span>
-              Connected
-            </p>
+            <h2 className="text-2xl font-black text-gray-900 tracking-tight">{profileConnection.display_name}</h2>
+            <div className="flex items-center mt-1">
+              <span className="flex items-center gap-1.5 text-[10px] font-black text-green-600 bg-green-50 px-2.5 py-1 rounded-full uppercase tracking-wider border border-green-100 shadow-sm">
+                <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
+                Profile Connected
+              </span>
+            </div>
           </div>
         </div>
         <button
           onClick={handleDisconnectProfile}
-          className="text-red-500 hover:text-red-700 text-sm font-medium px-3 py-1 hover:bg-red-50 rounded"
+          className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-red-600 hover:bg-red-50 rounded-xl transition-all border border-transparent hover:border-red-100"
         >
-          Disconnect Profile
+          <LogOut className="w-4 h-4" />
+          Disconnect
         </button>
       </div>
 

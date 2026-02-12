@@ -25,8 +25,20 @@ export default function FacebookCallback() {
     const code = urlParams.get('code');
     const state = urlParams.get('state');
 
-    if (!code || state !== 'facebook_oauth') {
-      console.log('❌ No Facebook OAuth code found');
+    // 🔥 CRITICAL: Improved state validation
+    let isFacebookOauth = state === 'facebook_oauth';
+    if (!isFacebookOauth && state) {
+      try {
+        const stateData = JSON.parse(decodeURIComponent(state));
+        if (stateData && (stateData.workspaceId || stateData.origin)) {
+          isFacebookOauth = true;
+          console.log('✅ Recognized JSON state from backend');
+        }
+      } catch (e) { }
+    }
+
+    if (!code || !isFacebookOauth) {
+      console.log('❌ No Facebook OAuth code found or invalid state', { code: !!code, state });
       setStatus("failed");
       setError('No authorization code found');
       return;

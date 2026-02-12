@@ -263,8 +263,30 @@ export const handleFacebookCallback = async (): Promise<any> => {
             throw new Error(`Facebook login error: ${error}`);
         }
 
-        if (!code || state !== 'facebook_oauth') {
-            console.log('🔍 [DEBUG] Not a Facebook callback - ignoring');
+        // 🔥 CRITICAL: Improved state validation
+        let isFacebookOauth = state === 'facebook_oauth';
+        let stateData: any = null;
+
+        if (!isFacebookOauth && state) {
+            try {
+                // Try parsing as JSON (backend-assisted flow)
+                stateData = JSON.parse(decodeURIComponent(state));
+                if (stateData && (stateData.workspaceId || stateData.origin)) {
+                    isFacebookOauth = true;
+                    console.log('✅ Recognized JSON state from backend:', stateData);
+                    
+                    // If we have a workspaceId in state, ensure it's used
+                    if (stateData.workspaceId) {
+                        localStorage.setItem('current_workspace_id', stateData.workspaceId);
+                    }
+                }
+            } catch (e) {
+                // Not JSON, ignore
+            }
+        }
+
+        if (!code || !isFacebookOauth) {
+            console.log('🔍 [DEBUG] Not a Facebook callback or invalid state:', { code: !!code, state });
             return null; // Not a Facebook callback
         }
 
