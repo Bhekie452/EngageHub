@@ -267,13 +267,13 @@ export const analyticsService = {
              // Fallback to reading from local cache in DB if Edge Function fails
             const { data: ymData, error: ymErr } = await supabase
               .from('post_analytics')
-              .select('views, likes, comments')
+              .select('video_views, likes, comments')
               .eq('post_id', postId)
               .eq('platform', 'youtube')
               .maybeSingle();
 
             if (!ymErr && ymData) {
-              metrics.views += typeof ymData.views === 'number' ? ymData.views : 0;
+              metrics.views += typeof ymData.video_views === 'number' ? ymData.video_views : 0;
               metrics.likes += typeof ymData.likes === 'number' ? ymData.likes : 0;
               metrics.comments += typeof ymData.comments === 'number' ? ymData.comments : 0;
               metricsSource = 'youtube';
@@ -561,7 +561,7 @@ export const analyticsService = {
     const postIds = (posts || []).map(p => p.id);
     const { data: analytics, error: anaErr } = await supabase
       .from('post_analytics')
-      .select('post_id, views, likes, comments, shares')
+      .select('post_id, video_views, likes, comments, shares')
       .in('post_id', postIds)
       .order('recorded_at', { ascending: false });
 
@@ -591,7 +591,7 @@ export const analyticsService = {
         platformStats[p].postCount++;
         const row = latestAnaMap.get(post.id);
         if (row) {
-          platformStats[p].views += Number(row.views) || 0;
+          platformStats[p].views += Number(row.video_views) || 0;
           platformStats[p].likes += Number(row.likes) || 0;
           platformStats[p].comments += Number(row.comments) || 0;
           platformStats[p].shares += Number(row.shares) || 0;

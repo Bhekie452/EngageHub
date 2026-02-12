@@ -543,11 +543,15 @@ async function handleGetConnections(req, res) {
             .order('account_type', { ascending: false }); // Pages first, then profiles
         if (error)
             throw error;
-        // ONLY return page accounts - NEVER show personal profiles
+        // Get both pages and profiles, but prioritize pages in UI
         const pageConnections = (connections ?? []).filter(c => c.account_type === 'page');
-
-        // Return only page accounts, never profiles
-        const transformed = pageConnections.map((primaryConnection) => ({
+        const profileConnections = (connections ?? []).filter(c => c.account_type === 'profile');
+        
+        // Return page if available, otherwise profile (for UI selection)
+        const primaryConnection = pageConnections.length > 0 ? pageConnections[0] : 
+                              (profileConnections.length > 0 ? profileConnections[0] : null);
+        
+        const transformed = primaryConnection ? [{
             id: primaryConnection.id,
             workspaceId: primaryConnection.workspace_id,
             platform: primaryConnection.platform,
@@ -565,8 +569,8 @@ async function handleGetConnections(req, res) {
             lastSyncAt: primaryConnection.last_sync_at,
             createdAt: primaryConnection.created_at,
             updatedAt: primaryConnection.updated_at,
-        }));
-        console.log(`✅ Retrieved ${transformed.length} Facebook page connections for workspace ${workspaceId} (pages only - profiles hidden)`);
+        }] : [];
+        console.log(`✅ Retrieved ${transformed.length} Facebook connections for workspace ${workspaceId} (pages prioritized, profiles as fallback)`);
         return res.status(200).json({
             success: true,
             connections: transformed,

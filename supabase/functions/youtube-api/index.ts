@@ -35,7 +35,7 @@ serve(async (req) => {
     // Fetch YouTube account from database
     const { data: youtubeAccount, error: fetchError } = await supabase
       .from('youtube_accounts')
-      .select('access_token, refresh_token, expires_at, channel_id')
+      .select('access_token, refresh_token, token_expires_at, channel_id')
       .eq('workspace_id', workspaceId)
       .single();
 
@@ -53,7 +53,7 @@ serve(async (req) => {
 
     // Check if token is expired and refresh if needed
     const now = new Date()
-    const expiresAt = new Date(youtubeAccount.expires_at)
+    const expiresAt = new Date(youtubeAccount.token_expires_at)
     
     if (now >= expiresAt) {
       console.log('Token expired, refreshing...')
@@ -80,7 +80,7 @@ serve(async (req) => {
           .from('youtube_accounts')
           .update({
             access_token: tokens.access_token,
-            expires_at: new Date(Date.now() + tokens.expires_in * 1000).toISOString()
+            token_expires_at: new Date(Date.now() + tokens.expires_in * 1000).toISOString()
           })
           .eq('workspace_id', workspaceId)
 
