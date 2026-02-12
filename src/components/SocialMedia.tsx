@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Facebook, Instagram, Twitter, Youtube, Linkedin, Tiktok } from 'lucide-react';
+import { Facebook, Instagram, Twitter, Youtube, Linkedin, Music } from 'lucide-react';
 import FacebookConnection from './FacebookConnection';
 import FacebookPageConnection from './FacebookPageConnection';
 
@@ -55,7 +55,7 @@ export default function SocialMedia() {
     {
       id: 'tiktok',
       name: 'TikTok',
-      icon: <Tiktok size={24} />,
+      icon: <Music size={24} />,
       color: 'bg-black',
       connected: false,
     },
@@ -92,27 +92,66 @@ export default function SocialMedia() {
         </button>
       </div>
 
-      {/* 3 Cards in a Row - Same Size with Requested Class */}
+      {/* 3 Cards in a Row - Modern Design */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         {platforms.slice(0, 3).map((platform) => (
-          <div key={platform.id} className="bg-white border rounded-lg p-6 max-w-md mx-auto text-center">
-            <div className={`w-16 h-16 ${platform.color} rounded-full flex items-center justify-center text-white mx-auto mb-4`}>
+          <div className="group relative bg-white border border-gray-200 rounded-xl p-6 max-w-md mx-auto text-center shadow-sm hover:shadow-lg transition-all duration-300 hover:-translate-y-1">
+            {/* Icon Container with Gradient Background */}
+            <div className={`w-20 h-20 ${platform.color} rounded-2xl flex items-center justify-center text-white mx-auto mb-6 relative overflow-hidden group-hover:scale-110 transition-transform duration-300`}>
+              {/* Shine Effect */}
+              <div className="absolute inset-0 bg-white opacity-0 group-hover:opacity-20 transition-opacity duration-300 rounded-2xl"></div>
               {platform.icon}
             </div>
-            <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+            
+            {/* Platform Name */}
+            <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-3 group-hover:text-brand-600 transition-colors duration-300">
               {platform.name}
             </h3>
-            <p className="text-gray-600 dark:text-gray-400 mb-4">
-              {platform.connected ? 'Connected' : 'Not connected'}
-            </p>
+            
+            {/* Status Badge */}
+            <div className="flex items-center justify-center mb-4">
+              <div className={`px-3 py-1 rounded-full text-sm font-medium ${
+                platform.connected 
+                  ? 'bg-green-100 text-green-800 border border-green-200' 
+                  : 'bg-gray-100 text-gray-600 border border-gray-200'
+              }`}>
+                {platform.connected ? (
+                  <span className="flex items-center">
+                    <div className="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
+                    Connected
+                  </span>
+                ) : (
+                  <span className="flex items-center">
+                    <div className="w-2 h-2 bg-gray-400 rounded-full mr-2"></div>
+                    Not connected
+                  </span>
+                )}
+              </div>
+            </div>
+            
+            {/* Connect Button */}
             <button
-              className={`w-full py-2 px-4 rounded-lg font-medium transition-colors ${
+              className={`w-full py-3 px-6 rounded-xl font-semibold transition-all duration-300 transform hover:scale-105 active:scale-95 ${
                 platform.connected
-                  ? 'bg-gray-200 text-gray-800 hover:bg-gray-300'
-                  : 'bg-brand-600 text-white hover:bg-brand-700'
+                  ? 'bg-gradient-to-r from-gray-100 to-gray-200 text-gray-800 hover:from-gray-200 hover:to-gray-300 border border-gray-300'
+                  : 'bg-gradient-to-r from-brand-600 to-brand-700 text-white hover:from-brand-700 hover:to-brand-800 shadow-lg shadow-brand-500/25 hover:shadow-brand-600/40'
               }`}
             >
-              {platform.connected ? 'Manage' : 'Connect'}
+              {platform.connected ? (
+                <span className="flex items-center">
+                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.989 2.599-1.989 1.989s1.989.426 1.989c1.989 1.426 0 0-.993-.352-1.989-1.989C8.972 15.581 4.317 19.437 3.998 19.437c0 .553.089 1.069.089 1.069s1.069-.553 1.069-1.069c0-.553-.089-1.069-.089-1.069-.553.089-1.069-1.069-1.989-.426-1.989-1.989C8.972 4.317 10.325 4.317 10.325c0 1.558.089 3.11.089 3.11s3.11-.089 4.317-3.11 4.317c0 1.558-.089 2.11-.089 2.11s2.11-.089 3.11-3.11c0-1.558.089-2.11.089-2.11-2.11-.089-3.11 3.11-2.11-1.558.089-4.317-4.317-4.317-1.558.089-2.11-2.11-2.11-.089-3.11 3.11-2.11-1.558.089-4.317-4.317-4.317z" />
+                  </svg>
+                  Manage
+                </span>
+              ) : (
+                <span className="flex items-center">
+                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 2L3 9v9l9-9V2M18 9l-9 9v9M13 22l9-9" />
+                  </svg>
+                  Connect
+                </span>
+              )}
             </button>
           </div>
         ))}
