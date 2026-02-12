@@ -32,6 +32,7 @@ import { loginWithLinkedIn, getLinkedInProfile, getLinkedInOrganizations, getLin
 import { connectYouTube, getYouTubeChannel, exchangeCodeForToken as exchangeYouTubeCodeForToken } from '../src/lib/youtube';
 import { connectTwitter, exchangeCodeForToken as exchangeTwitterCodeForToken, getTwitterProfile } from '../src/lib/twitter';
 import { connectTikTok, exchangeCodeForToken as exchangeTikTokCodeForToken, getTikTokProfile } from '../src/lib/tiktok';
+import FacebookConnection from '../src/components/FacebookConnection';
 
 type SocialTab = 'accounts' | 'schedule' | 'engagement' | 'mentions' | 'comments' | 'dms';
 
@@ -116,6 +117,13 @@ const SocialMedia: React.FC = () => {
         handleTikTokCallback(code);
       }
     }
+
+    // Listen for facebook connection updates from the child component
+    const handleFacebookUpdate = () => {
+      fetchConnectedAccounts();
+    };
+    window.addEventListener('facebookConnected', handleFacebookUpdate);
+    return () => window.removeEventListener('facebookConnected', handleFacebookUpdate);
   }, [user]);
 
   async function handleConnectFacebook() {
@@ -234,7 +242,7 @@ const SocialMedia: React.FC = () => {
       }
       fetchConnectedAccounts();
       // #region agent log
-      fetch('http://127.0.0.1:7243/ingest/6077bdfd-a86e-4561-b354-d446ad749d41',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'SocialMedia.tsx:handleFacebookCallback:success',message:'Facebook callback completed successfully',data:{},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H3'})}).catch(()=>{});
+      fetch('http://127.0.0.1:7243/ingest/6077bdfd-a86e-4561-b354-d446ad749d41', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'SocialMedia.tsx:handleFacebookCallback:success', message: 'Facebook callback completed successfully', data: {}, timestamp: Date.now(), sessionId: 'debug-session', hypothesisId: 'H3' }) }).catch(() => { });
       // #endregion
 
       // If user was connecting Instagram, try to save Instagram from same token (we already have pages)
@@ -1221,104 +1229,109 @@ const SocialMedia: React.FC = () => {
     switch (activeTab) {
       case 'accounts':
         return (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {[
-              { name: 'Facebook Page', handle: 'Engagehub Community', platform: 'facebook', icon: <Facebook className="text-blue-600" /> },
-              { name: 'Instagram', handle: '@engagehub_creations', platform: 'instagram', icon: <Instagram className="text-pink-600" /> },
-              { name: 'LinkedIn Profile', handle: 'John Doe', platform: 'linkedin', icon: <Linkedin className="text-blue-700" /> },
-              { name: 'X (Twitter)', handle: '@engagehub', platform: 'twitter', icon: <X className="text-black" /> },
-              { name: 'TikTok', handle: '@engagehub_official', platform: 'tiktok', icon: <Music className="text-black" /> },
-              { name: 'YouTube', handle: 'Engagehub Tutorials', platform: 'youtube', icon: <Youtube className="text-red-600" /> },
-              { name: 'Pinterest', handle: 'Engagehub Design', platform: 'pinterest', icon: <Pin className="text-red-700" /> },
-            ].map((account, idx) => {
-              const connectedAccount = connectedAccounts.find(ca => ca.platform === account.platform);
-              const isConnected = !!connectedAccount;
+          <div className="space-y-6">
+            {/* New Facebook Connection Manager */}
+            <FacebookConnection />
 
-              // Get the actual name (page name or person name) from connected account
-              const connectedName = isConnected
-                ? (connectedAccount.display_name || connectedAccount.username || null)
-                : null;
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              {[
+                // Removed Facebook Page from here as it is handled above
+                { name: 'Instagram', handle: '@engagehub_creations', platform: 'instagram', icon: <Instagram className="text-pink-600" /> },
+                { name: 'LinkedIn Profile', handle: 'John Doe', platform: 'linkedin', icon: <Linkedin className="text-blue-700" /> },
+                { name: 'X (Twitter)', handle: '@engagehub', platform: 'twitter', icon: <X className="text-black" /> },
+                { name: 'TikTok', handle: '@engagehub_official', platform: 'tiktok', icon: <Music className="text-black" /> },
+                { name: 'YouTube', handle: 'Engagehub Tutorials', platform: 'youtube', icon: <Youtube className="text-red-600" /> },
+                { name: 'Pinterest', handle: 'Engagehub Design', platform: 'pinterest', icon: <Pin className="text-red-700" /> },
+              ].map((account, idx) => {
+                const connectedAccount = connectedAccounts.find(ca => ca.platform === account.platform);
+                const isConnected = !!connectedAccount;
 
-              // Subtitle: for Facebook use account_type so Page shows "Facebook Page", profile shows "Personal profile"
-              const connectedSubtitle = isConnected && account.platform === 'facebook' && connectedAccount?.account_type
-                ? (connectedAccount.account_type === 'page' ? 'Facebook Page' : 'Personal profile')
-                : (isConnected ? (connectedName ? account.name : 'Connected') : account.handle);
+                // Get the actual name (page name or person name) from connected account
+                const connectedName = isConnected
+                  ? (connectedAccount.display_name || connectedAccount.username || null)
+                  : null;
 
-              // Debug logging
-              if (isConnected && account.platform === 'linkedin') {
-                console.log('LinkedIn connected account data:', {
-                  display_name: connectedAccount.display_name,
-                  username: connectedAccount.username,
-                  full_account: connectedAccount
-                });
-              }
+                // Subtitle: for Facebook use account_type so Page shows "Facebook Page", profile shows "Personal profile"
+                const connectedSubtitle = isConnected && account.platform === 'facebook' && connectedAccount?.account_type
+                  ? (connectedAccount.account_type === 'page' ? 'Facebook Page' : 'Personal profile')
+                  : (isConnected ? (connectedName ? account.name : 'Connected') : account.handle);
+
+                // Debug logging
+                if (isConnected && account.platform === 'linkedin') {
+                  console.log('LinkedIn connected account data:', {
+                    display_name: connectedAccount.display_name,
+                    username: connectedAccount.username,
+                    full_account: connectedAccount
+                  });
+                }
 
 
-              return (
-                <div key={idx} className={`p-5 rounded-xl border flex items-center justify-between group transition-all shadow-sm ${isConnected ? 'bg-white border-blue-200 ring-1 ring-blue-50' : 'bg-gray-50/50 border-gray-200 filter grayscale-[0.5]'}`}>
-                  <div className="flex items-center gap-3">
-                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 shadow-sm ${isConnected ? 'bg-white' : 'bg-gray-100'}`}>
-                      {React.cloneElement(account.icon as React.ReactElement, { size: 24, className: isConnected ? (account.icon as React.ReactElement).props.className : 'text-gray-400' })}
-                    </div>
-                    <div className="overflow-hidden">
-                      <h4 className={`text-sm font-bold truncate ${isConnected ? 'text-gray-900' : 'text-gray-500'}`}>
-                        {isConnected && connectedName ? connectedName : account.name}
-                      </h4>
-                      <p className="text-xs text-gray-500 truncate">
-                        {connectedSubtitle}
-                      </p>
-                      {isConnected && account.platform === 'facebook' && connectedAccount?.account_type === 'profile' && (
-                        <p className="text-[11px] text-amber-700 mt-0.5">
-                          Can&apos;t publish—disconnect and connect again, then pick your Page.
+                return (
+                  <div key={idx} className={`p-5 rounded-xl border flex items-center justify-between group transition-all shadow-sm ${isConnected ? 'bg-white border-blue-200 ring-1 ring-blue-50' : 'bg-gray-50/50 border-gray-200 filter grayscale-[0.5]'}`}>
+                    <div className="flex items-center gap-3">
+                      <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 shadow-sm ${isConnected ? 'bg-white' : 'bg-gray-100'}`}>
+                        {React.cloneElement(account.icon as React.ReactElement, { size: 24, className: isConnected ? (account.icon as React.ReactElement).props.className : 'text-gray-400' })}
+                      </div>
+                      <div className="overflow-hidden">
+                        <h4 className={`text-sm font-bold truncate ${isConnected ? 'text-gray-900' : 'text-gray-500'}`}>
+                          {isConnected && connectedName ? connectedName : account.name}
+                        </h4>
+                        <p className="text-xs text-gray-500 truncate">
+                          {connectedSubtitle}
                         </p>
+                        {isConnected && account.platform === 'facebook' && connectedAccount?.account_type === 'profile' && (
+                          <p className="text-[11px] text-amber-700 mt-0.5">
+                            Can&apos;t publish—disconnect and connect again, then pick your Page.
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex flex-col items-end gap-2 shrink-0">
+                      {account.platform === 'youtube' ? (
+                        <YouTubeContextualConnect compact />
+                      ) : (
+                        isConnected ? (
+                          <div className="flex flex-col items-end gap-1">
+                            <span className="flex items-center gap-1.5 text-[10px] font-black text-green-600 bg-green-50 px-2.5 py-1 rounded-full uppercase tracking-wider border border-green-100 shadow-sm">
+                              <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
+                              Live
+                            </span>
+                            <button
+                              onClick={() => handleDisconnect(connectedAccount.id)}
+                              className="p-1 text-gray-300 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-all"
+                              title="Disconnect account"
+                            >
+                              <X size={14} />
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => {
+                              if (account.platform === 'facebook') handleConnectFacebook();
+                              else if (account.platform === 'instagram') handleConnectInstagram();
+                              else if (account.platform === 'linkedin') handleConnectLinkedIn();
+                              else if (account.platform === 'youtube') handleConnectYouTube();
+                              else if (account.platform === 'twitter') handleConnectTwitter();
+                              else if (account.platform === 'tiktok') handleConnectTikTok();
+                              else alert(`${account.name} integration coming soon!`);
+                            }}
+                            className="flex items-center gap-1.5 text-[10px] font-black text-white bg-blue-600 hover:bg-blue-700 hover:scale-105 active:scale-95 px-4 py-2 rounded-full uppercase tracking-wider shadow-lg shadow-blue-200/50 transition-all"
+                          >
+                            Connect
+                          </button>
+                        )
                       )}
                     </div>
                   </div>
-                  <div className="flex flex-col items-end gap-2 shrink-0">
-                    {account.platform === 'youtube' ? (
-                      <YouTubeContextualConnect compact />
-                    ) : (
-                      isConnected ? (
-                        <div className="flex flex-col items-end gap-1">
-                          <span className="flex items-center gap-1.5 text-[10px] font-black text-green-600 bg-green-50 px-2.5 py-1 rounded-full uppercase tracking-wider border border-green-100 shadow-sm">
-                            <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
-                            Live
-                          </span>
-                          <button
-                            onClick={() => handleDisconnect(connectedAccount.id)}
-                            className="p-1 text-gray-300 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-all"
-                            title="Disconnect account"
-                          >
-                            <X size={14} />
-                          </button>
-                        </div>
-                      ) : (
-                        <button
-                          onClick={() => {
-                            if (account.platform === 'facebook') handleConnectFacebook();
-                            else if (account.platform === 'instagram') handleConnectInstagram();
-                            else if (account.platform === 'linkedin') handleConnectLinkedIn();
-                            else if (account.platform === 'youtube') handleConnectYouTube();
-                            else if (account.platform === 'twitter') handleConnectTwitter();
-                            else if (account.platform === 'tiktok') handleConnectTikTok();
-                            else alert(`${account.name} integration coming soon!`);
-                          }}
-                          className="flex items-center gap-1.5 text-[10px] font-black text-white bg-blue-600 hover:bg-blue-700 hover:scale-105 active:scale-95 px-4 py-2 rounded-full uppercase tracking-wider shadow-lg shadow-blue-200/50 transition-all"
-                        >
-                          Connect
-                        </button>
-                      )
-                    )}
-                  </div>
+                );
+              })}
+              <button className="border-2 border-dashed border-gray-200 rounded-xl p-5 flex flex-col items-center justify-center gap-2 hover:border-blue-400 hover:bg-blue-50 transition-all group min-h-[94px]">
+                <div className="w-8 h-8 rounded-full bg-gray-50 flex items-center justify-center text-gray-400 group-hover:bg-blue-100 group-hover:text-blue-600">
+                  <Plus size={18} />
                 </div>
-              );
-            })}
-            <button className="border-2 border-dashed border-gray-200 rounded-xl p-5 flex flex-col items-center justify-center gap-2 hover:border-blue-400 hover:bg-blue-50 transition-all group min-h-[94px]">
-              <div className="w-8 h-8 rounded-full bg-gray-50 flex items-center justify-center text-gray-400 group-hover:bg-blue-100 group-hover:text-blue-600">
-                <Plus size={18} />
-              </div>
-              <span className="text-xs font-bold text-gray-400 group-hover:text-blue-600 uppercase">Add Account</span>
-            </button>
+                <span className="text-xs font-bold text-gray-400 group-hover:text-blue-600 uppercase">Add Account</span>
+              </button>
+            </div>
           </div>
         );
       case 'schedule':

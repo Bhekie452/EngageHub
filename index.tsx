@@ -28,6 +28,7 @@ import { PaymentCancelPage } from './components/pages/PaymentCancelPage';
 import { SubscriptionCheckoutPage } from './components/pages/SubscriptionCheckoutPage';
 import { LoginForm } from './src/components/auth/LoginForm';
 import { RegisterForm } from './src/components/auth/RegisterForm';
+import FacebookCallback from './src/pages/auth/facebook/callback';
 import App from './App';
 
 function getPathname(): string {
@@ -165,6 +166,9 @@ const Router: React.FC = () => {
       return <RegisterForm onSwitchToLogin={() => setCurrentView('login')} />;
     case 'landing':
     default: {
+      if (pathname === '/auth/facebook/callback') {
+        return <FacebookCallback />;
+      }
       const onSignIn = () => setCurrentView('login');
       const onGetStarted = () => setCurrentView('register');
       const layoutProps = { onSignIn, onGetStarted };

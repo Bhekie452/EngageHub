@@ -1,12 +1,10 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { handleFacebookCallback } from '../../../lib/facebook';
 
 export default function FacebookCallback() {
-  const navigate = useNavigate();
   const [status, setStatus] = useState('Processing...');
   const [error, setError] = useState<string | null>(null);
-  
+
   // CRITICAL: Prevent double-firing with ref
   const hasProcessed = useRef(false);
 
@@ -16,28 +14,29 @@ export default function FacebookCallback() {
       console.log(' Already processed this callback - skipping');
       return;
     }
-    
+
     hasProcessed.current = true;
     console.log(' Starting Facebook callback processing...');
 
     const processCallback = async () => {
       try {
         const result = await handleFacebookCallback();
-        
+
         if (result?.success) {
           setStatus(' Facebook connected successfully!');
           console.log(' Facebook connection successful');
-          
+
           // Redirect after success
           setTimeout(() => {
-            navigate('/dashboard');
+            // navigate('/dashboard'); Use window location due to no Router context in index.tsx
+            window.location.href = '/'; // Go to root, which renders App -> Dashboard if logged in
           }, 2000);
         } else if (result?.skipped) {
           setStatus(' Connection already processed');
           console.log(' Connection already processed');
-          
+
           setTimeout(() => {
-            navigate('/dashboard');
+            window.location.href = '/';
           }, 2000);
         } else {
           setStatus(' Connection failed');
@@ -51,7 +50,7 @@ export default function FacebookCallback() {
     };
 
     processCallback();
-  }, [navigate]);
+  }, []);
 
   if (status === "Processing...") {
     return (

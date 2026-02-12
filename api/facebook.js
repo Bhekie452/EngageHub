@@ -112,7 +112,7 @@ async function handleFacebookSimple(req, res) {
     // --------------------------------------------------------------
     if (req.method === 'POST') {
         const { code, redirectUri, workspaceId, state, // 🔥 Added unique state parameter
-         } = req.body;
+        } = req.body;
         if (!code) {
             return res.status(400).json({
                 error: 'Missing authorization code',
@@ -203,35 +203,40 @@ async function handleFacebookSimple(req, res) {
                 const { data: userConn, error: userErr, } = await supabase_1.supabase
                     .from('social_accounts')
                     .upsert({
-                    workspace_id: workspaceId,
-                    connected_by: '00000000-0000-0000-0000-000000000000', // TODO: replace with real user ID
-                    platform: 'facebook',
-                    account_type: 'profile',
-                    account_id: 'me',
-                    display_name: 'Facebook Profile',
-                    access_token: longTermToken,
-                    token_expires_at: new Date(Date.now() + expiresIn * 1000).toISOString(),
-                    scopes: [
-                        'email',
-                        'public_profile',
-                        'pages_show_list',
-                        'instagram_basic',
-                        'pages_read_engagement',
-                    ],
-                    platform_data: {
-                        pages: pageConnections,
-                        longTermUserToken: longTermToken,
-                        userTokenExpiresIn: expiresIn,
-                    },
-                    connection_status: 'connected',
-                    last_sync_at: new Date().toISOString(),
-                }, { onConflict: 'workspace_id,platform,account_id' })
+                        workspace_id: workspaceId,
+                        connected_by: '00000000-0000-0000-0000-000000000000', // TODO: replace with real user ID
+                        platform: 'facebook',
+                        account_type: 'profile',
+                        account_id: 'me',
+                        display_name: 'Facebook Profile',
+                        access_token: longTermToken,
+                        token_expires_at: new Date(Date.now() + expiresIn * 1000).toISOString(),
+                        scopes: [
+                            'email',
+                            'public_profile',
+                            'pages_show_list',
+                            'instagram_basic',
+                            'pages_read_engagement',
+                        ],
+                        platform_data: {
+                            pages: pageConnections,
+                            longTermUserToken: longTermToken,
+                            userTokenExpiresIn: expiresIn,
+                        },
+                        connection_status: 'connected',
+                        last_sync_at: new Date().toISOString(),
+                    }, { onConflict: 'workspace_id,platform,account_id' })
                     .select()
                     .single();
                 if (userErr)
                     throw userErr;
                 console.log('✅ Facebook user connection saved:', userConn.id);
                 // --- each PAGE connection ------------------------------------
+                // 🔥 MODIFIED: Do NOT auto-connect pages. 
+                // We just return them to the frontend for manual selection.
+
+                /* 
+                // OLD AUTO-CONNECT LOGIC - COMMENTED OUT
                 if (pageConnections.length > 0) {
                     for (const page of pageConnections) {
                         const { data: pageConn, error: pageErr, } = await supabase_1.supabase
@@ -251,7 +256,7 @@ async function handleFacebookSimple(req, res) {
                                 hasInstagram: page.hasInstagram,
                                 parentUserConnectionId: userConn.id,
                             },
-                            connection_status: 'connected',
+                            connection_status: 'connected', // Was 'connected'
                             last_sync_at: new Date().toISOString(),
                         }, {
                             onConflict: 'workspace_id,platform,account_id',
@@ -266,6 +271,7 @@ async function handleFacebookSimple(req, res) {
                         }
                     }
                 }
+                */
                 console.log('✅ All Facebook connections saved', {
                     workspaceId,
                     userConnectionId: userConn.id,
@@ -566,27 +572,27 @@ async function handleGetConnections(req, res) {
             throw error;
         // ONLY return page accounts - NEVER show personal profiles
         const pageConnections = (connections ?? []).filter(c => c.account_type === 'page');
-        
+
         // Return only page accounts, never profiles
         const transformed = pageConnections.map((primaryConnection) => ({
-                id: primaryConnection.id,
-                workspaceId: primaryConnection.workspace_id,
-                platform: primaryConnection.platform,
-                platformType: primaryConnection.platform,
-                displayName: primaryConnection.display_name,
-                isConnected: primaryConnection.connection_status === 'connected',
-                accessToken: primaryConnection.access_token,
-                pages: primaryConnection.platform_data?.pages ?? [],
-                accountType: primaryConnection.account_type,
-                accountId: primaryConnection.account_id,
-                username: primaryConnection.username,
-                avatarUrl: primaryConnection.avatar_url,
-                profileUrl: primaryConnection.profile_url,
-                connectionStatus: primaryConnection.connection_status,
-                lastSyncAt: primaryConnection.last_sync_at,
-                createdAt: primaryConnection.created_at,
-                updatedAt: primaryConnection.updated_at,
-            }));
+            id: primaryConnection.id,
+            workspaceId: primaryConnection.workspace_id,
+            platform: primaryConnection.platform,
+            platformType: primaryConnection.platform,
+            displayName: primaryConnection.display_name,
+            isConnected: primaryConnection.connection_status === 'connected',
+            accessToken: primaryConnection.access_token,
+            pages: primaryConnection.platform_data?.pages ?? [],
+            accountType: primaryConnection.account_type,
+            accountId: primaryConnection.account_id,
+            username: primaryConnection.username,
+            avatarUrl: primaryConnection.avatar_url,
+            profileUrl: primaryConnection.profile_url,
+            connectionStatus: primaryConnection.connection_status,
+            lastSyncAt: primaryConnection.last_sync_at,
+            createdAt: primaryConnection.created_at,
+            updatedAt: primaryConnection.updated_at,
+        }));
         console.log(`✅ Retrieved ${transformed.length} Facebook page connections for workspace ${workspaceId} (pages only - profiles hidden)`);
         return res.status(200).json({
             success: true,
@@ -630,22 +636,22 @@ async function handleConnectPage(req, res) {
         const { data: pageConn, error: pageErr } = await supabase_1.supabase
             .from('social_accounts')
             .upsert({
-            workspace_id: workspaceId,
-            connected_by: '00000000-0000-0000-0000-000000000000', // TODO: real user ID
-            platform: 'facebook',
-            account_type: 'page',
-            account_id: pageId,
-            username: pageId,
-            display_name: pageName || `Page ${pageId}`,
-            access_token: pageAccessToken,
-            platform_data: {
-                instagram_business_account_id: instagramBusinessAccountId,
-                hasInstagram: !!instagramBusinessAccountId,
-                pageVerified: true,
-            },
-            connection_status: 'connected',
-            last_sync_at: new Date().toISOString(),
-        }, { onConflict: 'workspace_id,platform,account_id' })
+                workspace_id: workspaceId,
+                connected_by: '00000000-0000-0000-0000-000000000000', // TODO: real user ID
+                platform: 'facebook',
+                account_type: 'page',
+                account_id: pageId,
+                username: pageId,
+                display_name: pageName || `Page ${pageId}`,
+                access_token: pageAccessToken,
+                platform_data: {
+                    instagram_business_account_id: instagramBusinessAccountId,
+                    hasInstagram: !!instagramBusinessAccountId,
+                    pageVerified: true,
+                },
+                connection_status: 'connected',
+                last_sync_at: new Date().toISOString(),
+            }, { onConflict: 'workspace_id,platform,account_id' })
             .select('id')
             .single();
         if (pageErr) {

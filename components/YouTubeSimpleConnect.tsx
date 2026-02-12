@@ -1,21 +1,21 @@
 import React, { useState, useEffect } from 'react'
 import { Youtube, CheckCircle2, LogOut } from 'lucide-react'
 import { useWorkspace } from '../src/hooks/useWorkspace'
+import { useYouTubeSession } from '../src/hooks/useYouTubeSession'
 
 const YouTubeSimpleConnect: React.FC = () => {
   const { workspaceId } = useWorkspace()
   const FALLBACK_WORKSPACE_ID = 'c9a454c5-a5f3-42dd-9fbd-cedd4c1c49a9'
   const currentWorkspaceId = workspaceId || FALLBACK_WORKSPACE_ID
-  const [isConnected, setIsConnected] = useState(false)
+  const { isConnected, connect, disconnect, forceConnect } = useYouTubeSession()
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
     // Check if already connected
     if (currentWorkspaceId) {
-      const cachedState = localStorage.getItem(`youtube-connected-${currentWorkspaceId}`)
-      if (cachedState === 'true') {
-        setIsConnected(true)
-      }
+      // logic handled by useYouTubeSession now, but we can keep local checks if needed
+      // or just rely on the hook.
+      // The hook handles listening to storage changes.
     }
   }, [currentWorkspaceId])
 
@@ -23,13 +23,19 @@ const YouTubeSimpleConnect: React.FC = () => {
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search)
     const youtubeOAuth = urlParams.get('youtube_oauth')
-    
+
     if (youtubeOAuth === 'success') {
       console.log('YouTube OAuth successful - updating connection state')
       // Set connection state
-      setIsConnected(true)
       if (currentWorkspaceId) {
         localStorage.setItem(`youtube-connected-${currentWorkspaceId}`, 'true')
+        // Force update the hook's state via storage event dispatch if needed, 
+        // but the hook listens to storage events.
+        // We might need to manually trigger it if it's in the same window.
+        window.dispatchEvent(new StorageEvent('storage', {
+          key: `youtube-connected-${currentWorkspaceId}`,
+          newValue: 'true'
+        }))
       }
       // Clean up the URL
       window.history.replaceState({}, document.title, window.location.pathname)
@@ -47,28 +53,31 @@ const YouTubeSimpleConnect: React.FC = () => {
       alert('Workspace not available. Please refresh the page.')
       return
     }
-    
+
     console.log('Starting YouTube OAuth with workspaceId:', currentWorkspaceId)
-    
-    const returnUrl = window.location.href
-    const oauthUrl = `https://zourlqrkoyugzymxkbgn.functions.supabase.co/youtube-oauth/start?workspaceId=${currentWorkspaceId}&returnUrl=${encodeURIComponent(returnUrl)}`
-    
-    console.log('OAuth URL:', oauthUrl)
-    window.location.href = oauthUrl
+    connect(currentWorkspaceId)
   }
 
   const handleDisconnect = () => {
-    setIsConnected(false)
+    disconnect()
     if (currentWorkspaceId) {
       localStorage.removeItem(`youtube-connected-${currentWorkspaceId}`)
+      window.dispatchEvent(new StorageEvent('storage', {
+        key: `youtube-connected-${currentWorkspaceId}`,
+        newValue: null
+      }))
     }
     console.log('YouTube disconnected')
   }
 
   const handleForceConnect = () => {
-    setIsConnected(true)
+    forceConnect()
     if (currentWorkspaceId) {
       localStorage.setItem(`youtube-connected-${currentWorkspaceId}`, 'true')
+      window.dispatchEvent(new StorageEvent('storage', {
+        key: `youtube-connected-${currentWorkspaceId}`,
+        newValue: 'true'
+      }))
     }
     console.log('Force connected YouTube')
   }

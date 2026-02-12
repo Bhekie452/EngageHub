@@ -36,17 +36,18 @@ export function useYouTubeSession() {
     return () => window.removeEventListener('storage', handler)
   }, [])
 
-  const connect = () => {
-    const WORKSPACE_ID = 'c9a454c5-a5f3-42dd-9fbd-cedd4c1c49a9'
+  const connect = (workspaceId?: string) => {
+    const targetWorkspaceId = workspaceId || 'c9a454c5-a5f3-42dd-9fbd-cedd4c1c49a9'
     const returnUrl = window.location.href
-    const oauthUrl = `https://zourlqrkoyugzymxkbgn.functions.supabase.co/youtube-oauth/start?workspace_id=${WORKSPACE_ID}&return_url=${encodeURIComponent(returnUrl)}`
+    const oauthUrl = `https://zourlqrkoyugzymxkbgn.functions.supabase.co/youtube-oauth/start?workspaceId=${targetWorkspaceId}&returnUrl=${encodeURIComponent(returnUrl)}`
     
-    // Set connected state immediately
+    // Set connected state immediately (optimistic) - actual source of truth comes from localStorage/sessionStorage
     sessionStorage.setItem('youtube-connected', 'true')
     setIsConnected(true)
     
     window.location.href = oauthUrl
   }
+
 
   const disconnect = () => {
     sessionStorage.removeItem('youtube-connected')
