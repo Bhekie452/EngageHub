@@ -10,7 +10,6 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "build-css": "tailwindcss -i ./src/index.css -o ./dist/index.css",
     "youtube-retry": "node scripts/run-youtube-retry.js",
     "sync:youtube-metrics": "node scripts/sync-youtube-metrics.js",
     "dev-all": "node scripts/dev-all.js"
@@ -20,7 +19,6 @@
     "@hookform/resolvers": "^3.9.1",
     "@stripe/stripe-js": "^4.10.0",
     "@supabase/supabase-js": "^2.94.0",
-    "@tailwindcss/postcss": "^4.1.18",
     "@tanstack/react-query": "^5.67.0",
     "axios": "^1.13.4",
     "cors": "^2.8.6",

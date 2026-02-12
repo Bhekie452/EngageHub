@@ -1,4 +1,9 @@
-import { supabase } from '../lib/supabase';
+import { createClient } from '@supabase/supabase-js'
+
+const supabase = createClient(
+  import.meta.env.VITE_SUPABASE_URL || 'https://zourlqrkoyugzymxkbgn.supabase.co',
+  import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpvdXJxcXJrb3l1Z3p5bXhrYmduIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzY0ODE1MDAsImV4cCI6MjA1MjA1NzUwMH0.YMIWzqzG_hxI_3xuJcIqKQfZdYVQh6R9cLgZdYVQh6R'
+)
 
 // Client-side function to call YouTube API via Supabase Edge Function
 export async function callYouTubeAPI(endpoint: string, workspaceId: string, options?: Record<string, any>) {

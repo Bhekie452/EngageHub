@@ -1,8 +1,6 @@
-/* Basic Tailwind-like utilities */
-.bg-gray-50 { background-color: #f9fafb; }
-.text-gray-900 { color: #111827; }
-.transition-colors { transition-property: color, background-color, border-color, text-decoration-color, fill, stroke; transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1); transition-duration: 150ms; }
-.duration-300 { transition-duration: 300ms; }
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
 body {
   font-family: 'Inter', sans-serif;

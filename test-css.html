@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <link rel="stylesheet" href="./dist/assets/index-0X7YtAkK.css">
+    <style>
+        body { padding: 20px; font-family: sans-serif; }
+        .test-box { 
+            padding: 20px; 
+            margin: 10px 0; 
+            border: 2px solid #e5e7eb; 
+            border-radius: 8px; 
+        }
+    </style>
+</head>
+<body>
+    <h1>CSS Test Page</h1>
+    
+    <div class="test-box">
+        <h2>Basic Tailwind Classes Test</h2>
+        <div class="bg-blue-500 text-white p-4 rounded-lg">
+            This should be blue with white text
+        </div>
+        <div class="bg-green-500 text-white p-4 rounded-lg mt-4">
+            This should be green with white text
+        </div>
+        <div class="bg-red-500 text-white p-4 rounded-lg mt-4">
+            This should be red with white text
+        </div>
+    </div>
+
+    <div class="test-box">
+        <h2>Layout Classes Test</h2>
+        <div class="flex gap-4">
+            <div class="flex-1 bg-gray-200 p-4">Flex 1</div>
+            <div class="flex-1 bg-gray-300 p-4">Flex 1</div>
+        </div>
+        <div class="grid grid-cols-3 gap-4 mt-4">
+            <div class="bg-purple-200 p-4">Grid 1</div>
+            <div class="bg-purple-300 p-4">Grid 2</div>
+            <div class="bg-purple-400 p-4">Grid 3</div>
+        </div>
+    </div>
+
+    <div class="test-box">
+        <h2>Expected Results:</h2>
+        <ul>
+            <li>✅ Blue box: Blue background, white text, rounded corners, padding</li>
+            <li>✅ Green box: Green background, white text, rounded corners, padding</li>
+            <li>✅ Red box: Red background, white text, rounded corners, padding</li>
+            <li>✅ Flex layout: Two equal-width columns with gap</li>
+            <li>✅ Grid layout: Three equal columns with gap</li>
+        </ul>
+    </div>
+</body>
+</html>

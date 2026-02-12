@@ -30,6 +30,7 @@ import { LoginForm } from './src/components/auth/LoginForm';
 import { RegisterForm } from './src/components/auth/RegisterForm';
 import FacebookCallback from './src/pages/auth/facebook/callback';
 import App from './App';
+import './src/index.css';
 
 function getPathname(): string {
   return typeof window !== 'undefined' ? window.location.pathname : '/';
