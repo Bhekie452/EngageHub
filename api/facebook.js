@@ -224,6 +224,7 @@ async function handleFacebookSimple(req, res) {
                             'pages_show_list',
                             'instagram_basic',
                             'pages_read_engagement',
+                            'pages_manage_posts',
                         ],
                         platform_data: {
                             pages: pageConnections,
@@ -546,11 +547,11 @@ async function handleGetConnections(req, res) {
         // Get both pages and profiles, but prioritize pages in UI
         const pageConnections = (connections ?? []).filter(c => c.account_type === 'page');
         const profileConnections = (connections ?? []).filter(c => c.account_type === 'profile');
-        
+
         // Return page if available, otherwise profile (for UI selection)
-        const primaryConnection = pageConnections.length > 0 ? pageConnections[0] : 
-                              (profileConnections.length > 0 ? profileConnections[0] : null);
-        
+        const primaryConnection = pageConnections.length > 0 ? pageConnections[0] :
+            (profileConnections.length > 0 ? profileConnections[0] : null);
+
         const transformed = primaryConnection ? [{
             id: primaryConnection.id,
             workspaceId: primaryConnection.workspace_id,
