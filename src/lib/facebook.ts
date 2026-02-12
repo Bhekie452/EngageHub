@@ -327,8 +327,12 @@ export const handleFacebookCallback = async (): Promise<any> => {
             });
             window.dispatchEvent(event);
             
-            return { success: true, pages: result.pages, message: result.message };
+            return { success: true, pages: result.pages, message: result.message, accessToken: result.accessToken };
         }
+        
+        // If we reach here, no success condition was met
+        console.log('🔍 [DEBUG] No success condition met, result:', result);
+        return { success: false, message: 'No success condition met' };
     } catch (error: any) {
         console.error('❌ Facebook token exchange failed:', error);
         console.log('🔍 [DEBUG] Token exchange failed:', {
