@@ -1048,7 +1048,7 @@ const Content: React.FC = () => {
           // Fetch tokens client-side (user session allows RLS) so the API can publish when server has no service-role key
           const { data: accountRows } = await supabase
             .from('social_accounts')
-            .select('id, platform, account_id, access_token, refresh_token')
+            .select('id, platform, account_id, access_token, refresh_token, platform_data')
             .eq('workspace_id', workspaceId)
             .eq('is_active', true)
             .in('platform', platformsToPublish.map((p) => (p || '').toLowerCase()));
@@ -1110,12 +1110,32 @@ const Content: React.FC = () => {
               }
             }
             if (accessToken) {
-              const isFacebookPage = platform === 'facebook' && !(row.account_id || '').startsWith('profile_');
-              const existing = accountTokens[platform];
-              if (platform !== 'facebook') {
-                accountTokens[platform] = { account_id: row.account_id || '', access_token: accessToken };
-              } else if (isFacebookPage || !existing) {
-                accountTokens[platform] = { account_id: row.account_id || '', access_token: accessToken };
+              if (platform === 'facebook') {
+                // Extract page token from platform_data (page tokens never expire)
+                const pages = (row as any).platform_data?.pages || [];
+                if (pages.length > 0) {
+                  // Use the first page's token (prioritize page tokens over user tokens)
+                  console.log('[publish] Using Facebook Page token:', pages[0].pageName);
+                  accountTokens[platform] = {
+                    account_id: pages[0].pageId,
+                    access_token: pages[0].pageAccessToken
+                  };
+                } else {
+                  // Fallback to user token if no pages found
+                  console.log('[publish] No pages found, falling back to user token');
+                  accountTokens[platform] = {
+                    account_id: row.account_id || 'me',
+                    access_token: accessToken
+                  };
+                }
+              } else {
+                const isFacebookPage = platform === 'facebook' && !(row.account_id || '').startsWith('profile_');
+                const existing = accountTokens[platform];
+                if (platform !== 'facebook') {
+                  accountTokens[platform] = { account_id: row.account_id || '', access_token: accessToken };
+                } else if (isFacebookPage || !existing) {
+                  accountTokens[platform] = { account_id: row.account_id || '', access_token: accessToken };
+                }
               }
             }
           }
