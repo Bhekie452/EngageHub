@@ -1,5 +1,4 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { handleFacebookCallback } from '../../../lib/facebook';
 
 export default function FacebookCallback() {
   const [status, setStatus] = useState('Processing...');
@@ -63,37 +62,25 @@ export default function FacebookCallback() {
 
     const processCallback = async () => {
       try {
-        const result = await handleFacebookCallback(code || undefined, state || undefined);
-
-        // NEW: If pages are available, redirect to selection screen
-        if (result?.needsPageSelection) {
-          setStatus("success");
-          console.log('📄 Redirecting to page selection screen');
-          setTimeout(() => {
-            window.location.href = '/select-facebook-pages';
-          }, 1000);
+        // Redirect to backend to handle OAuth processing
+        const urlParams = new URLSearchParams(window.location.search);
+        const code = urlParams.get('code');
+        const state = urlParams.get('state');
+        
+        if (!code) {
+          setStatus("failed");
+          setError('No authorization code found');
           return;
         }
 
-        if (result?.success) {
-          setStatus("success");
-          console.log('✅ Facebook connection successful');
-
-          // Redirect after success
-          setTimeout(() => {
-            window.location.href = '/';
-          }, 1500);
-        } else if (result?.skipped) {
-          setStatus("success");
-          console.log('✅ Connection already processed');
-
-          setTimeout(() => {
-            window.location.href = '/';
-          }, 1500);
-        } else {
-          setStatus("failed");
-          console.log('❌ No result from callback');
-        }
+        console.log('🔄 Redirecting to backend for OAuth processing...');
+        
+        // Build backend URL with all OAuth parameters
+        const backendUrl = `/api/facebook?action=simple&code=${encodeURIComponent(code)}&state=${encodeURIComponent(state || 'facebook_oauth')}`;
+        
+        // Redirect to backend for processing
+        window.location.href = backendUrl;
+        
       } catch (err: any) {
         setError(err.message || 'Failed to connect Facebook');
         setStatus("failed");
