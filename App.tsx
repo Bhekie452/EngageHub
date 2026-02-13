@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { ToastProvider } from './src/components/common/Toast';
 import { useTheme } from './src/hooks/useTheme';
 import { useAuth } from './src/hooks/useAuth';
@@ -171,7 +171,7 @@ const App: React.FC = () => {
   };
 
   return (
-    <BrowserRouter>
+    <HashRouter>
       <ToastProvider>
         <Routes>
           {/* OAuth Callback Routes - MUST COME FIRST */}
@@ -202,7 +202,7 @@ const App: React.FC = () => {
           } />
         </Routes>
       </ToastProvider>
-    </BrowserRouter>
+    </HashRouter>
   );
 };
 
