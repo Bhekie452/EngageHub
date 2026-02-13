@@ -230,18 +230,20 @@ export const cleanupOAuthState = (): void => {
 /**
  * Handle Facebook OAuth callback with duplicate prevention
  */
-export const handleFacebookCallback = async (): Promise<any> => {
+export const handleFacebookCallback = async (passedCode?: string, passedState?: string): Promise<any> => {
     if (typeof window === 'undefined') return null;
     
-    // � DEBUG: Log callback entry state
+    //  DEBUG: Log callback entry state
     console.log('🔍 [DEBUG] Facebook callback triggered:', {
         url: window.location.href,
         search: window.location.search,
+        passedCode: !!passedCode,
+        passedState: !!passedState,
         timestamp: new Date().toISOString(),
         sessionStorageKeys: Object.keys(sessionStorage).filter(k => k.includes('facebook'))
     });
     
-    // �� CRITICAL: Global lock - prevent ANY duplicates
+    //  CRITICAL: Global lock - prevent ANY duplicates
     if (globalProcessingLock) {
         console.warn("🛑 Global lock active - another process is handling Facebook callback");
         console.log('🔍 [DEBUG] Global lock blocked callback');
@@ -254,8 +256,8 @@ export const handleFacebookCallback = async (): Promise<any> => {
     
     try {
         const urlParams = new URLSearchParams(window.location.search);
-        const code = urlParams.get('code');
-        const state = urlParams.get('state');
+        const code = passedCode || urlParams.get('code');
+        const state = passedState || urlParams.get('state');
         const error = urlParams.get('error');
 
         if (error) {

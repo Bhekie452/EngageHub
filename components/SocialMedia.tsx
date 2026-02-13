@@ -1260,84 +1260,82 @@ const SocialMedia: React.FC = () => {
     switch (activeTab) {
       case 'accounts':
         return (
-          <div className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {/* New Facebook Connection Manager */}
             <FacebookConnection />
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-              {[
-                { name: 'Instagram', handle: '@engagehub_creations', platform: 'instagram', icon: <Instagram className="text-pink-600" /> },
-                { name: 'LinkedIn Profile', handle: 'John Doe', platform: 'linkedin', icon: <Linkedin className="text-blue-700" /> },
-                { name: 'X (Twitter)', handle: '@engagehub', platform: 'twitter', icon: <X className="text-black" /> },
-                { name: 'TikTok', handle: '@engagehub_official', platform: 'tiktok', icon: <Music className="text-black" /> },
-                { name: 'YouTube', handle: 'Engagehub Tutorials', platform: 'youtube', icon: <Youtube className="text-red-600" /> },
-              ].map((account, idx) => {
-                const connectedAccount = connectedAccounts.find(ca => ca.platform === account.platform);
-                const isConnected = !!connectedAccount;
+            {[
+              { name: 'Instagram', handle: '@engagehub_creations', platform: 'instagram', icon: <Instagram className="text-pink-600" /> },
+              { name: 'LinkedIn Profile', handle: 'John Doe', platform: 'linkedin', icon: <Linkedin className="text-blue-700" /> },
+              { name: 'X (Twitter)', handle: '@engagehub', platform: 'twitter', icon: <X className="text-black" /> },
+              { name: 'TikTok', handle: '@engagehub_official', platform: 'tiktok', icon: <Music className="text-black" /> },
+              { name: 'YouTube', handle: 'Engagehub Tutorials', platform: 'youtube', icon: <Youtube className="text-red-600" /> },
+            ].map((account, idx) => {
+              const connectedAccount = connectedAccounts.find(ca => ca.platform === account.platform);
+              const isConnected = !!connectedAccount;
 
-                return (
-                  <div key={idx} className={`p-6 rounded-2xl border flex flex-col justify-between group transition-all duration-300 shadow-sm min-h-[160px] ${isConnected ? 'bg-white border-blue-100 ring-1 ring-blue-50/50 hover:shadow-lg hover:shadow-blue-100/50' : 'bg-gray-50/50 border-gray-100 filter grayscale-[0.2] hover:bg-white'}`}>
-                    <div className="flex items-start gap-4 mb-4">
-                      <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 shadow-sm transition-transform group-hover:scale-105 duration-300 ${isConnected ? 'bg-white border border-gray-50' : 'bg-gray-100'}`}>
-                        {React.cloneElement(account.icon as React.ReactElement, { size: 28, className: isConnected ? (account.icon as React.ReactElement).props.className : 'text-gray-400' })}
-                      </div>
-                      <div className="overflow-hidden">
-                        <h4 className={`text-md font-black truncate leading-tight ${isConnected ? 'text-gray-900' : 'text-gray-500'}`}>
-                          {isConnected && (connectedAccount.display_name || connectedAccount.username) ? (connectedAccount.display_name || connectedAccount.username) : account.name}
-                        </h4>
-                        <p className="text-xs text-gray-400 font-semibold mt-1 truncate uppercase tracking-wider">
-                          {isConnected ? 'Connected' : account.handle}
-                        </p>
-                      </div>
+              return (
+                <div key={idx} className={`p-6 rounded-2xl border flex flex-col justify-between group transition-all duration-300 shadow-sm min-h-[160px] ${isConnected ? 'bg-white border-blue-100 ring-1 ring-blue-50/50 hover:shadow-lg hover:shadow-blue-100/50' : 'bg-gray-50/50 border-gray-100 filter grayscale-[0.2] hover:bg-white'}`}>
+                  <div className="flex items-start gap-4 mb-4">
+                    <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 shadow-sm transition-transform group-hover:scale-105 duration-300 ${isConnected ? 'bg-white border border-gray-50' : 'bg-gray-100'}`}>
+                      {React.cloneElement(account.icon as React.ReactElement, { size: 28, className: isConnected ? (account.icon as React.ReactElement).props.className : 'text-gray-400' })}
                     </div>
-                    <div className="flex items-center justify-between mt-auto">
-                      <div className="flex-1">
-                        {account.platform === 'youtube' && <YouTubeContextualConnect compact context="general" />}
-                        {isConnected && account.platform !== 'youtube' && (
-                          <span className="flex items-center gap-1.5 text-[10px] font-black text-green-600 bg-green-50 px-2.5 py-1 rounded-full uppercase tracking-wider border border-green-100 shadow-sm w-fit">
-                            <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
-                            Live
-                          </span>
-                        )}
-                      </div>
-
-                      {!isConnected && account.platform !== 'youtube' && (
-                        <button
-                          onClick={() => {
-                            if (account.platform === 'facebook') handleConnectFacebook();
-                            else if (account.platform === 'instagram') handleConnectInstagram();
-                            else if (account.platform === 'linkedin') handleConnectLinkedIn();
-                            else if (account.platform === 'youtube') handleConnectYouTube();
-                            else if (account.platform === 'twitter') handleConnectTwitter();
-                            else if (account.platform === 'tiktok') handleConnectTikTok();
-                            else alert(`${account.name} integration coming soon!`);
-                          }}
-                          className="flex items-center gap-1.5 text-[10px] font-black text-white bg-blue-600 hover:bg-blue-700 hover:scale-105 active:scale-95 px-5 py-2.5 rounded-xl uppercase tracking-wider shadow-lg shadow-blue-200/50 transition-all ml-auto"
-                        >
-                          Connect
-                        </button>
-                      )}
-
-                      {isConnected && account.platform !== 'youtube' && (
-                        <button
-                          onClick={() => handleDisconnect(connectedAccount.id)}
-                          className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
-                          title="Disconnect account"
-                        >
-                          <LogOut size={16} />
-                        </button>
-                      )}
+                    <div className="overflow-hidden">
+                      <h4 className={`text-md font-black truncate leading-tight ${isConnected ? 'text-gray-900' : 'text-gray-500'}`}>
+                        {isConnected && (connectedAccount.display_name || connectedAccount.username) ? (connectedAccount.display_name || connectedAccount.username) : account.name}
+                      </h4>
+                      <p className="text-xs text-gray-400 font-semibold mt-1 truncate uppercase tracking-wider">
+                        {isConnected ? 'Connected' : account.handle}
+                      </p>
                     </div>
                   </div>
-                );
-              })}
-              <button className="border-2 border-dashed border-gray-200 rounded-xl p-5 flex flex-col items-center justify-center gap-2 hover:border-blue-400 hover:bg-blue-50 transition-all group min-h-[94px]">
-                <div className="w-8 h-8 rounded-full bg-gray-50 flex items-center justify-center text-gray-400 group-hover:bg-blue-100 group-hover:text-blue-600">
-                  <Plus size={18} />
+                  <div className="flex items-center justify-between mt-auto">
+                    <div className="flex-1">
+                      {account.platform === 'youtube' && <YouTubeContextualConnect compact context="general" />}
+                      {isConnected && account.platform !== 'youtube' && (
+                        <span className="flex items-center gap-1.5 text-[10px] font-black text-green-600 bg-green-50 px-2.5 py-1 rounded-full uppercase tracking-wider border border-green-100 shadow-sm w-fit">
+                          <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
+                          Live
+                        </span>
+                      )}
+                    </div>
+
+                    {!isConnected && account.platform !== 'youtube' && (
+                      <button
+                        onClick={() => {
+                          if (account.platform === 'facebook') handleConnectFacebook();
+                          else if (account.platform === 'instagram') handleConnectInstagram();
+                          else if (account.platform === 'linkedin') handleConnectLinkedIn();
+                          else if (account.platform === 'youtube') handleConnectYouTube();
+                          else if (account.platform === 'twitter') handleConnectTwitter();
+                          else if (account.platform === 'tiktok') handleConnectTikTok();
+                          else alert(`${account.name} integration coming soon!`);
+                        }}
+                        className="flex items-center gap-1.5 text-[10px] font-black text-white bg-blue-600 hover:bg-blue-700 hover:scale-105 active:scale-95 px-5 py-2.5 rounded-xl uppercase tracking-wider shadow-lg shadow-blue-200/50 transition-all ml-auto"
+                      >
+                        Connect
+                      </button>
+                    )}
+
+                    {isConnected && account.platform !== 'youtube' && (
+                      <button
+                        onClick={() => handleDisconnect(connectedAccount.id)}
+                        className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                        title="Disconnect account"
+                      >
+                        <LogOut size={16} />
+                      </button>
+                    )}
+                  </div>
                 </div>
-                <span className="text-xs font-bold text-gray-400 group-hover:text-blue-600 uppercase">Add Account</span>
-              </button>
-            </div>
+              );
+            })}
+            <button className="border-2 border-dashed border-gray-200 rounded-xl p-5 flex flex-col items-center justify-center gap-2 hover:border-blue-400 hover:bg-blue-50 transition-all group min-h-[94px]">
+              <div className="w-8 h-8 rounded-full bg-gray-50 flex items-center justify-center text-gray-400 group-hover:bg-blue-100 group-hover:text-blue-600">
+                <Plus size={18} />
+              </div>
+              <span className="text-xs font-bold text-gray-400 group-hover:text-blue-600 uppercase">Add Account</span>
+            </button>
           </div>
         );
       case 'schedule':

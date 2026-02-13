@@ -63,7 +63,7 @@ export default function FacebookCallback() {
 
     const processCallback = async () => {
       try {
-        const result = await handleFacebookCallback();
+        const result = await handleFacebookCallback(code || undefined, state || undefined);
 
         // NEW: If pages are available, redirect to selection screen
         if (result?.needsPageSelection) {
