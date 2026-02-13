@@ -5,6 +5,18 @@ import { URL } from 'url'; // Use modern WHATWG URL API
 
 dotenv.config();
 
+// Initialize Supabase client
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY
+);
+
+// Validate that Supabase is properly configured
+if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    console.error('❌ Missing Supabase environment variables!');
+    console.error('Required: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY');
+}
+
 // ------------------------------------------------------------------
 //  Database-backed OAuth code guard (shared across all Vercel instances)
 // ------------------------------------------------------------------
