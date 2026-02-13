@@ -134,7 +134,16 @@ export default function FacebookPageSelector({ onPageSelected, onCancel, workspa
       }
 
       if (result.success) {
+        // ✅ Show success message
+        alert(`✅ Successfully connected to ${selectedPage.pageName}!`);
+        
+        // 🔄 Call parent callback
         onPageSelected(selectedPage);
+        
+        // 🔄 Redirect to social media page after successful connection
+        setTimeout(() => {
+          window.location.href = '/social-media';
+        }, 1500); // Wait 1.5 seconds to show success message
       } else {
         throw new Error(result.error || 'Failed to connect page');
       }
