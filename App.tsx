@@ -173,36 +173,34 @@ const App: React.FC = () => {
   return (
     <BrowserRouter>
       <ToastProvider>
-        <div className="min-h-screen bg-gray-50 dark:bg-slate-950 flex transition-colors duration-300">
-          <Routes>
-            {/* OAuth Callback Routes */}
-            <Route path="/pages/auth/facebook/callback" element={<FacebookCallback />} />
-            <Route path="/select-facebook-pages" element={<SelectFacebookPages />} />
-            
-            {/* Main App Routes */}
-            <Route path="/*" element={
-              <>
-                <Sidebar
-                  currentSection={currentSection}
-                  onSelect={setCurrentSection}
-                  isCollapsed={isSidebarCollapsed}
-                  setIsCollapsed={setIsSidebarCollapsed}
-                />
+        <Routes>
+          {/* OAuth Callback Routes - MUST COME FIRST */}
+          <Route path="/pages/auth/facebook/callback" element={<FacebookCallback />} />
+          <Route path="/select-facebook-pages" element={<SelectFacebookPages />} />
+          
+          {/* Main App Routes - catch-all for everything else */}
+          <Route path="/*" element={
+            <>
+              <Sidebar
+                currentSection={currentSection}
+                onSelect={setCurrentSection}
+                isCollapsed={isSidebarCollapsed}
+                setIsCollapsed={setIsSidebarCollapsed}
+              />
 
-                <main className={`flex-1 transition-all duration-300 ${isSidebarCollapsed ? 'ml-16' : 'ml-64'}`}>
-                  <Header section={currentSection} />
-                  <div className="p-8 max-w-7xl mx-auto">
-                    {renderContent()}
-                  </div>
-                </main>
+              <main className={`flex-1 transition-all duration-300 ${isSidebarCollapsed ? 'ml-16' : 'ml-64'}`}>
+                <Header section={currentSection} />
+                <div className="p-8 max-w-7xl mx-auto">
+                  {renderContent()}
+                </div>
+              </main>
 
-                <button className="fixed bottom-6 right-6 w-14 h-14 bg-brand-600 text-white rounded-full shadow-2xl flex items-center justify-center hover:scale-110 active:scale-95 transition-all md:hidden z-50">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14" /><path d="M12 5v14" /></svg>
-                </button>
-              </>
-            } />
-          </Routes>
-        </div>
+              <button className="fixed bottom-6 right-6 w-14 h-14 bg-brand-600 text-white rounded-full shadow-2xl flex items-center justify-center hover:scale-110 active:scale-95 transition-all md:hidden z-50">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14" /><path d="M12 5v14" /></svg>
+              </button>
+            </>
+          } />
+        </Routes>
       </ToastProvider>
     </BrowserRouter>
   );
