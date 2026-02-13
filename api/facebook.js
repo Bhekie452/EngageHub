@@ -1058,6 +1058,6 @@ export {
     handleGetConnections,
     handleConnectPage,
     handleListPages,
-    handleFacebookStatus,
+    handleFacebookDiagnostics,
     handleFacebookTest
 };
