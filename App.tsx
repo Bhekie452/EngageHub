@@ -175,9 +175,7 @@ const App: React.FC = () => {
       <ToastProvider>
         <Routes>
           {/* OAuth Callback Routes - MUST COME FIRST */}
-          <Route path="/pages/auth/facebook/callback" element={<FacebookCallback />} />
-          <Route path="/pages/auth/facebook/callback/" element={<FacebookCallback />} />
-          <Route path="/pages/auth/facebook/callback#_" element={<FacebookCallback />} />
+          <Route path="pages/auth/facebook/callback" element={<FacebookCallback />} />
           <Route path="/select-facebook-pages" element={<SelectFacebookPages />} />
           
           {/* Main App Routes - catch-all for everything else */}
