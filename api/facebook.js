@@ -1,6 +1,6 @@
 import { supabase } from "./lib/supabase.js";
 import { createHash } from "crypto";
-const { URL } = require('url'); // Use modern WHATWG URL API
+import { URL } from "node:url"; // Use modern WHATWG URL API
 
 // ------------------------------------------------------------------
 //  Database-backed OAuth code guard (shared across all Vercel instances)
@@ -1042,3 +1042,20 @@ async function handleVerifyPage(req, res) {
         });
     }
 }
+
+// ------------------------------------------------------------------
+// ES Module Exports
+// ------------------------------------------------------------------
+export {
+    markCodeAsUsed,
+    getWorkspaceOwner,
+    handleFacebookAuth,
+    handleFacebookSimple,
+    handleFacebookPages,
+    handleGetConnections,
+    handleConnectPage,
+    handleListPages,
+    handleFacebookStatus,
+    handleFacebookPublish,
+    handleFacebookTest
+};
