@@ -1056,6 +1056,5 @@ export {
     handleConnectPage,
     handleListPages,
     handleFacebookStatus,
-    handleFacebookPublish,
     handleFacebookTest
 };
