@@ -339,8 +339,20 @@ async function handleFacebookSimple(req, res) {
             });
         }
         
+        // 🔥 CRITICAL: Parse origin from state parameter
+        let origin = 'https://engage-hub-ten.vercel.app';
+        if (state) {
+            try {
+                const stateData = JSON.parse(decodeURIComponent(state));
+                origin = stateData.origin || origin;
+                console.log('🔍 Parsed origin from state:', origin);
+            } catch (e) {
+                console.log('⚠️ Could not parse state, using default origin');
+            }
+        }
+        
         // 🔥 CRITICAL: Use the correct redirect URI that matches our OAuth setup
-        const redirectUri = `${req.headers.origin}/#/pages/auth/facebook/callback`;
+        const redirectUri = `${origin}/#/pages/auth/facebook/callback`;
         
         console.log('🔍 OAuth request details:', {
             codeLength: code.length,
