@@ -89,24 +89,42 @@ export default function FacebookPageSelector({ onPageSelected, onCancel, workspa
       return;
     }
 
-    try {
-      setConnecting(true);
-      setError(null);
+    // 🔍 DEBUG: Log the selected page and payload
+    console.log('🔍 Selected Page:', selectedPage);
+    console.log('🔍 Workspace ID:', workspaceId);
 
-      // Connect the selected page
+    const payload = {
+      workspaceId,
+      pageId: selectedPage.pageId,
+      pageName: selectedPage.pageName,
+      pageAccessToken: selectedPage.pageAccessToken,
+      category: selectedPage.category,
+      instagramBusinessAccountId: selectedPage.instagramBusinessAccountId
+    };
+
+    console.log('🔍 Payload being sent:', payload);
+
+    // Check for missing required fields
+    const missingFields = [];
+    if (!payload.workspaceId) missingFields.push('workspaceId');
+    if (!payload.pageId) missingFields.push('pageId');
+    if (!payload.pageAccessToken) missingFields.push('pageAccessToken');
+    
+    if (missingFields.length > 0) {
+      console.error('❌ Missing required fields:', missingFields);
+      setError(`Missing required fields: ${missingFields.join(', ')}`);
+      return;
+    }
+
+    setConnecting(true);
+
+    try {
       const response = await fetch('/api/facebook?action=connect-page', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({
-          workspaceId,
-          pageId: selectedPage.pageId,
-          pageName: selectedPage.pageName,
-          pageAccessToken: selectedPage.pageAccessToken,
-          category: selectedPage.category,
-          instagramBusinessAccountId: selectedPage.instagramBusinessAccountId
-        })
+        body: JSON.stringify(payload)
       });
 
       const result = await response.json();
