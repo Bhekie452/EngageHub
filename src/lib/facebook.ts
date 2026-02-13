@@ -65,12 +65,12 @@ const getLoginScope = (): string =>
  */
 const getRedirectURI = (): string => {
     if (typeof window === 'undefined') {
-        return 'http://localhost:3000/pages/auth/facebook/callback';
+        return 'http://localhost:3000/#/pages/auth/facebook/callback';
     }
     
-    // Always use the dedicated callback route for OAuth
+    // Always use the dedicated callback route for OAuth with hash routing
     const origin = window.location.origin;
-    return `${origin}/pages/auth/facebook/callback`;
+    return `${origin}/#/pages/auth/facebook/callback`;
 };
 
 // Token storage functions

@@ -12,9 +12,6 @@ export default function FacebookCallback() {
     console.log('🔍 [CALLBACK] URL:', window.location.href);
     console.log('🔍 [CALLBACK] Search params:', window.location.search);
     
-    // 🔥 OBVIOUS DEBUG: Add alert to confirm page loads
-    alert('🔥 FACEBOOK CALLBACK PAGE LOADED! Check console for details.');
-    
     // 🔥 CRITICAL: Check if this callback was already processed
     const alreadyProcessed = sessionStorage.getItem('fb_callback_processed');
     if (alreadyProcessed) {
