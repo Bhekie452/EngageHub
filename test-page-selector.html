@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Facebook Page Selector</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50">
+    <div class="min-h-screen py-12 px-4">
+        <div class="max-w-2xl mx-auto">
+            <div class="bg-white rounded-xl shadow-lg p-8">
+                <div class="text-center mb-8">
+                    <h1 class="text-3xl font-bold text-gray-900 mb-2">Test Facebook Page Selector</h1>
+                    <p class="text-gray-600">Testing the Facebook page selection UI with mock data</p>
+                </div>
+
+                <div class="space-y-4">
+                    <button onclick="testListPages()" class="w-full bg-blue-600 text-white py-3 px-6 rounded-lg hover:bg-blue-700">
+                        Test List Pages API
+                    </button>
+                    
+                    <button onclick="testConnectPage()" class="w-full bg-green-600 text-white py-3 px-6 rounded-lg hover:bg-green-700">
+                        Test Connect Page API
+                    </button>
+                    
+                    <button onclick="goToPageSelector()" class="w-full bg-purple-600 text-white py-3 px-6 rounded-lg hover:bg-purple-700">
+                        Go to Page Selector UI
+                    </button>
+                </div>
+
+                <div id="results" class="mt-8 p-4 bg-gray-100 rounded-lg hidden">
+                    <h3 class="font-semibold text-gray-900 mb-2">Results:</h3>
+                    <pre id="results-content" class="text-sm text-gray-700 whitespace-pre-wrap"></pre>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        async function testListPages() {
+            try {
+                const response = await fetch('/api/facebook?action=list-pages');
+                const data = await response.json();
+                showResults('List Pages Response:', JSON.stringify(data, null, 2));
+            } catch (error) {
+                showResults('Error:', error.message);
+            }
+        }
+
+        async function testConnectPage() {
+            try {
+                const response = await fetch('/api/facebook?action=connect-page', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        workspaceId: 'test-workspace-123',
+                        pageId: '123456789012345',
+                        pageName: 'My Restaurant',
+                        pageAccessToken: 'EAACZAE...mock_token_1',
+                        category: 'Restaurant',
+                        instagramBusinessAccountId: '987654321'
+                    })
+                });
+                const data = await response.json();
+                showResults('Connect Page Response:', JSON.stringify(data, null, 2));
+            } catch (error) {
+                showResults('Error:', error.message);
+            }
+        }
+
+        function goToPageSelector() {
+            // Simulate the URL parameters that would come from OAuth callback
+            const testUrl = '/select-facebook-pages?workspaceId=test-workspace-123';
+            window.location.href = testUrl;
+        }
+
+        function showResults(title, content) {
+            const resultsDiv = document.getElementById('results');
+            const resultsContent = document.getElementById('results-content');
+            resultsDiv.classList.remove('hidden');
+            resultsContent.textContent = title + '\n\n' + content;
+        }
+    </script>
+</body>
+</html>

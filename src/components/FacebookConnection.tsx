@@ -289,6 +289,7 @@ export default function FacebookConnection() {
 
   // Separate profile connection
   const profileConnection = connections.find(conn => conn.account_type === 'profile');
+  const connectedPages = connections.filter(conn => conn.account_type === 'page');
 
   if (!profileConnection) {
     return (
@@ -321,37 +322,124 @@ export default function FacebookConnection() {
     );
   }
 
-
   return (
-    <div className="p-6 rounded-2xl border flex flex-col justify-between group transition-all duration-300 shadow-sm min-h-[160px] bg-white border-blue-100 ring-1 ring-blue-50/50 hover:shadow-lg hover:shadow-blue-100/50">
-      <div className="flex items-start gap-4 mb-4">
-        <div className="w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 shadow-sm transition-transform group-hover:scale-105 duration-300 bg-white border border-gray-50">
-          <Facebook size={28} className="text-blue-600" />
-        </div>
-        <div className="overflow-hidden">
-          <h4 className="text-md font-black truncate leading-tight text-gray-900">
-            {profileConnection.display_name || 'Facebook'}
-          </h4>
-          <p className="text-xs text-gray-400 font-semibold mt-1 truncate uppercase tracking-wider">
-            Connected
-          </p>
-        </div>
-      </div>
-      <div className="flex items-center justify-between mt-auto">
-        <div className="flex-1">
-          <span className="flex items-center gap-1.5 text-[10px] font-black text-green-600 bg-green-50 px-2.5 py-1 rounded-full uppercase tracking-wider border border-green-100 shadow-sm w-fit">
-            <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
-            Live
-          </span>
+    <div className="p-6 rounded-2xl border flex flex-col gap-6 group transition-all duration-300 shadow-sm bg-white border-blue-100 ring-1 ring-blue-50/50 hover:shadow-lg hover:shadow-blue-100/50">
+      {/* Header / Profile Info */}
+      <div className="flex items-start justify-between">
+        <div className="flex items-start gap-4">
+          <div className="w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 shadow-sm transition-transform group-hover:scale-105 duration-300 bg-white border border-gray-50">
+            <Facebook size={28} className="text-blue-600" />
+          </div>
+          <div className="overflow-hidden">
+            <h4 className="text-md font-black truncate leading-tight text-gray-900">
+              {profileConnection.display_name || 'Facebook Profile'}
+            </h4>
+            <div className="flex items-center gap-2 mt-1">
+              <span className="flex items-center gap-1.5 text-[10px] font-black text-green-600 bg-green-50 px-2.5 py-1 rounded-full uppercase tracking-wider border border-green-100 shadow-sm w-fit">
+                <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
+                Live
+              </span>
+              <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">
+                Connected
+              </p>
+            </div>
+          </div>
         </div>
         <button
           onClick={handleDisconnectProfile}
-          className="text-gray-400 hover:text-red-600 transition-colors"
-          title="Disconnect"
+          className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+          title="Disconnect All"
         >
           <LogOut className="w-4 h-4" />
         </button>
       </div>
+
+      {/* Connected Pages Section */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <h5 className="text-[11px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
+            Connected Pages
+            <span className="bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded-md text-[9px] border border-blue-100">
+              {connectedPages.length}
+            </span>
+          </h5>
+        </div>
+
+        {connectedPages.length > 0 ? (
+          <div className="grid grid-cols-1 gap-2">
+            {connectedPages.map((page) => (
+              <div key={page.id} className="flex items-center justify-between p-3 rounded-xl bg-gray-50 border border-gray-100 group/page hover:border-blue-200 hover:bg-blue-50/30 transition-all">
+                <div className="flex items-center gap-3 overflow-hidden">
+                  <div className="w-8 h-8 rounded-lg bg-white border border-gray-100 flex items-center justify-center shrink-0 text-blue-600 shadow-xs">
+                    <Facebook size={16} />
+                  </div>
+                  <div className="overflow-hidden">
+                    <p className="text-sm font-bold text-gray-700 truncate line-clamp-1">{page.display_name}</p>
+                    {page.platform_data?.instagram_business_account_id && (
+                      <div className="flex items-center gap-1 mt-0.5" title="Instagram Linked">
+                        <Instagram size={10} className="text-pink-500" />
+                        <span className="text-[9px] font-bold text-pink-500 uppercase tracking-tight">Linked</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <button
+                  onClick={() => handleDisconnectPage({ pageId: page.account_id!, pageName: page.display_name } as any)}
+                  className="p-1.5 text-gray-300 hover:text-red-500 transition-colors bg-transparent opacity-0 group-hover/page:opacity-100"
+                  title="Disconnect Page"
+                >
+                  <LogOut size={12} />
+                </button>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="py-4 text-center rounded-xl border border-dashed border-gray-200">
+            <p className="text-[11px] font-bold text-gray-400 uppercase tracking-tight">No pages connected</p>
+          </div>
+        )}
+      </div>
+
+      {/* Available Pages to Connect */}
+      {availablePages.length > 0 && availablePages.some(p => !p.isConnected) ? (
+        <div className="pt-4 border-t border-gray-50">
+          <h5 className="text-[11px] font-black text-gray-400 uppercase tracking-widest mb-3">Available to Connect</h5>
+          <div className="space-y-2">
+            {availablePages
+              .filter(page => !page.isConnected)
+              .map(page => (
+                <div key={page.pageId} className="flex items-center justify-between p-2 pl-3 rounded-xl border border-gray-100 bg-white hover:border-blue-200 transition-all">
+                  <div className="flex items-center gap-3 overflow-hidden">
+                    <span className="text-sm font-semibold text-gray-600 truncate">{page.pageName}</span>
+                  </div>
+                  <button
+                    onClick={() => handleConnectPage(page)}
+                    disabled={processingId === page.pageId}
+                    className="px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white transition-all disabled:opacity-50"
+                  >
+                    {processingId === page.pageId ? '...' : 'Connect'}
+                  </button>
+                </div>
+              ))}
+          </div>
+        </div>
+      ) : connectedPages.length === 0 && (
+        <div className="pt-4 border-t border-gray-50">
+          <div className="p-4 rounded-xl bg-orange-50 border border-orange-100">
+            <h5 className="text-[10px] font-black text-orange-700 uppercase tracking-widest mb-1">No Pages Found</h5>
+            <p className="text-[10px] text-orange-600 font-medium leading-relaxed">
+              We couldn't find any Facebook Pages associated with this account.
+              Please ensure you have created a <a href="https://www.facebook.com/pages/create" target="_blank" rel="noopener noreferrer" className="underline font-bold">Facebook Page</a> and are an admin of it.
+            </p>
+            <button
+              onClick={handleConnectFacebook}
+              className="mt-3 text-[9px] font-black text-orange-700 bg-white border border-orange-200 px-2 py-1 rounded-md uppercase tracking-wider hover:bg-orange-100 transition-colors"
+            >
+              Reconnect to Refresh
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

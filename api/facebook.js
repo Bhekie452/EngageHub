@@ -185,8 +185,17 @@ async function handleFacebookExchangeAction(req, res) {
             hasInstagram: !!p.instagram_business_account,
         }));
 
+        // Fetch REAL profile ID and name
+        const profileUrl = `https://graph.facebook.com/v21.0/me?fields=id,name&access_token=${longTermToken}`;
+        const profileResp = await fetch(profileUrl);
+        const profileData = await profileResp.json();
+        const realFbId = profileData.id || 'me';
+        const realFbName = profileData.name || 'Connected Profile';
+
         // 3. Store Profile and Pages info in Supabase
         const ownerId = await getWorkspaceOwner(workspaceId);
+        console.log(`👤 Handshake: Persisting profile for ${realFbName} (${realFbId})`);
+
         const { data: userConn, error: userErr } = await supabase
             .from('social_accounts')
             .upsert({
@@ -194,10 +203,11 @@ async function handleFacebookExchangeAction(req, res) {
                 connected_by: ownerId,
                 platform: 'facebook',
                 account_type: 'profile',
-                account_id: 'me',
-                display_name: 'Connected Profile', // Will be updated on first sync
+                account_id: realFbId,
+                display_name: realFbName,
                 access_token: longTermToken,
                 token_expires_at: new Date(Date.now() + expiresIn * 1000).toISOString(),
+                is_active: true,
                 platform_data: {
                     pages: pageConnections,
                     longTermUserToken: longTermToken,
@@ -424,9 +434,16 @@ async function handleFacebookSimple(req, res) {
         // ----- 5️⃣  Persist user + page connections in Supabase -----
         if (workspaceId && longTermToken) {
             try {
+                // Fetch REAL profile ID and name
+                const profileUrl = `https://graph.facebook.com/v21.0/me?fields=id,name&access_token=${longTermToken}`;
+                const profileResp = await fetch(profileUrl);
+                const profileData = await profileResp.json();
+                const realFbId = profileData.id || 'me';
+                const realFbName = profileData.name || 'Facebook Profile';
+
                 // Resolve real owner ID to avoid FK violation
                 const ownerId = await getWorkspaceOwner(workspaceId);
-                console.log('👤 Resolved workspace owner for connection:', ownerId);
+                console.log(`👤 Simple Flow: Persisting profile for ${realFbName} (${realFbId}) for owner ${ownerId}`);
 
                 // --- user (profile) connection ---------------------------------
                 const { data: userConn, error: userErr, } = await supabase
@@ -436,10 +453,11 @@ async function handleFacebookSimple(req, res) {
                         connected_by: ownerId,
                         platform: 'facebook',
                         account_type: 'profile',
-                        account_id: 'me',
-                        display_name: 'Facebook Profile',
+                        account_id: realFbId,
+                        display_name: realFbName,
                         access_token: longTermToken,
                         token_expires_at: new Date(Date.now() + expiresIn * 1000).toISOString(),
+                        is_active: true,
                         scopes: [
                             'email',
                             'public_profile',
@@ -860,6 +878,7 @@ async function handleConnectPage(req, res) {
                     hasInstagram: !!instagramBusinessAccountId,
                     pageVerified: true,
                 },
+                is_active: true,
                 connection_status: 'connected',
                 last_sync_at: new Date().toISOString(),
             }, { onConflict: 'workspace_id,platform,account_id' })
