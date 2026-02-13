@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { ToastProvider } from './src/components/common/Toast';
 import { useTheme } from './src/hooks/useTheme';
 import { useAuth } from './src/hooks/useAuth';
@@ -20,6 +21,8 @@ import Integrations from './components/Integrations';
 import Automations from './components/Automations';
 import Assets from './components/Assets';
 import Settings from './components/Settings';
+import FacebookCallback from './src/pages/auth/facebook/callback';
+import SelectFacebookPages from './src/pages/select-facebook-pages';
 import { Bell, Search, HelpCircle, AlertCircle } from 'lucide-react';
 
 const Header: React.FC<{ section: MenuSection }> = ({ section }) => {
@@ -168,27 +171,40 @@ const App: React.FC = () => {
   };
 
   return (
-    <ToastProvider>
-      <div className="min-h-screen bg-gray-50 dark:bg-slate-950 flex transition-colors duration-300">
-        <Sidebar
-          currentSection={currentSection}
-          onSelect={setCurrentSection}
-          isCollapsed={isSidebarCollapsed}
-          setIsCollapsed={setIsSidebarCollapsed}
-        />
+    <BrowserRouter>
+      <ToastProvider>
+        <div className="min-h-screen bg-gray-50 dark:bg-slate-950 flex transition-colors duration-300">
+          <Routes>
+            {/* OAuth Callback Routes */}
+            <Route path="/pages/auth/facebook/callback" element={<FacebookCallback />} />
+            <Route path="/select-facebook-pages" element={<SelectFacebookPages />} />
+            
+            {/* Main App Routes */}
+            <Route path="/*" element={
+              <>
+                <Sidebar
+                  currentSection={currentSection}
+                  onSelect={setCurrentSection}
+                  isCollapsed={isSidebarCollapsed}
+                  setIsCollapsed={setIsSidebarCollapsed}
+                />
 
-        <main className={`flex-1 transition-all duration-300 ${isSidebarCollapsed ? 'ml-16' : 'ml-64'}`}>
-          <Header section={currentSection} />
-          <div className="p-8 max-w-7xl mx-auto">
-            {renderContent()}
-          </div>
-        </main>
+                <main className={`flex-1 transition-all duration-300 ${isSidebarCollapsed ? 'ml-16' : 'ml-64'}`}>
+                  <Header section={currentSection} />
+                  <div className="p-8 max-w-7xl mx-auto">
+                    {renderContent()}
+                  </div>
+                </main>
 
-        <button className="fixed bottom-6 right-6 w-14 h-14 bg-brand-600 text-white rounded-full shadow-2xl flex items-center justify-center hover:scale-110 active:scale-95 transition-all md:hidden z-50">
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14" /><path d="M12 5v14" /></svg>
-        </button>
-      </div>
-    </ToastProvider>
+                <button className="fixed bottom-6 right-6 w-14 h-14 bg-brand-600 text-white rounded-full shadow-2xl flex items-center justify-center hover:scale-110 active:scale-95 transition-all md:hidden z-50">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14" /><path d="M12 5v14" /></svg>
+                </button>
+              </>
+            } />
+          </Routes>
+        </div>
+      </ToastProvider>
+    </BrowserRouter>
   );
 };
 
