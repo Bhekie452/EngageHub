@@ -168,9 +168,12 @@ export default function FacebookPageSelector({ onPageSelected, onCancel, workspa
       alert(`✅ Successfully connected to ${selectedPage.pageName}!`);
       onPageSelected(selectedPage);
 
-      setTimeout(() => {
-        window.location.href = '/social-media';
-      }, 1500);
+      // 🔍 TEMPORARY: Comment out redirect to test your theory
+      // setTimeout(() => {
+      //   window.location.href = '/social-media';
+      // }, 1500);
+      
+      console.log('🔍 REDIRECT DISABLED - Check if error still appears');
 
     } catch (err: any) {
       console.error('❌ Connection error:', err);
