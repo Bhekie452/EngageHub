@@ -19,6 +19,7 @@ export default function FacebookCallback() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedPage, setSelectedPage] = useState<string>('');
+  const [workspaceId, setWorkspaceId] = useState<string>('');
 
   useEffect(() => {
     console.log("🔥 Callback page loaded ✅");
@@ -43,6 +44,9 @@ export default function FacebookCallback() {
       console.log('🔄 Processing OAuth with backend...');
       console.log('🔍 WorkspaceId:', state.workspaceId);
       console.log('🔍 Origin:', state.origin);
+      
+      // Store workspaceId for later use
+      setWorkspaceId(state.workspaceId);
       
       // Call backend for OAuth processing and immediate page fetch
       const backendUrl = `/api/facebook?action=simple&code=${encodeURIComponent(code)}&workspaceId=${encodeURIComponent(state.workspaceId)}&origin=${encodeURIComponent(state.origin || '')}`;
@@ -96,6 +100,14 @@ export default function FacebookCallback() {
 
     console.log('🔗 Connecting to page:', selectedPageData.pageName);
     
+    // 🔍 DEBUG: Check what we're sending
+    console.log('=== PAGE CONNECTION DEBUG ===');
+    console.log('1. pageId:', selectedPageData.pageId);
+    console.log('2. pageAccessToken:', selectedPageData.pageAccessToken ? 'Present' : 'Missing');
+    console.log('3. pageName:', selectedPageData.pageName);
+    console.log('4. workspaceId:', workspaceId);
+    console.log('5. instagramBusinessAccountId:', selectedPageData.instagramBusinessAccountId);
+    
     // Call backend to connect selected page
     fetch('/api/facebook?action=connect-page', {
       method: 'POST',
@@ -106,7 +118,7 @@ export default function FacebookCallback() {
         pageId: selectedPageData.pageId,
         pageAccessToken: selectedPageData.pageAccessToken,
         pageName: selectedPageData.pageName,
-        workspaceId: selectedPageData.workspaceId,
+        workspaceId: workspaceId, // ← Use the stored workspaceId from OAuth state
         instagramBusinessAccountId: selectedPageData.instagramBusinessAccountId
       })
     })
