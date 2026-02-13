@@ -441,6 +441,16 @@ async function handleFacebookSimple(req, res) {
         }
         const longTermToken = longData.access_token;
         const expiresIn = longData.expires_in; // seconds
+        
+        // 🔥 CRITICAL: Validate expiresIn before using it
+        let tokenExpiresAt;
+        if (expiresIn && Number.isFinite(expiresIn)) {
+            tokenExpiresAt = new Date(Date.now() + expiresIn * 1000).toISOString();
+        } else {
+            // Default to 60 days if expiresIn is invalid/missing
+            tokenExpiresAt = new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString();
+            console.log('⚠️ expiresIn invalid, using default 60 days:', expiresIn);
+        }
         // ----- 4️⃣  Fetch managed pages (page‑access‑tokens) -----
         const pagesUrl = `https://graph.facebook.com/v21.0/me/accounts?` +
             `fields=id,name,access_token,instagram_business_account,category` +
@@ -487,7 +497,7 @@ async function handleFacebookSimple(req, res) {
                         account_id: realFbId,
                         display_name: realFbName,
                         access_token: longTermToken,
-                        token_expires_at: new Date(Date.now() + expiresIn * 1000).toISOString(),
+                        token_expires_at: tokenExpiresAt,
                         is_active: true,
                         scopes: [
                             'email',
@@ -500,7 +510,7 @@ async function handleFacebookSimple(req, res) {
                         platform_data: {
                             pages: pageConnections,
                             longTermUserToken: longTermToken,
-                            userTokenExpiresIn: expiresIn,
+                            userTokenExpiresIn: expiresIn || 5184000, // Default 60 days in seconds
                         },
                         connection_status: 'connected',
                         last_sync_at: new Date().toISOString(),
