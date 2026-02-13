@@ -331,13 +331,17 @@ async function handleFacebookSimple(req, res) {
     // POST – exchange `code`, fetch pages, persist in DB
     // --------------------------------------------------------------
     if (req.method === 'POST') {
-        const { code, redirectUri, workspaceId, state } = req.body;
+        const { code, workspaceId, state } = req.body;
         if (!code) {
             return res.status(400).json({
                 error: 'Missing authorization code',
                 details: 'No `code` provided in request body',
             });
         }
+        
+        // 🔥 CRITICAL: Use the correct redirect URI that matches our OAuth setup
+        const redirectUri = `${req.headers.origin}/#/pages/auth/facebook/callback`;
+        
         console.log('🔍 OAuth request details:', {
             codeLength: code.length,
             redirectUri,
