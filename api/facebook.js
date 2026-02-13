@@ -1,6 +1,7 @@
-import { supabase } from "./lib/supabase.js";
-import { createHash } from "crypto";
-import { URL } from "node:url"; // Use modern WHATWG URL API
+require('dotenv').config();
+const { createClient } = require('@supabase/supabase-js');
+const { createHash } = require('crypto');
+const { URL } = require('url'); // Use modern WHATWG URL API
 
 // ------------------------------------------------------------------
 //  Database-backed OAuth code guard (shared across all Vercel instances)
@@ -1044,9 +1045,9 @@ async function handleVerifyPage(req, res) {
 }
 
 // ------------------------------------------------------------------
-// ES Module Exports
+// CommonJS Exports
 // ------------------------------------------------------------------
-export {
+module.exports = {
     markCodeAsUsed,
     getWorkspaceOwner,
     handleFacebookAuth,
