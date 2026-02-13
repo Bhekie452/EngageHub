@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Facebook, Instagram, Twitter, Youtube, Linkedin, Music } from 'lucide-react';
 import FacebookConnection from './FacebookConnection';
+import InstagramConnection from './InstagramConnection';
 import FacebookPageConnection from './FacebookPageConnection';
 
 interface SocialPlatform {
@@ -30,6 +31,7 @@ export default function SocialMedia() {
       icon: <Instagram size={24} />,
       color: 'bg-pink-500',
       connected: false,
+      component: <InstagramConnection />
     },
     {
       id: 'twitter',
