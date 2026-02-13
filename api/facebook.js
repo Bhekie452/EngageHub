@@ -221,10 +221,24 @@ async function handleFacebookExchangeAction(req, res) {
 
         if (userErr) throw userErr;
 
-        // 4. Redirect to Frontend Page Selection
-        const redirectPath = `/select-facebook-pages?workspaceId=${workspaceId}&connectionId=${userConn.id}`;
-        console.log('🚀 Redirecting back to frontend:', redirectPath);
-        return res.redirect(`${origin}${redirectPath}`);
+        // 4. Return pages directly to frontend for immediate display
+        console.log('🚀 Returning pages directly to frontend:', { 
+            workspaceId, 
+            connectionId: userConn.id, 
+            pagesCount: pageConnections.length 
+        });
+        
+        return res.json({
+            success: true,
+            workspaceId,
+            connectionId: userConn.id,
+            token: longTermToken,
+            pages: pageConnections,
+            profile: {
+                id: realFbId,
+                name: realFbName
+            }
+        });
 
     } catch (e) {
         console.error('❌ Handshake error:', e);
