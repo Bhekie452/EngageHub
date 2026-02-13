@@ -8,6 +8,10 @@ export default function FacebookCallback() {
   const hasProcessed = useRef(false);
 
   useEffect(() => {
+    console.log('🔍 [CALLBACK] Facebook callback page loaded');
+    console.log('🔍 [CALLBACK] URL:', window.location.href);
+    console.log('🔍 [CALLBACK] Search params:', window.location.search);
+    
     // 🔥 CRITICAL: Check if this callback was already processed
     const alreadyProcessed = sessionStorage.getItem('fb_callback_processed');
     if (alreadyProcessed) {
@@ -23,18 +27,25 @@ export default function FacebookCallback() {
     const urlParams = new URLSearchParams(window.location.search);
     const code = urlParams.get('code');
     const state = urlParams.get('state');
+    
+    console.log('🔍 [CALLBACK] Extracted params:', { code: !!code, state });
 
     // 🔥 CRITICAL: Improved state validation
     let isFacebookOauth = state === 'facebook_oauth';
     if (!isFacebookOauth && state) {
       try {
         const stateData = JSON.parse(decodeURIComponent(state));
+        console.log('🔍 [CALLBACK] Parsed state data:', stateData);
         if (stateData && (stateData.workspaceId || stateData.origin)) {
           isFacebookOauth = true;
           console.log('✅ Recognized JSON state from backend');
         }
-      } catch (e) { }
+      } catch (e) { 
+        console.log('🔍 [CALLBACK] State parse error:', e);
+      }
     }
+    
+    console.log('🔍 [CALLBACK] Is Facebook OAuth:', isFacebookOauth);
 
     if (!code || !isFacebookOauth) {
       console.log('❌ No Facebook OAuth code found or invalid state', { code: !!code, state });
@@ -77,6 +88,9 @@ export default function FacebookCallback() {
         
         // Build backend URL with all OAuth parameters
         const backendUrl = `/api/facebook?action=simple&code=${encodeURIComponent(code)}&state=${encodeURIComponent(state || 'facebook_oauth')}`;
+        
+        console.log('🔍 [CALLBACK] Backend URL:', backendUrl);
+        console.log('🔍 [CALLBACK] About to redirect to backend...');
         
         // Redirect to backend for processing
         window.location.href = backendUrl;
