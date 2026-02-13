@@ -335,6 +335,13 @@ export default function FacebookConnection() {
           <div className="w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 shadow-sm transition-transform group-hover:scale-105 duration-300 bg-white border border-gray-50">
             <Facebook size={28} className="text-blue-600" />
           </div>
+          <div className="overflow-hidden">
+            <h4 className="text-md font-black truncate leading-tight text-gray-900">
+              {profileConnection.display_name || 'Facebook Profile'}
+            </h4>
+            <p className="text-xs text-gray-400 font-semibold mt-1 truncate uppercase tracking-wider">
+              {profileConnection?.connection_status === 'connected' ? 'Connected' : 'Not Connected'}
+            </p>
           </div>
         </div>
         <button
