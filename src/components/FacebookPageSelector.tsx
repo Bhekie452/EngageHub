@@ -84,71 +84,89 @@ export default function FacebookPageSelector({ onPageSelected, onCancel, workspa
     }
 
     const selectedPage = pages.find(p => p.pageId === selectedPageId);
+    
+    // 🔍 CRITICAL DEBUGGING - Check each field individually
+    console.log('=== CONNECT PAGE DEBUG ===');
+    console.log('1. selectedPageId:', selectedPageId);
+    console.log('2. selectedPage object:', selectedPage);
+    console.log('3. workspaceId:', workspaceId);
+    
+    // Check if selectedPage exists
     if (!selectedPage) {
+      console.error('❌ Selected page not found in pages array!');
       setError('Selected page not found');
       return;
     }
-
-    // 🔍 DEBUG: Log the selected page and payload
-    console.log('🔍 Selected Page:', selectedPage);
-    console.log('🔍 Workspace ID:', workspaceId);
-
+    
+    // Check individual fields
+    console.log('4. selectedPage.pageId:', selectedPage.pageId);
+    console.log('5. selectedPage.pageAccessToken:', selectedPage.pageAccessToken);
+    console.log('6. selectedPage.pageName:', selectedPage.pageName);
+    console.log('7. selectedPage.instagramBusinessAccountId:', selectedPage.instagramBusinessAccountId);
+    
+    // Build payload
     const payload = {
-      workspaceId,
+      workspaceId: workspaceId,
       pageId: selectedPage.pageId,
-      pageName: selectedPage.pageName,
       pageAccessToken: selectedPage.pageAccessToken,
-      category: selectedPage.category,
-      instagramBusinessAccountId: selectedPage.instagramBusinessAccountId
+      pageName: selectedPage.pageName,
+      instagramBusinessAccountId: selectedPage.instagramBusinessAccountId,
     };
-
-    console.log('🔍 Payload being sent:', payload);
-
-    // Check for missing required fields
+    
+    console.log('8. Final Payload:', payload);
+    console.log('9. Payload as JSON:', JSON.stringify(payload, null, 2));
+    
+    // Detailed validation
     const missingFields = [];
-    if (!payload.workspaceId) missingFields.push('workspaceId');
-    if (!payload.pageId) missingFields.push('pageId');
-    if (!payload.pageAccessToken) missingFields.push('pageAccessToken');
+    if (!payload.workspaceId) {
+      missingFields.push('workspaceId');
+      console.error('❌ workspaceId is missing or undefined');
+    }
+    if (!payload.pageId) {
+      missingFields.push('pageId');
+      console.error('❌ pageId is missing or undefined');
+    }
+    if (!payload.pageAccessToken) {
+      missingFields.push('pageAccessToken');
+      console.error('❌ pageAccessToken is missing or undefined');
+    }
     
     if (missingFields.length > 0) {
-      console.error('❌ Missing required fields:', missingFields);
-      setError(`Missing required fields: ${missingFields.join(', ')}`);
+      const errorMsg = `Missing required fields: ${missingFields.join(', ')}`;
+      console.error('❌ VALIDATION FAILED:', errorMsg);
+      setError(errorMsg);
       return;
     }
+    
+    console.log('✅ All required fields present, making API call...');
+    console.log('=== END DEBUG ===');
 
     setConnecting(true);
+    setError('');
 
     try {
       const response = await fetch('/api/facebook?action=connect-page', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
 
-      const result = await response.json();
+      const data = await response.json();
+      console.log('📥 Backend response:', data);
 
       if (!response.ok) {
-        throw new Error(result.error || 'Failed to connect page');
+        throw new Error(data.error || data.details || 'Failed to connect page');
       }
 
-      if (result.success) {
-        // ✅ Show success message
-        alert(`✅ Successfully connected to ${selectedPage.pageName}!`);
-        
-        // 🔄 Call parent callback
-        onPageSelected(selectedPage);
-        
-        // 🔄 Redirect to social media page after successful connection
-        setTimeout(() => {
-          window.location.href = '/social-media';
-        }, 1500); // Wait 1.5 seconds to show success message
-      } else {
-        throw new Error(result.error || 'Failed to connect page');
-      }
+      alert(`✅ Successfully connected to ${selectedPage.pageName}!`);
+      onPageSelected(selectedPage);
+
+      setTimeout(() => {
+        window.location.href = '/social-media';
+      }, 1500);
+
     } catch (err: any) {
-      console.error('Error connecting Facebook page:', err);
+      console.error('❌ Connection error:', err);
       setError(err.message || 'Failed to connect page');
     } finally {
       setConnecting(false);
