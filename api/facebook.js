@@ -1058,8 +1058,7 @@ export {
     handleGetConnections,
     handleConnectPage,
     handleListPages,
-    handleFacebookDiagnostics,
-    handleFacebookTest
+    handleFacebookDiagnostics
 };
 
 // Default export for Express.js router usage
@@ -1087,8 +1086,6 @@ export default async function(req, res) {
             return handleListPages(req, res);
         case 'diagnostics':
             return handleFacebookDiagnostics(req, res);
-        case 'test':
-            return handleFacebookTest(req, res);
         default:
             // Handle OAuth callback and other routes without action parameter
             if (pathname.includes('callback')) {
