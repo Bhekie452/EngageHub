@@ -303,7 +303,7 @@ export default function FacebookConnection() {
               Facebook
             </h4>
             <p className="text-xs text-gray-400 font-semibold mt-1 truncate uppercase tracking-wider">
-              Not Connected
+              {profileConnection?.connection_status === 'connected' ? 'Connected' : 'Not Connected'}
             </p>
           </div>
         </div>
@@ -311,10 +311,15 @@ export default function FacebookConnection() {
           <div className="flex-1">
             <button
               onClick={handleConnectFacebook}
-              disabled={loading}
-              className="px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-blue-600 text-white hover:bg-blue-700 disabled:bg-gray-300 disabled:text-gray-500 disabled:cursor-wait w-full"
+              disabled={loading || profileConnection?.connection_status === 'connected'}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors w-full ${
+                profileConnection?.connection_status === 'connected' 
+                  ? 'bg-green-600 text-white hover:bg-green-700' 
+                  : 'bg-blue-600 text-white hover:bg-blue-700'
+              } disabled:bg-gray-300 disabled:text-gray-500 disabled:cursor-wait`}
             >
-              {loading ? 'Connecting...' : 'Connect'}
+              {loading ? 'Connecting...' : 
+               profileConnection?.connection_status === 'connected' ? 'Connected' : 'Connect'}
             </button>
           </div>
         </div>
@@ -330,19 +335,6 @@ export default function FacebookConnection() {
           <div className="w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 shadow-sm transition-transform group-hover:scale-105 duration-300 bg-white border border-gray-50">
             <Facebook size={28} className="text-blue-600" />
           </div>
-          <div className="overflow-hidden">
-            <h4 className="text-md font-black truncate leading-tight text-gray-900">
-              {profileConnection.display_name || 'Facebook Profile'}
-            </h4>
-            <div className="flex items-center gap-2 mt-1">
-              <span className="flex items-center gap-1.5 text-[10px] font-black text-green-600 bg-green-50 px-2.5 py-1 rounded-full uppercase tracking-wider border border-green-100 shadow-sm w-fit">
-                <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
-                Live
-              </span>
-              <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">
-                Connected
-              </p>
-            </div>
           </div>
         </div>
         <button
