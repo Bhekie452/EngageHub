@@ -65,6 +65,13 @@ export default function FacebookPageSelector({ onPageSelected, onCancel, workspa
       }
 
       if (data.success && data.pages) {
+        console.log('📄 Received Facebook pages:', data.pages.length);
+        
+        // 🔍 CRITICAL DEBUG: Show exact structure of pages
+        console.log('🔍 Pages array structure:', JSON.stringify(data.pages, null, 2));
+        console.log('🔍 First page object:', data.pages[0]);
+        console.log('🔍 Second page object:', data.pages[1]);
+        
         setPages(data.pages);
       } else {
         throw new Error('No pages found');
@@ -104,13 +111,13 @@ export default function FacebookPageSelector({ onPageSelected, onCancel, workspa
     console.log('6. selectedPage.pageName:', selectedPage.pageName);
     console.log('7. selectedPage.instagramBusinessAccountId:', selectedPage.instagramBusinessAccountId);
     
-    // Build payload
+    // Build payload with field name fallbacks
     const payload = {
       workspaceId: workspaceId,
-      pageId: selectedPage.pageId,
-      pageAccessToken: selectedPage.pageAccessToken,
-      pageName: selectedPage.pageName,
-      instagramBusinessAccountId: selectedPage.instagramBusinessAccountId,
+      pageId: selectedPage.pageId || selectedPage.id,                    // ← Try both
+      pageAccessToken: selectedPage.pageAccessToken || selectedPage.access_token, // ← Try both
+      pageName: selectedPage.pageName || selectedPage.name,              // ← Try both
+      instagramBusinessAccountId: selectedPage.instagramBusinessAccountId || selectedPage.instagram_business_account,
     };
     
     console.log('8. Final Payload:', payload);
