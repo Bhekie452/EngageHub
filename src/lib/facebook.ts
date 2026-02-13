@@ -58,7 +58,7 @@ const FB_LOCK = 'facebook_oauth_lock';
  */
 const getLoginScope = (): string =>
     import.meta.env.VITE_FACEBOOK_SCOPES || 
-    'public_profile,email,pages_show_list,pages_read_engagement,pages_manage_posts,instagram_basic,instagram_content_publish,instagram_manage_comments,instagram_manage_insights';
+    'email,public_profile,pages_show_list,instagram_basic,pages_read_engagement,pages_manage_posts';
 
 /**
  * Get redirect URI - use dedicated callback route for consistency
