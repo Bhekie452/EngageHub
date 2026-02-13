@@ -66,7 +66,7 @@ async function handleFacebookAuth(req, res) {
 
     // 🔥 CRITICAL: Use the FRONTEND callback URL which is whitelisted in Meta
     const origin = req.headers.referer ? new URL(req.headers.referer).origin : (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
-    const REDIRECT_URI = customRedirect || `${origin}/auth/facebook/callback`;
+    const REDIRECT_URI = customRedirect || `${origin}/pages/auth/facebook/callback`;
 
     // We pass workspaceId in the 'state' parameter to recover it in the callback
     const state = JSON.stringify({ workspaceId, origin: req.headers.referer });
