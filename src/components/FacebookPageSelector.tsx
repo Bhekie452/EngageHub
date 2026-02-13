@@ -83,7 +83,7 @@ export default function FacebookPageSelector({ onPageSelected, onCancel, workspa
       return;
     }
 
-    const selectedPage = pages.find(p => p.id === selectedPageId);
+    const selectedPage = pages.find(p => p.pageId === selectedPageId);
     if (!selectedPage) {
       setError('Selected page not found');
       return;
