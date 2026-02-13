@@ -33,6 +33,26 @@ async function markCodeAsUsed(code) {
     return true;
 }
 
+/**
+ * Resolves the owner_id of a workspace to avoid FK violations on connected_by
+ */
+async function getWorkspaceOwner(workspaceId) {
+    if (!workspaceId) return '00000000-0000-0000-0000-000000000000';
+
+    const { data, error } = await supabase
+        .from('workspaces')
+        .select('owner_id')
+        .eq('id', workspaceId)
+        .single();
+
+    if (error || !data) {
+        console.error('⚠️ Could not resolve workspace owner:', error);
+        return '00000000-0000-0000-0000-000000000000';
+    }
+
+    return data.owner_id;
+}
+
 // ------------------------------------------------------------------
 //  0️⃣  Auth Initiation – Redirect user to Facebook
 // ------------------------------------------------------------------
@@ -403,12 +423,16 @@ async function handleFacebookSimple(req, res) {
         // ----- 5️⃣  Persist user + page connections in Supabase -----
         if (workspaceId && longTermToken) {
             try {
+                // Resolve real owner ID to avoid FK violation
+                const ownerId = await getWorkspaceOwner(workspaceId);
+                console.log('👤 Resolved workspace owner for connection:', ownerId);
+
                 // --- user (profile) connection ---------------------------------
                 const { data: userConn, error: userErr, } = await supabase
                     .from('social_accounts')
                     .upsert({
                         workspace_id: workspaceId,
-                        connected_by: '00000000-0000-0000-0000-000000000000', // TODO: replace with real user ID
+                        connected_by: ownerId,
                         platform: 'facebook',
                         account_type: 'profile',
                         account_id: 'me',
@@ -433,8 +457,15 @@ async function handleFacebookSimple(req, res) {
                     }, { onConflict: 'workspace_id,platform,account_id' })
                     .select()
                     .single();
-                if (userErr)
-                    throw userErr;
+
+                if (userErr) {
+                    console.error('❌ Database error while persisting profile:', userErr);
+                    return res.status(500).json({
+                        error: 'Database error',
+                        message: 'Failed to save Facebook profile connection',
+                        details: userErr.message
+                    });
+                }
                 console.log('✅ Facebook user connection saved:', userConn.id);
                 // --- each PAGE connection ------------------------------------
                 // 🔥 MODIFIED: Do NOT auto-connect pages. 
@@ -807,12 +838,16 @@ async function handleConnectPage(req, res) {
                 details: verifyData.error.message,
             });
         }
+        // Resolve real owner ID to avoid FK violation
+        const ownerId = await getWorkspaceOwner(workspaceId);
+        console.log('👤 Resolved workspace owner for page connection:', ownerId);
+
         // Store page connection in database
         const { data: pageConn, error: pageErr } = await supabase
             .from('social_accounts')
             .upsert({
                 workspace_id: workspaceId,
-                connected_by: '00000000-0000-0000-0000-000000000000', // TODO: real user ID
+                connected_by: ownerId,
                 platform: 'facebook',
                 account_type: 'page',
                 account_id: pageId,
