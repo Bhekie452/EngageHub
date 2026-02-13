@@ -122,9 +122,22 @@ export default function FacebookConnection() {
       ]);
 
       const dbConnections = results[0].status === 'fulfilled' ? results[0].value.data : [];
-      const pagesData = results[1].status === 'fulfilled'
-        ? (results[1].value as any)
-        : { success: false, pages: [] };
+
+      let pagesData = { success: false, pages: [] };
+      if (results[1].status === 'fulfilled') {
+        const val = results[1].value as any;
+        if (val instanceof Response) {
+          if (val.ok) {
+            pagesData = await val.json();
+          } else {
+            const errorText = await val.text();
+            console.error('❌ Failed to fetch available pages:', val.status, errorText);
+            // Don't throw, just proceed with DB connections
+          }
+        } else {
+          pagesData = val;
+        }
+      }
 
       setConnections(dbConnections || []);
 

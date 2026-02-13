@@ -186,11 +186,12 @@ async function handleFacebookExchangeAction(req, res) {
         }));
 
         // 3. Store Profile and Pages info in Supabase
+        const ownerId = await getWorkspaceOwner(workspaceId);
         const { data: userConn, error: userErr } = await supabase
             .from('social_accounts')
             .upsert({
                 workspace_id: workspaceId,
-                connected_by: '00000000-0000-0000-0000-000000000000', // System user or handle correctly
+                connected_by: ownerId,
                 platform: 'facebook',
                 account_type: 'profile',
                 account_id: 'me',
@@ -513,7 +514,7 @@ async function handleFacebookSimple(req, res) {
             .json({ error: 'Missing workspaceId query parameter' });
     }
     // UUID validation (helps catch typos early)
-    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(workspaceId)) {
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(workspaceId)) {
         console.error('❌ Invalid workspaceId format:', workspaceId);
         return res.status(400).json({
             error: 'Invalid workspaceId format',
@@ -756,7 +757,7 @@ async function handleGetConnections(req, res) {
             .status(400)
             .json({ error: 'Missing workspaceId query parameter' });
     }
-    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(workspaceId)) {
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(workspaceId)) {
         return res.status(400).json({
             error: 'Invalid workspaceId format',
             details: 'workspaceId must be a valid UUID',
