@@ -1,5 +1,6 @@
 import { supabase } from "./lib/supabase.js";
 import { createHash } from "crypto";
+const { URL } = require('url'); // Use modern WHATWG URL API
 
 // ------------------------------------------------------------------
 //  Database-backed OAuth code guard (shared across all Vercel instances)
