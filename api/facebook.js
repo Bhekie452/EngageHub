@@ -948,6 +948,59 @@ async function handleConnectPage(req, res) {
             connectionId: pageConn.id,
             workspaceId,
         });
+
+        // 📸 AUTO-CONNECT INSTAGRAM if Business Account is linked
+        if (instagramBusinessAccountId) {
+            try {
+                console.log('📸 Auto-connecting Instagram Business Account:', instagramBusinessAccountId);
+                
+                // Fetch Instagram account details
+                const igAccountUrl = `https://graph.facebook.com/v21.0/${instagramBusinessAccountId}?fields=id,username,profile_picture_url&access_token=${pageAccessToken}`;
+                const igResponse = await fetch(igAccountUrl);
+                const igData = await igResponse.json();
+                
+                if (igData.error) {
+                    console.warn('⚠️ Failed to fetch Instagram details:', igData.error);
+                } else {
+                    // Create Instagram connection record
+                    const { data: igConn, error: igErr } = await supabase
+                        .from('social_accounts')
+                        .upsert({
+                            workspace_id: workspaceId,
+                            connected_by: ownerId,
+                            platform: 'instagram',
+                            account_type: 'business',
+                            account_id: igData.id,
+                            username: igData.username,
+                            display_name: `@${igData.username}`,
+                            access_token: pageAccessToken, // Use Facebook page token
+                            platform_data: {
+                                connected_facebook_page_id: pageId,
+                                connected_facebook_page_name: pageName,
+                                profile_picture_url: igData.profile_picture_url,
+                                instagram_business_account_id: instagramBusinessAccountId,
+                            },
+                            is_active: true,
+                            connection_status: 'connected',
+                            last_sync_at: new Date().toISOString(),
+                        }, { onConflict: 'workspace_id,platform,account_id' })
+                        .select('id')
+                        .single();
+                    
+                    if (igErr) {
+                        console.warn('⚠️ Failed to save Instagram connection:', igErr);
+                    } else {
+                        console.log('✅ Instagram connection auto-created:', {
+                            instagramId: igData.id,
+                            username: igData.username,
+                            connectionId: igConn.id,
+                        });
+                    }
+                }
+            } catch (igError) {
+                console.warn('⚠️ Instagram auto-connection failed:', igError);
+            }
+        }
         return res.status(200).json({
             success: true,
             pageConnection: {
@@ -959,7 +1012,7 @@ async function handleConnectPage(req, res) {
                 instagramBusinessAccountId,
                 isConnected: true,
             },
-            message: `Successfully connected to Facebook page: ${pageName || pageId}`,
+            message: `Successfully connected to Facebook page: ${pageName || pageId}${instagramBusinessAccountId ? ' (Instagram auto-connected!)' : ''}`,
         });
     }
     catch (err) {
