@@ -38,6 +38,56 @@ This guide will help you set up TikTok OAuth integration for EngageHub.
 **Important Notes:**
 - TikTok uses OAuth 2.0 with PKCE (Proof Key for Code Exchange)
 - The Client Secret is only used server-side (backend)
+
+---
+
+## 🎣 Step 3: Configure Webhook (Optional but Recommended)
+
+1. In your TikTok App settings, go to **"Webhooks"** tab
+2. Add webhook URL: `https://engage-hub-ten.vercel.app/api/tiktok/webhook`
+3. Select events to subscribe to:
+   - ✅ **Video Upload** - When user uploads new video
+   - ✅ **Video Status Update** - When video processing status changes
+   - ✅ **Comment Create** - When new comments are posted
+   - ✅ **Follower Update** - When follower count changes
+4. Set **Webhook Secret** (generate a secure random string)
+5. Add webhook secret to your environment variables: `TIKTOK_WEBHOOK_SECRET`
+
+**Environment Variables Needed:**
+```bash
+TIKTOK_CLIENT_KEY=your_client_key
+TIKTOK_CLIENT_SECRET=your_client_secret
+TIKTOK_WEBHOOK_SECRET=your_webhook_secret
+```
+
+---
+
+## 🗄️ Step 4: Database Setup
+
+Run the SQL commands in `database/tiktok-schema.sql` in your Supabase SQL editor to create:
+- `tiktok_accounts` table - Store account and follower data
+- `tiktok_videos` table - Store video metadata and stats
+- `tiktok_comments` table - Store comment data
+- Proper indexes and RLS policies
+
+---
+
+## 🚀 Step 5: Test Webhook
+
+Use curl to test your webhook:
+```bash
+curl -X POST https://engage-hub-ten.vercel.app/api/tiktok/webhook \
+  -H "Content-Type: application/json" \
+  -H "X-TikTok-Signature: test" \
+  -H "X-TikTok-Timestamp: $(date +%s)" \
+  -d '{
+    "event": "video.upload",
+    "data": {
+      "video_id": "test123",
+      "title": "Test Video"
+    }
+  }'
+```
 - Never expose the Client Secret in frontend code
 
 ---
