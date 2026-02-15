@@ -311,6 +311,21 @@ export default async function handler(req, res) {
             case 'verify-page':
                 // verify a page token is valid
                 return await handleVerifyPage(req, res);
+            case 'get-posts':
+                // fetch Facebook posts for engagement
+                return await handleGetPosts(req, res);
+            case 'get-comments':
+                // fetch comments for a specific post
+                return await handleGetComments(req, res);
+            case 'like-post':
+                // like a Facebook post
+                return await handleLikePost(req, res);
+            case 'comment-post':
+                // comment on a Facebook post
+                return await handleCommentPost(req, res);
+            case 'get-engagement-metrics':
+                // get overall engagement metrics
+                return await handleGetEngagementMetrics(req, res);
             default:
                 // Anything that is not one of the above actions
                 return res
@@ -1112,6 +1127,274 @@ async function handleVerifyPage(req, res) {
 }
 
 // ------------------------------------------------------------------
+// 🔥 Facebook Engagement Functions
+// ------------------------------------------------------------------
+async function handleGetPosts(req, res) {
+    if (req.method !== 'GET')
+        return res.status(405).json({ error: 'Method not allowed' });
+    
+    const { workspaceId, limit = 20 } = req.query;
+    
+    if (!workspaceId) {
+        return res.status(400).json({ error: 'Missing workspaceId' });
+    }
+    
+    try {
+        // Get Facebook pages for this workspace
+        const { data: pages, error: pagesError } = await supabase
+            .from('social_accounts')
+            .select('access_token, account_id')
+            .eq('workspace_id', workspaceId)
+            .eq('platform', 'facebook')
+            .eq('account_type', 'page')
+            .eq('connection_status', 'connected');
+        
+        if (pagesError || !pages || pages.length === 0) {
+            return res.status(400).json({ error: 'No connected Facebook pages found' });
+        }
+        
+        // Fetch posts from all connected pages
+        const allPosts = [];
+        
+        for (const page of pages) {
+            const postsUrl = `https://graph.facebook.com/v21.0/${page.account_id}/posts?` +
+                `fields=id,message,created_time,like_count,comment_count,share_count,permalink_url` +
+                `&limit=${limit}&access_token=${page.access_token}`;
+            
+            const response = await fetch(postsUrl);
+            const data = await response.json();
+            
+            if (data.error) {
+                console.warn(`⚠️ Failed to fetch posts for page ${page.account_id}:`, data.error);
+                continue;
+            }
+            
+            if (data.data) {
+                allPosts.push(...data.data);
+            }
+        }
+        
+        // Sort by most recent
+        allPosts.sort((a, b) => new Date(b.created_time).getTime() - new Date(a.created_time).getTime());
+        
+        console.log(`📱 Fetched ${allPosts.length} Facebook posts`);
+        
+        return res.status(200).json({ posts: allPosts });
+    }
+    catch (err) {
+        console.error('❌ Get posts error:', err);
+        return res.status(500).json({ error: 'Failed to fetch posts', details: err.message });
+    }
+}
+
+async function handleGetComments(req, res) {
+    if (req.method !== 'GET')
+        return res.status(405).json({ error: 'Method not allowed' });
+    
+    const { postId, limit = 50 } = req.query;
+    
+    if (!postId) {
+        return res.status(400).json({ error: 'Missing postId' });
+    }
+    
+    try {
+        // Get page access token for this post
+        const { data: postConnection } = await supabase
+            .from('social_accounts')
+            .select('access_token')
+            .eq('platform', 'facebook')
+            .eq('account_type', 'page')
+            .like('platform_data->>posts', 'array', 'contains', postId)
+            .eq('connection_status', 'connected')
+            .single();
+        
+        if (!postConnection) {
+            return res.status(400).json({ error: 'Post not found or page not connected' });
+        }
+        
+        const commentsUrl = `https://graph.facebook.com/v21.0/${postId}/comments?` +
+            `fields=id,from,message,created_time` +
+            `&limit=${limit}&access_token=${postConnection.access_token}`;
+        
+        const response = await fetch(commentsUrl);
+        const data = await response.json();
+        
+        if (data.error) {
+            throw new Error(data.error.message);
+        }
+        
+        console.log(`💬 Fetched ${data.data?.length || 0} comments for post ${postId}`);
+        
+        return res.status(200).json({ comments: data.data || [] });
+    }
+    catch (err) {
+        console.error('❌ Get comments error:', err);
+        return res.status(500).json({ error: 'Failed to fetch comments', details: err.message });
+    }
+}
+
+async function handleLikePost(req, res) {
+    if (req.method !== 'POST')
+        return res.status(405).json({ error: 'Method not allowed' });
+    
+    const { postId, workspaceId } = req.body;
+    
+    if (!postId || !workspaceId) {
+        return res.status(400).json({ error: 'Missing postId or workspaceId' });
+    }
+    
+    try {
+        // Get page access token
+        const { data: pageConnection } = await supabase
+            .from('social_accounts')
+            .select('access_token')
+            .eq('workspace_id', workspaceId)
+            .eq('platform', 'facebook')
+            .eq('account_type', 'page')
+            .like('platform_data->>posts', 'array', 'contains', postId)
+            .eq('connection_status', 'connected')
+            .single();
+        
+        if (!pageConnection) {
+            return res.status(400).json({ error: 'Page not connected for this post' });
+        }
+        
+        // Like the post
+        const likeUrl = `https://graph.facebook.com/v21.0/${postId}/likes?access_token=${pageConnection.access_token}`;
+        const response = await fetch(likeUrl, { method: 'POST' });
+        const data = await response.json();
+        
+        if (data.error) {
+            throw new Error(data.error.message);
+        }
+        
+        console.log(`👍 Liked Facebook post ${postId}`);
+        
+        return res.status(200).json({ success: true });
+    }
+    catch (err) {
+        console.error('❌ Like post error:', err);
+        return res.status(500).json({ error: 'Failed to like post', details: err.message });
+    }
+}
+
+async function handleCommentPost(req, res) {
+    if (req.method !== 'POST')
+        return res.status(405).json({ error: 'Method not allowed' });
+    
+    const { postId, message, workspaceId } = req.body;
+    
+    if (!postId || !message || !workspaceId) {
+        return res.status(400).json({ error: 'Missing postId, message, or workspaceId' });
+    }
+    
+    try {
+        // Get page access token
+        const { data: pageConnection } = await supabase
+            .from('social_accounts')
+            .select('access_token')
+            .eq('workspace_id', workspaceId)
+            .eq('platform', 'facebook')
+            .eq('account_type', 'page')
+            .like('platform_data->>posts', 'array', 'contains', postId)
+            .eq('connection_status', 'connected')
+            .single();
+        
+        if (!pageConnection) {
+            return res.status(400).json({ error: 'Page not connected for this post' });
+        }
+        
+        // Comment on the post
+        const commentUrl = `https://graph.facebook.com/v21.0/${postId}/comments?` +
+            `message=${encodeURIComponent(message)}&access_token=${pageConnection.access_token}`;
+        
+        const response = await fetch(commentUrl, { method: 'POST' });
+        const data = await response.json();
+        
+        if (data.error) {
+            throw new Error(data.error.message);
+        }
+        
+        console.log(`💬 Commented on Facebook post ${postId}`);
+        
+        return res.status(200).json({ success: true });
+    }
+    catch (err) {
+        console.error('❌ Comment post error:', err);
+        return res.status(500).json({ error: 'Failed to comment on post', details: err.message });
+    }
+}
+
+async function handleGetEngagementMetrics(req, res) {
+    if (req.method !== 'GET')
+        return res.status(405).json({ error: 'Method not allowed' });
+    
+    const { workspaceId } = req.query;
+    
+    if (!workspaceId) {
+        return res.status(400).json({ error: 'Missing workspaceId' });
+    }
+    
+    try {
+        // Get all Facebook posts for metrics calculation
+        const { data: pages } = await supabase
+            .from('social_accounts')
+            .select('access_token, account_id')
+            .eq('workspace_id', workspaceId)
+            .eq('platform', 'facebook')
+            .eq('account_type', 'page')
+            .eq('connection_status', 'connected');
+        
+        if (!pages || pages.length === 0) {
+            return res.status(200).json({ 
+                totalLikes: 0, 
+                totalComments: 0, 
+                totalShares: 0, 
+                totalPosts: 0 
+            });
+        }
+        
+        let totalLikes = 0;
+        let totalComments = 0;
+        let totalShares = 0;
+        let totalPosts = 0;
+        
+        // Fetch metrics from all connected pages
+        for (const page of pages) {
+            const postsUrl = `https://graph.facebook.com/v21.0/${page.account_id}/posts?` +
+                `fields=like_count,comment_count,share_count&limit=100&access_token=${page.access_token}`;
+            
+            const response = await fetch(postsUrl);
+            const data = await response.json();
+            
+            if (data.data) {
+                for (const post of data.data) {
+                    totalLikes += post.like_count || 0;
+                    totalComments += post.comment_count || 0;
+                    totalShares += post.share_count || 0;
+                    totalPosts++;
+                }
+            }
+        }
+        
+        console.log(`📊 Facebook engagement metrics:`, {
+            totalLikes, totalComments, totalShares, totalPosts
+        });
+        
+        return res.status(200).json({ 
+            totalLikes, 
+            totalComments, 
+            totalShares, 
+            totalPosts 
+        });
+    }
+    catch (err) {
+        console.error('❌ Get engagement metrics error:', err);
+        return res.status(500).json({ error: 'Failed to fetch metrics', details: err.message });
+    }
+}
+
+// ------------------------------------------------------------------
 // ES Module Exports
 // ------------------------------------------------------------------
 export {
@@ -1123,5 +1406,11 @@ export {
     handleGetConnections,
     handleConnectPage,
     handleListPages,
+    handleVerifyPage,
+    handleGetPosts,
+    handleGetComments,
+    handleLikePost,
+    handleCommentPost,
+    handleGetEngagementMetrics,
     handleFacebookDiagnostics
 };
