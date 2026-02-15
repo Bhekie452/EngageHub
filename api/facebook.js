@@ -93,7 +93,7 @@ async function handleFacebookAuth(req, res) {
         `client_id=${FACEBOOK_APP_ID}` +
         `&redirect_uri=${encodeURIComponent(REDIRECT_URI)}` +
         `&state=${encodeURIComponent(state)}` +
-        `&scope=email,public_profile,pages_show_list,instagram_basic,pages_read_engagement,pages_manage_posts`;
+        `&scope=email,public_profile,pages_show_list,instagram_basic,pages_read_engagement,pages_manage_posts,pages_manage_engagement`;
 
     console.log('🔗 Redirecting to Facebook Auth:', authUrl);
     return res.redirect(authUrl);
