@@ -2,6 +2,7 @@ import dotenv from 'dotenv';
 import { createClient } from '@supabase/supabase-js';
 import { createHash } from 'crypto';
 import { URL } from 'url'; // Use modern WHATWG URL API
+import { handleTikTokWebhook } from './tiktok.js'; // ✅ ES module import
 
 dotenv.config();
 
@@ -1400,7 +1401,7 @@ async function handleGetEngagementMetrics(req, res) {
 // ------------------------------------------------------------------
 // 🎵 TikTok Webhook Handler
 // ------------------------------------------------------------------
-const { handleTikTokWebhook } = require('./tiktok.js');
+// ES module import moved to top of file
 
 // ------------------------------------------------------------------
 // ES Module Exports
