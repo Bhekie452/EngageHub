@@ -46,36 +46,49 @@ export default function FacebookEngagement() {
   }, []);
 
   const fetchCombinedData = () => {
+    console.log('🔍 fetchCombinedData called');
+    
     // Try to get combined metrics from localStorage first
     const combinedData = localStorage.getItem('facebook_combined_metrics');
+    console.log('📊 localStorage data:', combinedData);
+    
     if (combinedData) {
       try {
         const parsed = JSON.parse(combinedData);
         console.log('📊 Using combined Facebook metrics:', parsed);
+        console.log('📝 Posts count:', parsed.posts?.length || 0);
         
-        setPosts(parsed.posts || []);
-        setMetrics({
-          totalLikes: parsed.totalLikes || 0,
-          totalComments: parsed.totalComments || 0,
-          totalShares: parsed.totalShares || 0,
-          totalPosts: parsed.posts?.length || 0,
-          nativeLikes: parsed.breakdown?.native?.likes || 0,
-          nativeComments: parsed.breakdown?.native?.comments || 0,
-          engagehubLikes: parsed.breakdown?.engagehub?.likes || 0,
-          engagehubComments: parsed.breakdown?.engagehub?.comments || 0
-        });
-        setBreakdown(parsed.breakdown || {
-          native: { likes: 0, comments: 0 },
-          engagehub: { likes: 0, comments: 0 },
-          combined: { likes: 0, comments: 0 }
-        });
-        return;
+        if (parsed.posts && parsed.posts.length > 0) {
+          setPosts(parsed.posts);
+          setMetrics({
+            totalLikes: parsed.totalLikes || 0,
+            totalComments: parsed.totalComments || 0,
+            totalShares: parsed.totalShares || 0,
+            totalPosts: parsed.posts?.length || 0,
+            nativeLikes: parsed.breakdown?.native?.likes || 0,
+            nativeComments: parsed.breakdown?.native?.comments || 0,
+            engagehubLikes: parsed.breakdown?.engagehub?.likes || 0,
+            engagehubComments: parsed.breakdown?.engagehub?.comments || 0
+          });
+          setBreakdown(parsed.breakdown || {
+            native: { likes: 0, comments: 0 },
+            engagehub: { likes: 0, comments: 0 },
+            combined: { likes: 0, comments: 0 }
+          });
+          console.log('✅ Combined data loaded successfully');
+          return;
+        } else {
+          console.log('⚠️ Combined data found but no posts');
+        }
       } catch (error) {
-        console.error('Error parsing combined metrics:', error);
+        console.error('❌ Error parsing combined metrics:', error);
       }
+    } else {
+      console.log('❌ No combined data found in localStorage');
     }
 
     // Fallback to original API calls
+    console.log('🔄 Falling back to original API calls');
     fetchPosts();
     fetchMetrics();
   };
