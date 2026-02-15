@@ -301,6 +301,7 @@ export default async function handler(req, res) {
                 // test whether a token is still good
                 return await handleValidateToken(req, res);
             case 'connections':
+            case 'get-connections':  // ✅ Add alias for frontend compatibility
                 // get all stored FB connections for a workspace
                 return await handleGetConnections(req, res);
             case 'connect-page':
