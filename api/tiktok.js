@@ -1,7 +1,9 @@
-require('dotenv').config();
-const express = require('express');
-const crypto = require('crypto');
-const { createClient } = require('@supabase/supabase-js');
+import dotenv from 'dotenv';
+import express from 'express';
+import crypto from 'crypto';
+import { createClient } from '@supabase/supabase-js';
+
+dotenv.config();
 
 // Initialize Supabase
 const supabase = createClient(
@@ -228,9 +230,9 @@ async function handleFollowerUpdate(data, workspaceId) {
 }
 
 // ------------------------------------------------------------------
-//  Exports
+//  ES Module Exports
 // ------------------------------------------------------------------
-module.exports = {
+export {
   handleTikTokWebhook,
   handleVideoUpload,
   handleVideoStatusUpdate,
