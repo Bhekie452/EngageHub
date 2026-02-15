@@ -133,20 +133,32 @@ const handlePublishPost = async (req: VercelRequest, res: VercelResponse) => {
             // Instagram logic (simplified redirect/proxy)
             if (!accountId) throw new Error('Instagram requires a Business Account ID');
             
+            // Check if media URLs are provided
+            if (!mediaUrls || mediaUrls.length === 0) {
+              throw new Error('Media ID is not available. Instagram requires media (image/video) to be uploaded first.');
+            }
+            
+            // Use the first media URL
+            const mediaUrl = mediaUrls[0];
+            console.log('📸 Instagram media URL from utils.ts:', mediaUrl);
+            
             // Step 1: Create media container
             const containerUrl = `https://graph.facebook.com/v21.0/${accountId}/media`;
             const containerRes = await fetch(containerUrl, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
-                image_url: mediaUrls?.[0] || 'https://via.placeholder.com/1080x1080/000000/FFFFFF?text=Post',
+                image_url: mediaUrl,
                 caption: content,
                 access_token: token
               })
             });
             
             const containerData = await containerRes.json();
+            console.log('📸 Instagram media container response from utils.ts:', containerData);
+            
             if (containerData.error) throw new Error(containerData.error.message);
+            if (!containerData.id) throw new Error('Media ID is not available. Instagram media container was created but no media ID was returned.');
             
             // Step 2: Publish
             const publishUrl = `https://graph.facebook.com/v21.0/${accountId}/media_publish`;
