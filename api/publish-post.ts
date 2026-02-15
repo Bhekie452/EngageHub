@@ -25,7 +25,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       method: req.method,
       body: req.body,
       platforms,
-      content
+      content,
+      mediaUrls: mediaUrls || 'none'
     });
     
     if (!platforms || !Array.isArray(platforms)) {
@@ -151,10 +152,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               const page = pagesWithInstagram[0];
               const instagramBusinessAccountId = page.instagram_business_account.id;
               
+              // Check if media URLs are provided
+              if (!mediaUrls || mediaUrls.length === 0) {
+                results.instagram = { 
+                  status: 'error', 
+                  error: 'Media ID is not available',
+                  details: 'No media URLs provided for Instagram post. Instagram requires media (image/video) to be uploaded first.'
+                };
+                return;
+              }
+              
+              // Use the first media URL for Instagram
+              const mediaUrl = mediaUrls[0];
+              console.log('📸 Instagram media URL:', mediaUrl);
+              
               // Create media container first
               const mediaContainerUrl = `https://graph.facebook.com/v21.0/${instagramBusinessAccountId}/media`;
               const mediaContainerData = {
-                image_url: 'https://via.placeholder.com/1080x1080/000000/FFFFFF?text=Instagram+Post', // Placeholder image
+                image_url: mediaUrl,
                 caption: content,
                 access_token: page.access_token
               };
@@ -166,12 +181,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               });
               
               const mediaContainerResult = await mediaContainerResponse.json();
+              console.log('📸 Instagram media container response:', mediaContainerResult);
               
               if (mediaContainerResult.error) {
                 results.instagram = { 
                   status: 'error', 
                   error: 'Failed to create Instagram media',
                   details: mediaContainerResult.error.message
+                };
+              } else if (!mediaContainerResult.id) {
+                results.instagram = { 
+                  status: 'error', 
+                  error: 'Media ID is not available',
+                  details: 'Instagram media container was created but no media ID was returned. This could be due to invalid media URL or insufficient permissions.'
                 };
               } else {
                 // Publish the media container
