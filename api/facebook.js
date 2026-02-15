@@ -326,6 +326,9 @@ export default async function handler(req, res) {
             case 'get-engagement-metrics':
                 // get overall engagement metrics
                 return await handleGetEngagementMetrics(req, res);
+            case 'tiktok-webhook':
+                // handle TikTok webhook events
+                return await handleTikTokWebhook(req, res);
             default:
                 // Anything that is not one of the above actions
                 return res
@@ -1395,6 +1398,11 @@ async function handleGetEngagementMetrics(req, res) {
 }
 
 // ------------------------------------------------------------------
+// 🎵 TikTok Webhook Handler
+// ------------------------------------------------------------------
+const { handleTikTokWebhook } = require('./tiktok.js');
+
+// ------------------------------------------------------------------
 // ES Module Exports
 // ------------------------------------------------------------------
 export {
@@ -1412,5 +1420,6 @@ export {
     handleLikePost,
     handleCommentPost,
     handleGetEngagementMetrics,
+    handleTikTokWebhook, // Add TikTok webhook handler
     handleFacebookDiagnostics
 };
