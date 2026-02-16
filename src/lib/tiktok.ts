@@ -76,8 +76,8 @@ export const connectTikTok = async () => {
         }
 
         try {
-            // TikTok OAuth 2.0 scopes
-            const scope = 'user.info.basic video.publish';
+            // TikTok OAuth 2.0 scopes - try single scope first to isolate issue
+            const scope = 'user.info.basic';
             const oauthState = 'tiktok_oauth';
             const redirectUri = getRedirectURI();
 
