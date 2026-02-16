@@ -85,8 +85,11 @@ export const connectTikTok = async () => {
             const codeVerifier = generateCodeVerifier();
             const codeChallenge = await generateCodeChallenge(codeVerifier);
 
-            // Store code verifier for later use in token exchange
+            // Store code verifier for later use in token exchange (store as cookie for backend access)
             sessionStorage.setItem('tiktok_oauth_code_verifier', codeVerifier);
+            
+            // Also store as cookie for backend access
+            document.cookie = `tiktok_oauth_code_verifier=${codeVerifier}; path=/; max-age=600; SameSite=Lax`;
 
             // TikTok OAuth 2.0 authorization endpoint
             const authUrl = `https://www.tiktok.com/v2/auth/authorize?client_key=${TIKTOK_CLIENT_KEY}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent(scope)}&state=${oauthState}&code_challenge=${codeChallenge}&code_challenge_method=S256`;

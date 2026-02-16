@@ -39,19 +39,52 @@ export default async function handler(req, res) {
 
     console.log('[tiktok-callback] Authorization code received:', code.substring(0, 20) + '...');
 
-    // Exchange authorization code for access token
+    // Get code verifier from session storage (stored during OAuth initiation)
+    let codeVerifier = null;
+    
+    // Try to get code verifier from various sources
+    if (req.headers.cookie) {
+      const cookies = req.headers.cookie.split(';').reduce((acc, cookie) => {
+        const [key, value] = cookie.trim().split('=');
+        acc[key] = value;
+        return acc;
+      }, {});
+      codeVerifier = cookies.tiktok_oauth_code_verifier;
+    }
+    
+    // Fallback to query parameter or session
+    if (!codeVerifier && req.query.code_verifier) {
+      codeVerifier = req.query.code_verifier;
+    }
+    
+    console.log('[tiktok-callback] Code verifier found:', !!codeVerifier);
+
+    // Exchange authorization code for access token with PKCE
+    const tokenRequestBody = {
+      client_key: process.env.TIKTOK_CLIENT_KEY || 'sbawvd31u17vw8ajd3',
+      client_secret: process.env.TIKTOK_CLIENT_SECRET,
+      code: code,
+      grant_type: 'authorization_code',
+      redirect_uri: process.env.TIKTOK_REDIRECT_URI || 'https://engage-hub-ten.vercel.app'
+    };
+    
+    // Add code verifier if available (required for PKCE)
+    if (codeVerifier) {
+      tokenRequestBody.code_verifier = codeVerifier;
+    }
+    
+    console.log('[tiktok-callback] Token exchange request:', {
+      ...tokenRequestBody,
+      client_secret: tokenRequestBody.client_secret ? '[REDACTED]' : null,
+      code: tokenRequestBody.code ? code.substring(0, 20) + '...' : null
+    });
+
     const tokenResponse = await fetch('https://open.tiktokapis.com/v2/oauth/token/', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
       },
-      body: new URLSearchParams({
-        client_key: process.env.TIKTOK_CLIENT_KEY || 'sbawvd31u17vw8ajd3',
-        client_secret: process.env.TIKTOK_CLIENT_SECRET,
-        code: code,
-        grant_type: 'authorization_code',
-        redirect_uri: process.env.TIKTOK_REDIRECT_URI || 'https://engage-hub-ten.vercel.app'
-      })
+      body: new URLSearchParams(tokenRequestBody)
     });
 
     const tokenData = await tokenResponse.json();
