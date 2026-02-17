@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>TikTok OAuth Callback - Immediate Exchange</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 600px; margin: 50px auto; padding: 20px; }
+        .status { padding: 15px; border-radius: 5px; margin: 10px 0; }
+        .success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .info { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+        .loading { background: #fff3cd; color: #856404; border: 1px solid #ffeaa7; }
+        pre { background: #f8f9fa; padding: 10px; border-radius: 3px; overflow-x: auto; }
+        button { background: #007bff; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; }
+        button:hover { background: #0056b3; }
+    </style>
+</head>
+<body>
+    <h1>🎵 TikTok OAuth Callback</h1>
+    <div id="status" class="status loading">
+        <h3>🔄 Processing OAuth callback...</h3>
+        <p>Exchanging authorization code for access token...</p>
+    </div>
+    <div id="details"></div>
+    <div id="actions"></div>
+
+    <script>
+        const statusEl = document.getElementById('status');
+        const detailsEl = document.getElementById('details');
+        const actionsEl = document.getElementById('actions');
+
+        function updateStatus(type, title, message) {
+            statusEl.className = `status ${type}`;
+            statusEl.innerHTML = `<h3>${title}</h3><p>${message}</p>`;
+        }
+
+        function showDetails(title, content) {
+            detailsEl.innerHTML = `<h3>${title}</h3><pre>${content}</pre>`;
+        }
+
+        function showActions(html) {
+            actionsEl.innerHTML = html;
+        }
+
+        async function exchangeTikTokCode() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const code = urlParams.get('code');
+            const state = urlParams.get('state');
+            const error = urlParams.get('error');
+
+            if (error) {
+                updateStatus('error', '❌ OAuth Error', `TikTok returned an error: ${error}`);
+                showDetails('Error Details', `Error: ${error}\nDescription: ${urlParams.get('error_description') || 'No description'}`);
+                showActions('<button onclick="window.location.href=\'/social-media\'">← Back to Social Media</button>');
+                return;
+            }
+
+            if (!code) {
+                updateStatus('error', '❌ Missing Code', 'No authorization code found in URL');
+                showActions('<button onclick="window.location.href=\'/social-media\'">← Back to Social Media</button>');
+                return;
+            }
+
+            if (state !== 'tiktok_oauth') {
+                updateStatus('error', '❌ Invalid State', `State mismatch: expected 'tiktok_oauth', got '${state}'`);
+                showActions('<button onclick="window.location.href=\'/social-media\'">← Back to Social Media</button>');
+                return;
+            }
+
+            updateStatus('loading', '🔄 Exchanging Code', 'Sending authorization code to backend...');
+
+            try {
+                // Get PKCE data from sessionStorage
+                const codeVerifier = sessionStorage.getItem('tiktok_oauth_code_verifier');
+                const redirectUri = sessionStorage.getItem('tiktok_oauth_redirect_uri');
+
+                if (!codeVerifier) {
+                    updateStatus('error', '❌ PKCE Error', 'Code verifier not found in session storage');
+                    showDetails('Missing Data', 'The PKCE code verifier was not found. This usually means the session was cleared or you started OAuth from a different tab.');
+                    showActions('<button onclick="window.location.href=\'/social-media\'">← Back to Social Media</button>');
+                    return;
+                }
+
+                showDetails('Exchange Request', `Code: ${code.substring(0, 20)}...\nRedirect URI: ${redirectUri}\nCode Verifier: ${codeVerifier.substring(0, 20)}...`);
+
+                // Exchange code for token immediately
+                const response = await fetch('/api/oauth?provider=tiktok&action=token', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ code, redirectUri, codeVerifier })
+                });
+
+                const data = await response.json();
+
+                if (response.ok && data.success) {
+                    updateStatus('success', '🎉 Success!', 'TikTok account connected successfully!');
+                    
+                    showDetails('Token Response', JSON.stringify(data, null, 2));
+
+                    // Store tokens in localStorage for the main app
+                    localStorage.setItem('tiktok_connected', 'true');
+                    localStorage.setItem('tiktok_tokens', JSON.stringify(data));
+                    localStorage.setItem('tiktok_user', JSON.stringify(data.user));
+
+                    showActions(`
+                        <button onclick="window.location.href='/social-media'">🎉 Continue to Social Media</button>
+                        <button onclick="window.open('https://www.tiktok.com/@' + (data.user?.display_name || ''), '_blank')">👤 View TikTok Profile</button>
+                    `);
+
+                    // Clean up URL and redirect after 3 seconds
+                    setTimeout(() => {
+                        window.location.href = '/social-media';
+                    }, 3000);
+
+                } else {
+                    updateStatus('error', '❌ Token Exchange Failed', data.error || 'Unknown error');
+                    showDetails('Error Response', JSON.stringify(data, null, 2));
+
+                    if (data.details?.includes('expired')) {
+                        showActions(`
+                            <button onclick="restartOAuth()">🔄 Restart OAuth Flow</button>
+                            <button onclick="window.location.href='/social-media'">← Back to Social Media</button>
+                        `);
+                    } else {
+                        showActions('<button onclick="window.location.href=\'/social-media\'">← Back to Social Media</button>');
+                    }
+                }
+
+            } catch (error) {
+                updateStatus('error', '❌ Network Error', `Failed to connect to backend: ${error.message}`);
+                showDetails('Error Details', error.stack);
+                showActions('<button onclick="window.location.href=\'/social-media\'">← Back to Social Media</button>');
+            }
+        }
+
+        function restartOAuth() {
+            // Generate new PKCE and restart OAuth
+            const codeVerifier = [...crypto.getRandomValues(new Uint8Array(32))]
+                .map(x => ('0' + x.toString(16)).slice(-2)).join('');
+            
+            sessionStorage.setItem('tiktok_oauth_code_verifier', codeVerifier);
+            sessionStorage.setItem('tiktok_oauth_redirect_uri', 'https://engage-hub-ten.vercel.app');
+            
+            const authUrl = `https://www.tiktok.com/v2/auth/authorize?client_key=sbawvd31u17vw8ajd3&redirect_uri=https://engage-hub-ten.vercel.app&response_type=code&scope=user.info.basic&state=tiktok_oauth&code_challenge=DDkSZd1qCUbnh4qL15NPLXnj8C_uXVjN9nHXpPiFVA4&code_challenge_method=S256`;
+            window.location.href = authUrl;
+        }
+
+        // Start the exchange immediately when page loads
+        exchangeTikTokCode();
+    </script>
+</body>
+</html>

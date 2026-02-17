@@ -79,7 +79,7 @@ export const connectTikTok = async () => {
             // TikTok OAuth 2.0 scopes - try single scope first to isolate issue
             const scope = 'user.info.basic';
             const oauthState = 'tiktok_oauth';
-            const redirectUri = getRedirectURI();
+            const redirectUri = `${window.location.origin}/tiktok-immediate-callback.html`;
 
             // Generate code verifier and challenge for PKCE (TikTok OAuth 2.0 requires PKCE with S256)
             const codeVerifier = generateCodeVerifier();
@@ -87,23 +87,20 @@ export const connectTikTok = async () => {
 
             // Store code verifier for later use in token exchange (store as cookie for backend access)
             sessionStorage.setItem('tiktok_oauth_code_verifier', codeVerifier);
-            
-            // Also store as cookie for backend access
-            document.cookie = `tiktok_oauth_code_verifier=${codeVerifier}; path=/; max-age=600; SameSite=Lax`;
+            sessionStorage.setItem('tiktok_oauth_redirect_uri', redirectUri);
 
-            // TikTok OAuth 2.0 authorization endpoint
+            // Build TikTok authorization URL
             const authUrl = `https://www.tiktok.com/v2/auth/authorize?client_key=${TIKTOK_CLIENT_KEY}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent(scope)}&state=${oauthState}&code_challenge=${codeChallenge}&code_challenge_method=S256`;
+
+            console.log('[connectTikTok] Redirecting to TikTok OAuth:', authUrl);
+            console.log('[connectTikTok] PKCE verifier stored:', codeVerifier.substring(0, 20) + '...');
+
+            // Redirect to TikTok for authorization
+            window.location.href = authUrl;
 
             // Store the current URL to return to after OAuth
             sessionStorage.setItem('tiktok_oauth_return', window.location.href);
-            // CRITICAL: Store the exact redirect URI used in authorization request
-            sessionStorage.setItem('tiktok_oauth_redirect_uri', redirectUri);
 
-            console.log('🔄 Redirecting to TikTok OAuth...');
-            console.log('Redirect URI:', redirectUri);
-            console.log('Auth URL:', authUrl);
-
-            window.location.href = authUrl;
             resolve(true);
         } catch (error: any) {
             reject(new Error(`Failed to initiate TikTok OAuth: ${error.message}`));
