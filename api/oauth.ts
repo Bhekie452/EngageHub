@@ -158,6 +158,16 @@ async function handleTikTokToken(req: VercelRequest, res: VercelResponse) {
         });
       }
       
+      // Handle plain text error responses
+      if (!responseText.startsWith('{') && !responseText.startsWith('[')) {
+        console.error('[tiktok-token] Received plain text error:', responseText);
+        return res.status(400).json({ 
+          error: 'TikTok API returned plain text error',
+          details: responseText.trim(),
+          rawResponse: responseText
+        });
+      }
+      
       tokenData = JSON.parse(responseText);
     } catch (parseError) {
       console.error('[tiktok-token] JSON parse error:', parseError);

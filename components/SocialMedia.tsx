@@ -147,6 +147,16 @@ const SocialMedia: React.FC = () => {
       } else if (code && state === 'tiktok_oauth') {
         // Handle TikTok callback IMMEDIATELY - no delays
         console.log('🚀 TikTok OAuth callback detected - processing IMMEDIATELY');
+        
+        // Add callback processing guard to prevent multiple processing
+        if (sessionStorage.getItem('oauth_callback_processed')) {
+          console.log('OAuth callback already processed, skipping');
+          return;
+        }
+        
+        // Mark as processed immediately
+        sessionStorage.setItem('oauth_callback_processed', 'true');
+        
         handleTikTokCallbackImmediate(code);
         return; // Stop all other processing
       }
@@ -636,8 +646,11 @@ const SocialMedia: React.FC = () => {
         localStorage.setItem('tiktok_tokens', JSON.stringify(data));
         localStorage.setItem('tiktok_user', JSON.stringify(data.user));
 
-        // Clean up URL
+        // Clear URL parameters after processing
         window.history.replaceState({}, '', '/social-media');
+        
+        // Clear callback guard after successful processing
+        sessionStorage.removeItem('oauth_callback_processed');
         
         // Refresh accounts
         fetchConnectedAccounts();
@@ -649,6 +662,9 @@ const SocialMedia: React.FC = () => {
         if (data.details?.includes('expired')) {
           alert('⏰ Authorization code expired. Please try connecting again IMMEDIATELY after returning to TikTok.');
         }
+        
+        // Clear callback guard on error
+        sessionStorage.removeItem('oauth_callback_processed');
       }
     } catch (error: any) {
       console.error('💥 Immediate callback error:', error);
