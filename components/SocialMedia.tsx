@@ -1,6 +1,6 @@
 
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Link2,
   Calendar,
@@ -34,6 +34,7 @@ import { loginWithLinkedIn, getLinkedInProfile, getLinkedInOrganizations, getLin
 import { connectYouTube, getYouTubeChannel, exchangeCodeForToken as exchangeYouTubeCodeForToken } from '../src/lib/youtube';
 import { connectTwitter, exchangeCodeForToken as exchangeTwitterCodeForToken, getTwitterProfile } from '../src/lib/twitter';
 import { connectTikTok, exchangeCodeForToken as exchangeTikTokCodeForToken, getTikTokProfile } from '../src/lib/tiktok';
+import TikTokOAuthHandler from '../src/lib/tiktok-oauth-handler';
 import FacebookConnection from '../src/components/FacebookConnection';
 
 type SocialTab = 'accounts' | 'schedule' | 'engagement' | 'mentions' | 'comments' | 'dms';
@@ -44,6 +45,19 @@ const SocialMedia: React.FC = () => {
   const [connectedAccounts, setConnectedAccounts] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isOAuthRedirect, setIsOAuthRedirect] = useState(false);
+
+  // Initialize TikTok OAuth Handler
+  useEffect(() => {
+    const tiktokHandler = new TikTokOAuthHandler({
+      clientKey: 'sbawvd31u17vw8ajd3',
+      redirectUri: 'https://engage-hub-ten.vercel.app',
+      apiEndpoint: 'https://engage-hub-ten.vercel.app',
+      workspaceId: 'c9a454c5-a5f3-42dd-9fbd-cedd4c1c49a9'
+    });
+
+    // Initialize on component mount
+    tiktokHandler.init();
+  }, []);
 
   React.useEffect(() => {
     if (user) {
@@ -472,48 +486,19 @@ const SocialMedia: React.FC = () => {
       return;
     }
 
-    setIsLoading(true);
+    // Use new OAuth handler
+    const tiktokHandler = new TikTokOAuthHandler({
+      clientKey: 'sbawvd31u17vw8ajd3',
+      redirectUri: 'https://engage-hub-ten.vercel.app',
+      apiEndpoint: 'https://engage-hub-ten.vercel.app',
+      workspaceId: 'c9a454c5-a5f3-42dd-9fbd-cedd4c1c49a9'
+    });
+
     try {
-      console.log('🔍 Starting TikTok connection...');
-
-      // Check if Client Key is configured before attempting connection
-      const clientKey = import.meta.env.VITE_TIKTOK_CLIENT_KEY;
-      if (!clientKey) {
-        console.error('❌ TikTok Client Key not found');
-        setIsLoading(false);
-        // Error will be shown by connectTikTok
-        await connectTikTok();
-        return;
-      }
-
-      console.log('✅ TikTok Client Key found:', clientKey.substring(0, 4) + '...');
-
-      // connectTikTok will redirect to TikTok OAuth
-      await connectTikTok();
-
-      // If we get here, OAuth redirect happened
-      setIsLoading(false);
+      await tiktokHandler.startOAuthFlow();
     } catch (err: any) {
       console.error('TikTok connection error:', err);
-
-      let errorMessage = 'Failed to connect to TikTok.\n\n';
-
-      if (err.message?.includes('Client Key not configured')) {
-        errorMessage = `🔴 TikTok App Configuration Required\n\n`;
-        errorMessage += `TikTok Client Key is not configured.\n\n`;
-
-        const isProduction = window.location.hostname.includes('vercel.app');
-        if (isProduction) {
-          errorMessage += `⚠️ Production Environment Detected\n\n`;
-          errorMessage += `If you just added the environment variable to Vercel:\n`;
-          errorMessage += `1. ✅ Make sure you redeployed after adding the variable\n`;
-          errorMessage += `2. 🔄 Clear your browser cache:\n`;
-          errorMessage += `   • Press Ctrl+Shift+R (Windows) or Cmd+Shift+R (Mac)\n`;
-          errorMessage += `   • Or try incognito/private window\n`;
-          errorMessage += `3. ⏱️ Wait 1-2 minutes for deployment to complete\n\n`;
-        }
-
-        errorMessage += `✅ Setup Steps:\n\n`;
+      alert(`Failed to connect TikTok: ${err.message || 'Unknown error'}`);
         errorMessage += `1. Create TikTok App:\n`;
         errorMessage += `   • Go to: https://developers.tiktok.com/apps/\n`;
         errorMessage += `   • Create a new app or use existing\n`;
