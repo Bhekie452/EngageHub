@@ -234,8 +234,11 @@ async function handleTikTokToken(req: VercelRequest, res: VercelResponse) {
     console.log('[tiktok-token] Skipping user info request - will use token data only');
 
     // Save TikTok account to database
-    const { workspaceId } = req.body;
+    const { workspaceId, userId } = req.body;
     const openId = tokenData.open_id;
+    
+    // Use the userId from request or workspaceId as fallback for connected_by
+    const connectedBy = userId || workspaceId;
     
     if (workspaceId && openId && supabaseKey) {
       const { error: saveError } = await supabase.from('social_accounts').upsert({
@@ -245,7 +248,8 @@ async function handleTikTokToken(req: VercelRequest, res: VercelResponse) {
         access_token: access_token,
         refresh_token: refresh_token,
         token_expires_at: new Date(Date.now() + expires_in * 1000).toISOString(),
-        is_active: true
+        is_active: true,
+        connected_by: connectedBy
       }, { onConflict: 'workspace_id,platform,account_id' });
       
       if (saveError) {
