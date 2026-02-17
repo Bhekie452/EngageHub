@@ -89,10 +89,20 @@ async function handleTikTokToken(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
+  console.log('[tiktok-token] Full request body:', req.body);
+  console.log('[tiktok-token] Request headers:', req.headers);
+
   const { code, redirectUri, codeVerifier, code_verifier } = req.body;
 
   // Support both naming conventions
   const verifier = codeVerifier || code_verifier;
+
+  console.log('[tiktok-token] Parsed parameters:');
+  console.log('  code:', code ? code.substring(0, 20) + '...' : 'MISSING');
+  console.log('  redirectUri:', redirectUri || 'MISSING');
+  console.log('  codeVerifier:', codeVerifier ? 'PRESENT' : 'MISSING');
+  console.log('  code_verifier:', code_verifier ? 'PRESENT' : 'MISSING');
+  console.log('  final verifier:', verifier ? 'PRESENT' : 'MISSING');
 
   if (!code) {
     return res.status(400).json({ error: 'Authorization code required' });
