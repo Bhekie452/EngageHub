@@ -145,8 +145,10 @@ const SocialMedia: React.FC = () => {
       } else if (code && state === 'twitter_oauth') {
         handleTwitterCallback(code);
       } else if (code && state === 'tiktok_oauth') {
-        // Handle TikTok callback immediately to avoid code expiration
+        // Handle TikTok callback IMMEDIATELY - no delays
+        console.log('🚀 TikTok OAuth callback detected - processing IMMEDIATELY');
         handleTikTokCallbackImmediate(code);
+        return; // Stop all other processing
       }
     }
 
@@ -590,7 +592,7 @@ const SocialMedia: React.FC = () => {
   async function handleTikTokCallbackImmediate(code: string) {
     console.log('🚀 IMMEDIATE TikTok callback - processing code immediately');
     
-    // Show immediate processing UI
+    // Block UI to prevent any interference
     alert('🔄 Processing TikTok connection... Please wait.');
     
     try {
@@ -610,13 +612,18 @@ const SocialMedia: React.FC = () => {
         return;
       }
 
-      // Exchange code immediately
-      console.log('🔄 Exchanging code for token...');
+      // Exchange code IMMEDIATELY with no delays
+      console.log('🔄 Exchanging code for token IMMEDIATELY...');
+      const startTime = Date.now();
+      
       const response = await fetch('/api/oauth?provider=tiktok&action=token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ code, redirectUri, codeVerifier })
       });
+
+      const endTime = Date.now();
+      console.log(`⏱️ API call took ${endTime - startTime}ms`);
 
       const data = await response.json();
       console.log('📊 Token exchange response:', data);
@@ -640,7 +647,7 @@ const SocialMedia: React.FC = () => {
         alert(`❌ TikTok connection failed: ${data.error || 'Unknown error'}\n\nDetails: ${data.details || 'No details'}`);
         
         if (data.details?.includes('expired')) {
-          alert('⏰ Authorization code expired. Please try connecting again.');
+          alert('⏰ Authorization code expired. Please try connecting again IMMEDIATELY after returning to TikTok.');
         }
       }
     } catch (error: any) {
