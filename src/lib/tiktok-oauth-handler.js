@@ -71,6 +71,13 @@ class TikTokOAuthHandler {
       return;
     }
 
+    // Check if already processing - prevent duplicate attempts
+    const callbackProcessing = sessionStorage.getItem('tiktok_callback_processing');
+    if (callbackProcessing) {
+      console.log('⚠️ OAuth callback already being processed, skipping duplicate');
+      return;
+    }
+
     // Mark callback as being processed immediately
     sessionStorage.setItem('tiktok_callback_processing', 'true');
 
