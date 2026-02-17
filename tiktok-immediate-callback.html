@@ -47,6 +47,12 @@
             const state = urlParams.get('state');
             const error = urlParams.get('error');
 
+            // Prevent refresh loop - if no code and no error, redirect to social media
+            if (!code && !error) {
+                window.location.href = '/social-media';
+                return;
+            }
+
             if (error) {
                 updateStatus('error', '❌ OAuth Error', `TikTok returned an error: ${error}`);
                 showDetails('Error Details', `Error: ${error}\nDescription: ${urlParams.get('error_description') || 'No description'}`);
@@ -106,10 +112,8 @@
                         <button onclick="window.open('https://www.tiktok.com/@' + (data.user?.display_name || ''), '_blank')">👤 View TikTok Profile</button>
                     `);
 
-                    // Clean up URL and redirect after 3 seconds
-                    setTimeout(() => {
-                        window.location.href = '/social-media';
-                    }, 3000);
+                    // Clean up URL (no auto-redirect to prevent refresh loop)
+                    window.history.replaceState({}, '', window.location.pathname);
 
                 } else {
                     updateStatus('error', '❌ Token Exchange Failed', data.error || 'Unknown error');
