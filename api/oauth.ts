@@ -1,10 +1,10 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  // Enable CORS
+  // Set CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
@@ -16,9 +16,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(400).json({ error: 'Provider and action required' });
   }
 
-  try {
-    console.log(`[oauth] ${provider} ${action} request received`);
+  console.log(`[oauth] ${provider} ${action} request received`);
 
+  try {
     // Handle TikTok OAuth
     if (provider === 'tiktok') {
       if (action === 'token') {
@@ -73,7 +73,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     return res.status(400).json({ error: 'Invalid action' });
-
   } catch (error: any) {
     console.error(`[oauth] Error:`, error);
     return res.status(500).json({ 
