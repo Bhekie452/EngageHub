@@ -140,15 +140,27 @@ async function handleTikTokToken(req: VercelRequest, res: VercelResponse) {
       body: new URLSearchParams(tokenRequestBody)
     });
 
-    const tokenData = await tokenResponse.json();
+    let tokenData;
+    try {
+      const responseText = await tokenResponse.text();
+      console.log('[tiktok-token] Raw response:', responseText);
+      tokenData = JSON.parse(responseText);
+    } catch (parseError) {
+      console.error('[tiktok-token] JSON parse error:', parseError);
+      return res.status(500).json({ 
+        error: 'Invalid response from TikTok',
+        details: 'Response parsing failed'
+      });
+    }
     console.log('[tiktok-token] Token response status:', tokenResponse.status);
     console.log('[tiktok-token] Token response keys:', Object.keys(tokenData));
 
     if (!tokenResponse.ok || tokenData.error) {
       console.error('[tiktok-token] Token exchange failed:', tokenData);
+      const errorMessage = tokenData.error_description || tokenData.error || 'Unknown error';
       return res.status(400).json({ 
         error: 'Token exchange failed',
-        details: tokenData.error_description || tokenData.error 
+        details: String(errorMessage)
       });
     }
 
