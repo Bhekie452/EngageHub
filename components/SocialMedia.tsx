@@ -159,17 +159,17 @@ const SocialMedia: React.FC = () => {
       } else if (code && state === 'twitter_oauth') {
         handleTwitterCallback(code);
       } else if (code && state === 'tiktok_oauth') {
-        // Handle TikTok callback IMMEDIATELY - no delays
+        // Handle TikTok callback - use same guard as TikTokOAuthHandler to prevent duplicates
         console.log('🚀 TikTok OAuth callback detected - processing IMMEDIATELY');
         
-        // Add callback processing guard to prevent multiple processing
-        if (sessionStorage.getItem('oauth_callback_processed')) {
-          console.log('OAuth callback already processed, skipping');
+        // Use SAME key as TikTokOAuthHandler to prevent duplicate processing
+        if (sessionStorage.getItem('tiktok_callback_processed') || sessionStorage.getItem('tiktok_callback_processing')) {
+          console.log('OAuth callback already processed by TikTokOAuthHandler, skipping');
           return;
         }
         
-        // Mark as processed immediately
-        sessionStorage.setItem('oauth_callback_processed', 'true');
+        // Mark as processed immediately (use same key as TikTokOAuthHandler)
+        sessionStorage.setItem('tiktok_callback_processing', 'true');
         
         handleTikTokCallbackImmediate(code);
         return; // Stop all other processing
@@ -486,6 +486,13 @@ const SocialMedia: React.FC = () => {
       return;
     }
 
+    // Clear any stale OAuth data before starting fresh
+    sessionStorage.removeItem('tiktok_callback_processed');
+    sessionStorage.removeItem('tiktok_callback_processing');
+    sessionStorage.removeItem('oauth_callback_processed');
+    sessionStorage.removeItem('tiktok_oauth_code_verifier');
+    sessionStorage.removeItem('tiktok_oauth_redirect_uri');
+    
     // Use new OAuth handler
     const tiktokHandler = new TikTokOAuthHandler({
       clientKey: 'sbawvd31u17vw8ajd3',
@@ -612,8 +619,9 @@ const SocialMedia: React.FC = () => {
         // Clear URL parameters after processing
         window.history.replaceState({}, '', '/social-media');
         
-        // Clear callback guard after successful processing
-        sessionStorage.removeItem('oauth_callback_processed');
+        // Clear callback guard after successful processing (use same key as TikTokOAuthHandler)
+        sessionStorage.removeItem('tiktok_callback_processing');
+        sessionStorage.setItem('tiktok_callback_processed', 'true');
         
         // Refresh accounts
         fetchConnectedAccounts();
@@ -626,8 +634,8 @@ const SocialMedia: React.FC = () => {
           alert('⏰ Authorization code expired. Please try connecting again IMMEDIATELY after returning to TikTok.');
         }
         
-        // Clear callback guard on error
-        sessionStorage.removeItem('oauth_callback_processed');
+        // Clear callback guard on error (use same key as TikTokOAuthHandler)
+        sessionStorage.removeItem('tiktok_callback_processing');
       }
     } catch (error: any) {
       console.error('💥 Immediate callback error:', error);
