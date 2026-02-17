@@ -145,39 +145,47 @@ async function handleTikTokToken(req: VercelRequest, res: VercelResponse) {
     let tokenData;
     let responseText = '';
     try {
-      responseText = await tokenResponse.text();
-      console.log('[tiktok-token] Raw response:', responseText);
-      
-      // Check if response looks like HTML
-      if (responseText.includes('<!DOCTYPE') || responseText.includes('<html>')) {
-        console.error('[tiktok-token] Received HTML instead of JSON - likely API error page');
-        return res.status(500).json({ 
-          error: 'TikTok API returned HTML error page',
-          details: 'API endpoint or parameters incorrect',
-          rawResponse: responseText.substring(0, 500) + '...'
-        });
+      // Try direct JSON parsing first (most reliable)
+      if (typeof tokenResponse.json === 'function') {
+        tokenData = await tokenResponse.json();
+        console.log('[tiktok-token] Used direct JSON parsing');
+      } else {
+        // Fallback to text parsing
+        responseText = await tokenResponse.text();
+        console.log('[tiktok-token] Raw response:', responseText);
+        
+        // Check if response looks like HTML
+        if (responseText.includes('<!DOCTYPE') || responseText.includes('<html>')) {
+          console.error('[tiktok-token] Received HTML instead of JSON - likely API error page');
+          return res.status(500).json({ 
+            error: 'TikTok API returned HTML error page',
+            details: 'API endpoint or parameters incorrect',
+            rawResponse: responseText.substring(0, 500) + '...'
+          });
+        }
+        
+        // Handle plain text error responses
+        if (!responseText.startsWith('{') && !responseText.startsWith('[')) {
+          console.error('[tiktok-token] Received plain text error:', responseText);
+          return res.status(400).json({ 
+            error: 'TikTok API returned plain text error',
+            details: responseText.trim(),
+            rawResponse: responseText
+          });
+        }
+        
+        tokenData = JSON.parse(responseText);
       }
-      
-      // Handle plain text error responses
-      if (!responseText.startsWith('{') && !responseText.startsWith('[')) {
-        console.error('[tiktok-token] Received plain text error:', responseText);
-        return res.status(400).json({ 
-          error: 'TikTok API returned plain text error',
-          details: responseText.trim(),
-          rawResponse: responseText
-        });
-      }
-      
-      tokenData = JSON.parse(responseText);
     } catch (parseError) {
       console.error('[tiktok-token] JSON parse error:', parseError);
-      console.log('[tiktok-token] Response that failed to parse:', responseText.substring(0, 500));
+      console.log('[tiktok-token] Response that failed to parse:', responseText?.substring(0, 500) || 'No response text');
       return res.status(500).json({ 
         error: 'Invalid response from TikTok',
         details: 'Response parsing failed',
-        rawResponse: responseText.substring(0, 500) + '...'
+        rawResponse: responseText?.substring(0, 500) + '...' || 'No response available'
       });
     }
+
     console.log('[tiktok-token] Token response status:', tokenResponse.status);
     console.log('[tiktok-token] Token response keys:', Object.keys(tokenData));
 
