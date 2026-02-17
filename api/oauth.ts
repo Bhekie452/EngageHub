@@ -112,9 +112,20 @@ async function handleTikTokToken(req: VercelRequest, res: VercelResponse) {
     console.log('[tiktok-token] Code verifier found:', !!verifier);
 
     // Exchange authorization code for access token with PKCE
+    const clientKey = process.env.TIKTOK_CLIENT_KEY || 'sbawvd31u17vw8ajd3';
+    const clientSecret = process.env.TIKTOK_CLIENT_SECRET;
+    
+    if (!clientSecret) {
+      console.error('[tiktok-token] TIKTOK_CLIENT_SECRET is not set in environment variables');
+      return res.status(500).json({ 
+        error: 'TikTok client secret not configured',
+        details: 'Please set TIKTOK_CLIENT_SECRET in Vercel environment variables'
+      });
+    }
+
     const tokenRequestBody: { [key: string]: any } = {
-      client_key: process.env.TIKTOK_CLIENT_KEY || 'sbawvd31u17vw8ajd3',
-      client_secret: process.env.TIKTOK_CLIENT_SECRET,
+      client_key: clientKey,
+      client_secret: clientSecret,
       code: code,
       grant_type: 'authorization_code',
       redirect_uri: redirectUri || process.env.TIKTOK_REDIRECT_URI || 'https://engage-hub-ten.vercel.app'
