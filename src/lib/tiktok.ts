@@ -124,7 +124,7 @@ export const exchangeCodeForToken = async (code: string): Promise<{ accessToken:
             throw new Error('Code verifier not found. Please try connecting again.');
         }
 
-        const response = await fetch(`/api/auth?provider=tiktok&action=token`, {
+        const response = await fetch(`/api/oauth?provider=tiktok&action=token`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ code, redirectUri, codeVerifier })
@@ -162,7 +162,7 @@ export const exchangeCodeForToken = async (code: string): Promise<{ accessToken:
 
 export const getTikTokProfile = async (accessToken: string): Promise<any> => {
     try {
-        const response = await fetch(`/api/auth?provider=tiktok&action=profile`, {
+        const response = await fetch(`/api/oauth?provider=tiktok&action=profile`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ accessToken })

@@ -130,7 +130,7 @@ export const exchangeCodeForToken = async (code: string): Promise<{ accessToken:
         const backendUrl = import.meta.env.VITE_API_URL || import.meta.env.VITE_VERCEL_URL || '';
 
         // Use consolidated auth endpoint
-        const response = await fetch(`/api/auth?provider=twitter&action=token`, {
+        const response = await fetch(`/api/oauth?provider=twitter&action=token`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ code, redirectUri, codeVerifier })
@@ -178,7 +178,7 @@ export const getTwitterProfile = async (accessToken: string): Promise<any> => {
         }
 
         // Use consolidated auth endpoint
-        const response = await fetch(`/api/auth?provider=twitter&action=profile`, {
+        const response = await fetch(`/api/oauth?provider=twitter&action=profile`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ accessToken })

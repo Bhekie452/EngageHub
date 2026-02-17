@@ -144,7 +144,7 @@ export const exchangeCodeForToken = async (code: string): Promise<any> => {
 
 export const getYouTubeChannel = async (accessToken: string): Promise<any> => {
     try {
-        const response = await fetch(`/api/auth?provider=youtube&action=channel`, {
+        const response = await fetch(`/api/oauth?provider=youtube&action=channel`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'

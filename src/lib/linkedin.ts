@@ -138,7 +138,7 @@ export const exchangeCodeForToken = async (code: string): Promise<any> => {
 
         // Check if we have a backend endpoint for token exchange
         // Use consolidated auth endpoint
-        const response = await fetch(`/api/auth?provider=linkedin&action=token`, {
+        const response = await fetch(`/api/oauth?provider=linkedin&action=token`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ code, redirectUri })
@@ -174,7 +174,7 @@ export const exchangeCodeForToken = async (code: string): Promise<any> => {
 export const getLinkedInProfile = async (accessToken: string): Promise<any> => {
     try {
         // Use consolidated auth endpoint
-        const response = await fetch(`/api/auth?provider=linkedin&action=profile`, {
+        const response = await fetch(`/api/oauth?provider=linkedin&action=profile`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -239,7 +239,7 @@ export const getLinkedInOrganizations = async (accessToken: string): Promise<any
 export const getLinkedInOrganizationDetails = async (accessToken: string, organizationUrn: string): Promise<any> => {
     try {
         // Use consolidated auth endpoint
-        const response = await fetch(`/api/auth?provider=linkedin&action=organization-details`, {
+        const response = await fetch(`/api/oauth?provider=linkedin&action=organization-details`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'

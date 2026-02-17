@@ -117,7 +117,7 @@ export const authApi = {
    * Exchange OAuth code for tokens
    */
   async exchangeCode(provider: string, params: any) {
-    return apiRequest(`/api/auth?provider=${provider}&action=token`, {
+    return apiRequest(`/api/oauth?provider=${provider}&action=token`, {
       method: 'POST',
       body: JSON.stringify(params),
     });
@@ -127,7 +127,7 @@ export const authApi = {
    * Get user profile
    */
   async getProfile(provider: string, accessToken: string) {
-    return apiRequest(`/api/auth?provider=${provider}&action=profile`, {
+    return apiRequest(`/api/oauth?provider=${provider}&action=profile`, {
       method: 'POST',
       body: JSON.stringify({ accessToken }),
     });
@@ -137,7 +137,7 @@ export const authApi = {
    * Refresh access token
    */
   async refreshToken(provider: string, refreshToken: string) {
-    return apiRequest(`/api/auth?provider=${provider}&action=refresh`, {
+    return apiRequest(`/api/oauth?provider=${provider}&action=refresh`, {
       method: 'POST',
       body: JSON.stringify({ refresh_token: refreshToken }),
     });
@@ -147,7 +147,7 @@ export const authApi = {
    * Get organization details (for LinkedIn)
    */
   async getOrganizationDetails(accessToken: string, organizationUrn: string) {
-    return apiRequest('/api/auth?provider=linkedin&action=organization-details', {
+    return apiRequest('/api/oauth?provider=linkedin&action=organization-details', {
       method: 'POST',
       body: JSON.stringify({ accessToken, organizationUrn }),
     });
@@ -157,7 +157,7 @@ export const authApi = {
    * Get YouTube channel info
    */
   async getYouTubeChannel(accessToken: string) {
-    return apiRequest('/api/auth?provider=youtube&action=channel', {
+    return apiRequest('/api/oauth?provider=youtube&action=channel', {
       method: 'POST',
       body: JSON.stringify({ accessToken }),
     });
