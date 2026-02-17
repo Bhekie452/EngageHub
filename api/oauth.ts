@@ -223,38 +223,10 @@ async function handleTikTokToken(req: VercelRequest, res: VercelResponse) {
 
     console.log('[tiktok-token] Access token obtained successfully');
 
-    // Get user info from TikTok
-    console.log('[tiktok-token] Fetching user info from TikTok...');
-    const userInfoResponse = await fetch('https://open.tiktokapis.com/v2/user/info/', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${access_token}`
-      },
-      body: JSON.stringify({
-        fields: ['open_id', 'union_id', 'avatar_url', 'display_name']
-      })
-    });
-
-    console.log('[tiktok-token] User info response status:', userInfoResponse.status);
-    
-    // Get raw response first to handle non-JSON errors
-    const userInfoRaw = await userInfoResponse.text();
-    console.log('[tiktok-token] User info raw response:', userInfoRaw.substring(0, 500));
-    
+    // Get user info from TikTok (optional - some apps may not have permission)
+    // Skip user info for now to avoid errors
     let userInfo: any = {};
-    try {
-      const userInfoData = JSON.parse(userInfoRaw);
-      if (userInfoResponse.ok && userInfoData.data) {
-        userInfo = userInfoData.data.user;
-        console.log('[tiktok-token] User info obtained:', (userInfo as any)?.display_name);
-      } else {
-        console.warn('[tiktok-token] Could not get user info:', userInfoData);
-      }
-    } catch (parseError: any) {
-      console.error('[tiktok-token] Failed to parse user info response:', parseError);
-      // Continue without user info - token was obtained successfully
-    }
+    console.log('[tiktok-token] Skipping user info request - will use token data only');
 
     // Return success response
     return res.status(200).json({
