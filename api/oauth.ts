@@ -1,4 +1,9 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
+import { createClient } from '@supabase/supabase-js';
+
+const supabaseUrl = process.env.SUPABASE_URL || 'https://zourlqrkoyugzymxkbgn.supabase.co';
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY;
+const supabase = createClient(supabaseUrl, supabaseKey || '');
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Set CORS headers
@@ -227,6 +232,29 @@ async function handleTikTokToken(req: VercelRequest, res: VercelResponse) {
     // Skip user info for now to avoid errors
     let userInfo: any = {};
     console.log('[tiktok-token] Skipping user info request - will use token data only');
+
+    // Save TikTok account to database
+    const { workspaceId } = req.body;
+    const openId = tokenData.open_id;
+    
+    if (workspaceId && openId) {
+      const { error: saveError } = await supabase.from('social_accounts').upsert({
+        workspace_id: workspaceId,
+        platform: 'tiktok',
+        account_id: openId,
+        access_token: access_token,
+        refresh_token: refresh_token,
+        token_expires_at: new Date(Date.now() + expires_in * 1000).toISOString(),
+        is_active: true,
+        connection_status: 'connected'
+      }, { onConflict: 'workspace_id,platform,account_id' });
+      
+      if (saveError) {
+        console.error('[tiktok-token] Failed to save to database:', saveError);
+      } else {
+        console.log('[tiktok-token] Saved TikTok account to database');
+      }
+    }
 
     // Return success response
     return res.status(200).json({
