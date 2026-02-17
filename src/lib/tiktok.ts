@@ -79,7 +79,8 @@ export const connectTikTok = async () => {
             // TikTok OAuth 2.0 scopes - try single scope first to isolate issue
             const scope = 'user.info.basic';
             const oauthState = 'tiktok_oauth';
-            const redirectUri = 'https://engage-hub-ten.vercel.app';
+            // Use dynamic redirect URI based on current domain (works with custom domains)
+            const redirectUri = getRedirectURI();
 
             // Generate code verifier and challenge for PKCE (TikTok OAuth 2.0 requires PKCE with S256)
             const codeVerifier = generateCodeVerifier();

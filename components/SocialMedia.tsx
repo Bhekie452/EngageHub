@@ -50,8 +50,8 @@ const SocialMedia: React.FC = () => {
   useEffect(() => {
     const tiktokHandler = new TikTokOAuthHandler({
       clientKey: 'sbawvd31u17vw8ajd3',
-      redirectUri: 'https://engage-hub-ten.vercel.app',
-      apiEndpoint: 'https://engage-hub-ten.vercel.app',
+      redirectUri: window.location.origin,
+      apiEndpoint: window.location.origin,
       workspaceId: 'c9a454c5-a5f3-42dd-9fbd-cedd4c1c49a9'
     });
 
@@ -489,8 +489,8 @@ const SocialMedia: React.FC = () => {
     // Use new OAuth handler
     const tiktokHandler = new TikTokOAuthHandler({
       clientKey: 'sbawvd31u17vw8ajd3',
-      redirectUri: 'https://engage-hub-ten.vercel.app',
-      apiEndpoint: 'https://engage-hub-ten.vercel.app',
+      redirectUri: window.location.origin,
+      apiEndpoint: window.location.origin,
       workspaceId: 'c9a454c5-a5f3-42dd-9fbd-cedd4c1c49a9'
     });
 
@@ -498,35 +498,13 @@ const SocialMedia: React.FC = () => {
       await tiktokHandler.startOAuthFlow();
     } catch (err: any) {
       console.error('TikTok connection error:', err);
-      alert(`Failed to connect TikTok: ${err.message || 'Unknown error'}`);
-        errorMessage += `1. Create TikTok App:\n`;
-        errorMessage += `   • Go to: https://developers.tiktok.com/apps/\n`;
-        errorMessage += `   • Create a new app or use existing\n`;
-        errorMessage += `   • Get Client Key and Client Secret\n\n`;
-        errorMessage += `2. Add to Vercel Environment Variables:\n`;
-        errorMessage += `   • Go to: Vercel Dashboard → Your Project → Settings → Environment Variables\n`;
-        errorMessage += `   • Add: VITE_TIKTOK_CLIENT_KEY = your_client_key\n`;
-        errorMessage += `   • Add: TIKTOK_CLIENT_KEY = your_client_key (backend)\n`;
-        errorMessage += `   • Add: TIKTOK_CLIENT_SECRET = your_client_secret (backend only)\n`;
-        errorMessage += `   • Select all environments (Production, Preview, Development)\n`;
-        errorMessage += `   • Click "Save"\n\n`;
-        errorMessage += `3. Configure TikTok App:\n`;
-        errorMessage += `   • Add Callback URL: http://localhost:3000 (for dev)\n`;
-        errorMessage += `   • Add Callback URL: https://engage-hub-ten.vercel.app (for production)\n`;
-        errorMessage += `   • Enable OAuth 2.0\n`;
-        errorMessage += `   • Set App permissions: user.info.basic, video.upload\n\n`;
-        errorMessage += `4. Redeploy and Clear Cache:\n`;
-        errorMessage += `   • Redeploy your Vercel app\n`;
-        errorMessage += `   • Hard refresh: Ctrl+Shift+R (Windows) or Cmd+Shift+R (Mac)\n\n`;
-        errorMessage += `📖 See TIKTOK_CONNECTION_GUIDE.md for detailed instructions.`;
-
-        alert(errorMessage);
-      } else if (err.message) {
+      let errorMessage = `Failed to connect TikTok: ${err.message || 'Unknown error'}`;
+      if (err.message) {
         errorMessage = `TikTok connection error:\n\n${err.message}`;
-        alert(errorMessage);
       } else {
-        alert(errorMessage + 'Please check your TikTok App configuration.');
+        errorMessage += 'Please check your TikTok App configuration.';
       }
+      alert(errorMessage);
     } finally {
       setIsLoading(false);
     }

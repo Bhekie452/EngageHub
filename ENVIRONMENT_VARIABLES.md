@@ -44,6 +44,11 @@ VITE_LINKEDIN_CLIENT_ID=your-linkedin-client-id-here
 
 # Gemini AI (Optional)
 VITE_GEMINI_API_KEY=your-api-key-here
+
+# TikTok Integration (Optional)
+VITE_TIKTOK_CLIENT_KEY=your-tiktok-client-key
+TIKTOK_CLIENT_KEY=your-tiktok-client-key
+TIKTOK_CLIENT_SECRET=your-tiktok-client-secret
 ```
 
 ### Step 3: Restart your dev server
