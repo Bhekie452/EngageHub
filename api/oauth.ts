@@ -139,16 +139,33 @@ async function handleTikTokToken(req: VercelRequest, res: VercelResponse) {
       body: new URLSearchParams(tokenRequestBody)
     });
 
+    console.log('[tiktok-token] TikTok response status:', tokenResponse.status);
+    console.log('[tiktok-token] TikTok response headers:', Object.fromEntries(tokenResponse.headers.entries()));
+
     let tokenData;
+    let responseText = '';
     try {
-      const responseText = await tokenResponse.text();
+      responseText = await tokenResponse.text();
       console.log('[tiktok-token] Raw response:', responseText);
+      
+      // Check if response looks like HTML
+      if (responseText.includes('<!DOCTYPE') || responseText.includes('<html>')) {
+        console.error('[tiktok-token] Received HTML instead of JSON - likely API error page');
+        return res.status(500).json({ 
+          error: 'TikTok API returned HTML error page',
+          details: 'API endpoint or parameters incorrect',
+          rawResponse: responseText.substring(0, 500) + '...'
+        });
+      }
+      
       tokenData = JSON.parse(responseText);
     } catch (parseError) {
       console.error('[tiktok-token] JSON parse error:', parseError);
+      console.log('[tiktok-token] Response that failed to parse:', responseText.substring(0, 500));
       return res.status(500).json({ 
         error: 'Invalid response from TikTok',
-        details: 'Response parsing failed'
+        details: 'Response parsing failed',
+        rawResponse: responseText.substring(0, 500) + '...'
       });
     }
     console.log('[tiktok-token] Token response status:', tokenResponse.status);
