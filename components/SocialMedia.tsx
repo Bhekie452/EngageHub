@@ -145,8 +145,8 @@ const SocialMedia: React.FC = () => {
       } else if (code && state === 'twitter_oauth') {
         handleTwitterCallback(code);
       } else if (code && state === 'tiktok_oauth') {
-        // Immediately redirect to exchange page to avoid code expiration
-        window.location.href = `/tiktok-immediate-callback.html?${window.location.search.substring(1)}`;
+        // Handle TikTok callback immediately to avoid code expiration
+        handleTikTokCallbackImmediate(code);
       }
     }
 
@@ -583,6 +583,69 @@ const SocialMedia: React.FC = () => {
       alert(`Failed to connect TikTok: ${err.message || 'Unknown error'}`);
     } finally {
       setIsLoading(false);
+    }
+  }
+
+  // Immediate TikTok callback handler to avoid code expiration
+  async function handleTikTokCallbackImmediate(code: string) {
+    console.log('🚀 IMMEDIATE TikTok callback - processing code immediately');
+    
+    // Show immediate processing UI
+    alert('🔄 Processing TikTok connection... Please wait.');
+    
+    try {
+      // Get PKCE data immediately
+      const codeVerifier = sessionStorage.getItem('tiktok_oauth_code_verifier');
+      const redirectUri = sessionStorage.getItem('tiktok_oauth_redirect_uri');
+
+      console.log('🔑 PKCE Data:', {
+        code: code.substring(0, 20) + '...',
+        codeVerifier: codeVerifier ? 'PRESENT' : 'MISSING',
+        redirectUri: redirectUri || 'MISSING'
+      });
+
+      if (!codeVerifier) {
+        alert('❌ PKCE code verifier not found. Please try connecting again.');
+        window.location.href = '/social-media';
+        return;
+      }
+
+      // Exchange code immediately
+      console.log('🔄 Exchanging code for token...');
+      const response = await fetch('/api/oauth?provider=tiktok&action=token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code, redirectUri, codeVerifier })
+      });
+
+      const data = await response.json();
+      console.log('📊 Token exchange response:', data);
+
+      if (response.ok && data.success) {
+        alert('🎉 TikTok connected successfully!');
+        
+        // Store tokens
+        localStorage.setItem('tiktok_connected', 'true');
+        localStorage.setItem('tiktok_tokens', JSON.stringify(data));
+        localStorage.setItem('tiktok_user', JSON.stringify(data.user));
+
+        // Clean up URL
+        window.history.replaceState({}, '', '/social-media');
+        
+        // Refresh accounts
+        fetchConnectedAccounts();
+        
+      } else {
+        console.error('❌ Token exchange failed:', data);
+        alert(`❌ TikTok connection failed: ${data.error || 'Unknown error'}\n\nDetails: ${data.details || 'No details'}`);
+        
+        if (data.details?.includes('expired')) {
+          alert('⏰ Authorization code expired. Please try connecting again.');
+        }
+      }
+    } catch (error: any) {
+      console.error('💥 Immediate callback error:', error);
+      alert(`💥 Network error: ${error.message || 'Unknown error'}`);
     }
   }
 
