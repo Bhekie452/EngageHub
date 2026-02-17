@@ -80,6 +80,11 @@ export const LandingHero: React.FC<LandingHeroProps> = ({ onGetStarted }) => {
                         <div className="text-xs text-gray-600 font-semibold">Engagement</div>
                     </div>
 
+                    <div className="absolute top-1/3 -right-8 w-36 h-32 bg-white rounded-2xl shadow-xl p-4 hidden lg:block animate-bounce" style={{ animationDuration: '3s', animationDelay: '0.5s' }}>
+                        <div className="text-3xl font-black text-green-600">+250%</div>
+                        <div className="text-xs text-gray-600 font-semibold">Stable</div>
+                    </div>
+
                     <div className="absolute -bottom-6 -right-6 w-32 h-32 bg-white rounded-2xl shadow-xl p-4 hidden lg:block animate-bounce" style={{ animationDuration: '3s', animationDelay: '1s' }}>
                         <div className="text-3xl font-black text-purple-600">5hrs</div>
                         <div className="text-xs text-gray-600 font-semibold">Saved Daily</div>

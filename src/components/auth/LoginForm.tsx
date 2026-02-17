@@ -156,7 +156,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onSwitchToRegister }) => {
           <div className="relative z-10 max-w-lg">
             <div className="mb-8">
               <span className="inline-block px-4 py-1.5 bg-white/10 backdrop-blur-sm text-purple-300 text-sm font-semibold rounded-full mb-4 border border-white/20">
-                🚀 All-in-One Platform
+                All-in-One Platform
               </span>
               <h1 className="text-4xl xl:text-5xl font-bold text-white leading-tight mb-4">
                 Supercharge Your
