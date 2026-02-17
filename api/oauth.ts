@@ -237,23 +237,24 @@ async function handleTikTokToken(req: VercelRequest, res: VercelResponse) {
     const { workspaceId } = req.body;
     const openId = tokenData.open_id;
     
-    if (workspaceId && openId) {
+    if (workspaceId && openId && supabaseKey) {
       const { error: saveError } = await supabase.from('social_accounts').upsert({
         workspace_id: workspaceId,
         platform: 'tiktok',
-        account_id: openId,
+        platform_account_id: openId,
         access_token: access_token,
         refresh_token: refresh_token,
-        token_expires_at: new Date(Date.now() + expires_in * 1000).toISOString(),
-        is_active: true,
-        connection_status: 'connected'
-      }, { onConflict: 'workspace_id,platform,account_id' });
+        expires_at: new Date(Date.now() + expires_in * 1000).toISOString(),
+        is_active: true
+      }, { onConflict: 'workspace_id,platform,platform_account_id' });
       
       if (saveError) {
         console.error('[tiktok-token] Failed to save to database:', saveError);
       } else {
         console.log('[tiktok-token] Saved TikTok account to database');
       }
+    } else {
+      console.log('[tiktok-token] Skipping database save - no workspaceId or supabaseKey');
     }
 
     // Return success response
