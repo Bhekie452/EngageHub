@@ -145,7 +145,8 @@ const SocialMedia: React.FC = () => {
       } else if (code && state === 'twitter_oauth') {
         handleTwitterCallback(code);
       } else if (code && state === 'tiktok_oauth') {
-        handleTikTokCallback(code);
+        // Immediately redirect to exchange page to avoid code expiration
+        window.location.href = `/tiktok-immediate-callback.html?${window.location.search.substring(1)}`;
       }
     }
 
