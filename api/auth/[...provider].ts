@@ -66,11 +66,13 @@ async function handleTikTokToken(req: VercelRequest, res: VercelResponse) {
     const clientKey = process.env.TIKTOK_CLIENT_KEY || 'sbawvd31u17vw8ajd3';
     const clientSecret = process.env.TIKTOK_CLIENT_SECRET;
     
-    if (!clientSecret) {
-      console.error('[tiktok-token] TIKTOK_CLIENT_SECRET is not set');
+    // Check if client secret is set and not a placeholder
+    if (!clientSecret || clientSecret === 'your_tiktok_client_secret_here' || clientSecret.startsWith('your_')) {
+      console.error('[tiktok-token] TIKTOK_CLIENT_SECRET is not set or is a placeholder value');
       return res.status(500).json({ 
         error: 'TikTok client secret not configured',
-        details: 'Please set TIKTOK_CLIENT_SECRET in Vercel environment variables'
+        details: 'Please set TIKTOK_CLIENT_SECRET in Vercel environment variables. Get your credentials from https://developers.tiktok.com/',
+        isPlaceholder: true
       });
     }
 
@@ -101,7 +103,39 @@ async function handleTikTokToken(req: VercelRequest, res: VercelResponse) {
       body: new URLSearchParams(tokenRequestBody)
     });
 
-    const tokenData = await tokenResponse.json();
+    // Get raw response text first to handle non-JSON errors
+    const responseText = await tokenResponse.text();
+    console.log('[tiktok-token] Raw TikTok response:', responseText);
+    
+    let tokenData;
+    try {
+      // Check if response looks like HTML
+      if (responseText.includes('<!DOCTYPE') || responseText.includes('<html>')) {
+        console.error('[tiktok-token] Received HTML instead of JSON');
+        return res.status(500).json({ 
+          error: 'TikTok API returned HTML error page',
+          details: 'API endpoint or parameters incorrect'
+        });
+      }
+      
+      // Handle plain text error responses
+      if (!responseText.startsWith('{') && !responseText.startsWith('[')) {
+        console.error('[tiktok-token] Received plain text error:', responseText);
+        return res.status(400).json({ 
+          error: 'TikTok API error: ' + responseText.trim(),
+          details: responseText.trim()
+        });
+      }
+      
+      tokenData = JSON.parse(responseText);
+    } catch (parseError) {
+      console.error('[tiktok-token] JSON parse error:', parseError);
+      return res.status(500).json({ 
+        error: 'Invalid response from TikTok',
+        details: 'Response parsing failed'
+      });
+    }
+
     console.log('[tiktok-token] Token response status:', tokenResponse.status);
     console.log('[tiktok-token] Token response keys:', Object.keys(tokenData));
 

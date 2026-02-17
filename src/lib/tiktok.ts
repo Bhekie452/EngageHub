@@ -130,11 +130,25 @@ export const exchangeCodeForToken = async (code: string): Promise<{ accessToken:
 
         if (!response.ok) {
             let errorMessage = 'Token exchange failed';
-            try {
-                const error = await response.json();
-                errorMessage = error.message || error.error || error.error_description || 'Token exchange failed';
-            } catch {
-                errorMessage = response.statusText || 'Token exchange failed';
+            const contentType = response.headers.get('content-type');
+            
+            if (contentType && contentType.includes('application/json')) {
+                // Handle JSON error response
+                try {
+                    const error = await response.json();
+                    errorMessage = error.message || error.error || error.error_description || error.details || 'Token exchange failed';
+                    // Include raw response details if available
+                    if (error.rawResponse) {
+                        console.error('[exchangeCodeForToken] Raw TikTok response:', error.rawResponse);
+                    }
+                } catch {
+                    errorMessage = response.statusText || 'Token exchange failed';
+                }
+            } else {
+                // Handle non-JSON error response (e.g., TikTok returning plain text errors)
+                const text = await response.text();
+                console.error('[exchangeCodeForToken] Non-JSON error response:', text);
+                errorMessage = text || response.statusText || 'Token exchange failed';
             }
             throw new Error(errorMessage);
         }

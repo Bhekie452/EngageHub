@@ -115,11 +115,13 @@ async function handleTikTokToken(req: VercelRequest, res: VercelResponse) {
     const clientKey = process.env.TIKTOK_CLIENT_KEY || 'sbawvd31u17vw8ajd3';
     const clientSecret = process.env.TIKTOK_CLIENT_SECRET;
     
-    if (!clientSecret) {
-      console.error('[tiktok-token] TIKTOK_CLIENT_SECRET is not set in environment variables');
+    // Check if client secret is set and not a placeholder
+    if (!clientSecret || clientSecret === 'your_tiktok_client_secret_here' || clientSecret.startsWith('your_')) {
+      console.error('[tiktok-token] TIKTOK_CLIENT_SECRET is not set or is a placeholder value');
       return res.status(500).json({ 
         error: 'TikTok client secret not configured',
-        details: 'Please set TIKTOK_CLIENT_SECRET in Vercel environment variables'
+        details: 'Please set TIKTOK_CLIENT_SECRET in Vercel environment variables. Get your credentials from https://developers.tiktok.com/',
+        isPlaceholder: true
       });
     }
 
