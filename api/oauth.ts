@@ -89,7 +89,10 @@ async function handleTikTokToken(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { code, redirectUri, codeVerifier } = req.body;
+  const { code, redirectUri, codeVerifier, code_verifier } = req.body;
+
+  // Support both naming conventions
+  const verifier = codeVerifier || code_verifier;
 
   if (!code) {
     return res.status(400).json({ error: 'Authorization code required' });
@@ -97,7 +100,7 @@ async function handleTikTokToken(req: VercelRequest, res: VercelResponse) {
 
   try {
     console.log('[tiktok-token] Authorization code received:', code?.substring(0, 20) + '...');
-    console.log('[tiktok-token] Code verifier found:', !!codeVerifier);
+    console.log('[tiktok-token] Code verifier found:', !!verifier);
 
     // Exchange authorization code for access token with PKCE
     const tokenRequestBody: { [key: string]: any } = {
@@ -109,8 +112,8 @@ async function handleTikTokToken(req: VercelRequest, res: VercelResponse) {
     };
     
     // Add code verifier if available (required for PKCE)
-    if (codeVerifier) {
-      tokenRequestBody.code_verifier = codeVerifier;
+    if (verifier) {
+      tokenRequestBody.code_verifier = verifier;
     }
     
     console.log('[tiktok-token] Token exchange request:', {
