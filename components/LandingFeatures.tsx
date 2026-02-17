@@ -65,8 +65,8 @@ export const LandingFeatures: React.FC = () => {
     return (
         <section className="py-24 bg-white relative overflow-hidden">
             {/* Background decoration */}
-            <div className="absolute top-0 left-1/4 w-64 h-64 bg-blue-100 rounded-full blur-3xl opacity-30"></div>
-            <div className="absolute bottom-0 right-1/4 w-64 h-64 bg-purple-100 rounded-full blur-3xl opacity-30"></div>
+            <div className="absolute top-0 left-1/4 w-64 h-64 bg-blue-100 rounded-full blur-3xl opacity-30 animate-pulse"></div>
+            <div className="absolute bottom-0 right-1/4 w-64 h-64 bg-purple-100 rounded-full blur-3xl opacity-30 animate-pulse" style={{ animationDelay: '1s' }}></div>
 
             <div className="max-w-7xl mx-auto px-6 relative z-10">
                 {/* Section header */}
@@ -92,7 +92,8 @@ export const LandingFeatures: React.FC = () => {
                         return (
                             <div
                                 key={index}
-                                className="group relative bg-white rounded-2xl p-6 border border-gray-100 hover:border-transparent hover:shadow-2xl transition-all duration-300 hover:-translate-y-2"
+                                className="group relative bg-white rounded-2xl p-6 border border-gray-100 hover:border-transparent hover:shadow-2xl transition-all duration-300 hover:-translate-y-2 animate-fade-in-up"
+                                style={{ animationDelay: `${index * 100}ms` }}
                             >
                                 {/* Gradient border on hover */}
                                 <div className={`absolute inset-0 rounded-2xl bg-gradient-to-r ${feature.gradient} opacity-0 group-hover:opacity-100 transition-opacity -z-10 blur-xl`}></div>

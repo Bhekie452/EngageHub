@@ -125,12 +125,15 @@ async function handleTikTokToken(req: VercelRequest, res: VercelResponse) {
       });
     }
 
+    // Get redirect URI from environment or use default
+    const redirectUri = process.env.TIKTOK_REDIRECT_URI || 'https://engage-hub-ten.vercel.app';
+
     const tokenRequestBody: { [key: string]: any } = {
       client_key: clientKey,
       client_secret: clientSecret,
       code: code,
       grant_type: 'authorization_code',
-      redirect_uri: redirectUri || process.env.TIKTOK_REDIRECT_URI || 'https://engage-hub-ten.vercel.app'
+      redirect_uri: redirectUri
     };
     
     // Add code verifier if available (required for PKCE)

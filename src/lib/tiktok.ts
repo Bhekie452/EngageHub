@@ -5,12 +5,18 @@
 
 const TIKTOK_CLIENT_KEY = import.meta.env.VITE_TIKTOK_CLIENT_KEY || '';
 const TIKTOK_CLIENT_SECRET = import.meta.env.VITE_TIKTOK_CLIENT_SECRET || ''; // Only used server-side
+const TIKTOK_REDIRECT_URI = import.meta.env.VITE_TIKTOK_REDIRECT_URI || '';
 
 /**
  * Get redirect URI (calculated at call time to avoid hydration issues)
  * Normalizes 127.0.0.1 to localhost for development to match TikTok app settings
  */
 const getRedirectURI = (): string => {
+    // Use environment variable if set
+    if (TIKTOK_REDIRECT_URI) {
+        return TIKTOK_REDIRECT_URI;
+    }
+    
     if (typeof window === 'undefined') {
         return 'http://localhost:3000';
     }
