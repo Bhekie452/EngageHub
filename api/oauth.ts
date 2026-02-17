@@ -128,6 +128,12 @@ async function handleTikTokToken(req: VercelRequest, res: VercelResponse) {
     // Get redirect URI from environment or use default
     const redirectUri = process.env.TIKTOK_REDIRECT_URI || 'https://engage-hub-ten.vercel.app';
 
+    // Debug: Log what we're sending
+    console.log('[tiktok-token] === CREDENTIALS DEBUG ===');
+    console.log('[tiktok-token] client_key:', clientKey);
+    console.log('[tiktok-token] client_secret first 5 chars:', clientSecret?.substring(0, 5) + '...');
+    console.log('[tiktok-token] redirect_uri:', redirectUri);
+
     const tokenRequestBody: { [key: string]: any } = {
       client_key: clientKey,
       client_secret: clientSecret,
