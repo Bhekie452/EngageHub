@@ -219,16 +219,20 @@ class TikTokOAuthHandler {
    */
   async saveConnection(tokenData) {
     try {
-      // Save to localStorage
+      // Save to localStorage with keys that the UI expects
+      localStorage.setItem('tiktok_connected', 'true');
+      localStorage.setItem('tiktok_tokens', JSON.stringify(tokenData));
+      
+      // Also save with the original key for compatibility
       const connectionData = {
         connected: true,
         timestamp: Date.now(),
         workspaceId: this.workspaceId,
         ...tokenData
       };
-      
       localStorage.setItem('tiktok_connection', JSON.stringify(connectionData));
-      console.log('💾 Saved connection state to localStorage');
+      
+      console.log('💾 Saved TikTok connection state to localStorage');
 
       // Optional: Save to backend
       // await this.syncConnectionToBackend(tokenData);
