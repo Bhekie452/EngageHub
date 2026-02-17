@@ -37,9 +37,9 @@ class TikTokOAuthHandler {
       const codeVerifier = this.generateCodeVerifier();
       const codeChallenge = await this.generateCodeChallenge(codeVerifier);
 
-      // Store code verifier for later use
-      sessionStorage.setItem('tiktok_code_verifier', codeVerifier);
-      sessionStorage.setItem('tiktok_oauth_started', Date.now().toString());
+      // Store code verifier and redirect URI for consistency with tiktok.ts
+      sessionStorage.setItem('tiktok_oauth_code_verifier', codeVerifier);
+      sessionStorage.setItem('tiktok_oauth_redirect_uri', this.redirectUri);
 
       // Build authorization URL
       const authUrl = new URL('https://www.tiktok.com/v2/auth/authorize/');
@@ -84,8 +84,8 @@ class TikTokOAuthHandler {
         throw new Error('Invalid OAuth callback parameters');
       }
 
-      // Get stored code verifier
-      const codeVerifier = sessionStorage.getItem('tiktok_code_verifier');
+      // Get stored code verifier (use same key as tiktok.ts for consistency)
+      const codeVerifier = sessionStorage.getItem('tiktok_oauth_code_verifier');
       if (!codeVerifier) {
         throw new Error('Code verifier not found. OAuth flow may have expired.');
       }
@@ -113,8 +113,8 @@ class TikTokOAuthHandler {
       sessionStorage.setItem('tiktok_callback_processed', 'true');
       sessionStorage.removeItem('tiktok_callback_processing');
 
-      // Clean up stored data
-      sessionStorage.removeItem('tiktok_code_verifier');
+      // Clean up stored data (use same key as tiktok.ts for consistency)
+      sessionStorage.removeItem('tiktok_oauth_code_verifier');
       sessionStorage.removeItem('tiktok_oauth_started');
 
       // Clean up URL
