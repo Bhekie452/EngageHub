@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Facebook, Instagram, Twitter, Youtube, Linkedin, Music } from 'lucide-react';
 import FacebookConnection from './FacebookConnection';
 import InstagramConnection from './InstagramConnection';
@@ -13,8 +13,49 @@ interface SocialPlatform {
   component?: React.ReactNode;
 }
 
+interface ConnectedAccount {
+  platform: string;
+  account_id: string;
+  username: string;
+  display_name: string;
+}
+
 export default function SocialMedia() {
   const [activeTab, setActiveTab] = useState<'connections' | 'pages'>('connections');
+  const [connectedAccounts, setConnectedAccounts] = useState<ConnectedAccount[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchConnectedAccounts();
+  }, []);
+
+  const fetchConnectedAccounts = async () => {
+    try {
+      const workspaceId = localStorage.getItem('current_workspace_id');
+      if (!workspaceId) {
+        setLoading(false);
+        return;
+      }
+      
+      const response = await fetch(`/api/social-accounts?workspaceId=${workspaceId}`);
+      const data = await response.json();
+      
+      if (data.accounts) {
+        setConnectedAccounts(data.accounts);
+        console.log('📱 Fetched connected accounts:', data.accounts);
+      }
+    } catch (error) {
+      console.error('Error fetching connected accounts:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const isPlatformConnected = (platformId: string) => {
+    return connectedAccounts.some(
+      (account) => account.platform.toLowerCase() === platformId.toLowerCase()
+    );
+  };
 
   const platforms: SocialPlatform[] = [
     {
@@ -22,7 +63,7 @@ export default function SocialMedia() {
       name: 'Facebook',
       icon: <Facebook size={24} />,
       color: 'bg-blue-500',
-      connected: false, // This would come from your state/API
+      connected: isPlatformConnected('facebook'),
       component: <FacebookConnection />
     },
     {
