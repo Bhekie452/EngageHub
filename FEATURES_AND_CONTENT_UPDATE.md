@@ -170,7 +170,7 @@ To avoid “usage anxiety” and forced mid-month upgrades: offer **Post Packs**
 | Short description | “Your all-in-one business command center. Manage social media, engage customers, and grow your business on autopilot.” |
 | Product links | Features, Pricing, Integrations, API, Changelog, Roadmap |
 | Company links | About Us, Blog, Careers, Press Kit, Partners, Contact |
-| Contact | hello@engagehub.co.za | +27 12 345 6789 | Cape Town, South Africa |
+| Contact | hello@engagehub.co.za | | |
 
 ---
 

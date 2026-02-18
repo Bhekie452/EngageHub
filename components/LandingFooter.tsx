@@ -71,18 +71,6 @@ export const LandingFooter: React.FC = () => {
                                     support@engagehub.co.za
                                 </a>
                             </li>
-                            <li className="flex items-start gap-2">
-                                <Phone className="w-5 h-5 flex-shrink-0 mt-0.5 text-blue-400" />
-                                <a href="tel:+27123456789" className="text-sm hover:text-white transition-colors">
-                                    +27 12 345 6789
-                                </a>
-                            </li>
-                            <li className="flex items-start gap-2">
-                                <MapPin className="w-5 h-5 flex-shrink-0 mt-0.5 text-blue-400" />
-                                <span className="text-sm">
-                                    Cape Town, South Africa
-                                </span>
-                            </li>
                         </ul>
                     </div>
                 </div>
