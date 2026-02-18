@@ -80,13 +80,8 @@ export const LandingHero: React.FC<LandingHeroProps> = ({ onGetStarted }) => {
                         </button>
                     </div>
 
-                    {/* Trust signal */}
-                    <div className="pt-4">
-                        <p className="text-sm text-slate-400 font-medium">
-                            <span className="font-bold text-white">Trusted by 10,000+ businesses.</span> Saving teams 20+ hours weekly.
-                        </p>
-                        <p className="text-xs text-slate-500 mt-2">
-                            14-day free trial. No credit card required. Cancel anytime.
+                    <p className="text-xs text-slate-500 mt-2">
+                        14-day free trial. No credit card required. Cancel anytime.
                         </p>
                     </div>
                 </div>

@@ -18,9 +18,6 @@ export const LandingTrustedBy: React.FC = () => {
     return (
         <section className="py-16 bg-white border-y border-slate-200 overflow-hidden">
             <div className="max-w-7xl mx-auto px-6 mb-8">
-                <p className="text-center text-sm font-semibold text-slate-500 mb-2 uppercase tracking-widest">
-                    Trusted by 10,000+ businesses worldwide
-                </p>
             </div>
             
             {/* Infinite scrolling marquee */}

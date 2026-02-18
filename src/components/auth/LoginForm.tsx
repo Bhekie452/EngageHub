@@ -201,7 +201,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onSwitchToRegister }) => {
                     </svg>
                   ))}
                 </div>
-                <p className="text-slate-400 text-sm">Trusted by 10,000+ businesses</p>
+                </div>
               </div>
             </div>
           </div>
