@@ -1,10 +1,13 @@
 import { createClient } from '@supabase/supabase-js';
 
-// Initialize Supabase
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_ANON_KEY
-);
+// Initialize Supabase with fallback for development
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
+
+// Only create client if we have valid credentials
+const supabase = (supabaseUrl && supabaseUrl !== 'your-project-url-here')
+  ? createClient(supabaseUrl, supabaseAnonKey || 'placeholder-key')
+  : null;
 
 // Facebook App Configuration
 const FB_APP_ID = import.meta.env.VITE_FACEBOOK_APP_ID || '2106228116796555';
@@ -25,6 +28,69 @@ export const initiateFacebookOAuth = () => {
     console.log('App ID:', FB_APP_ID);
     console.log('Redirect URI:', getRedirectURI());
     console.log('Full URL:', typeof window !== 'undefined' ? window.location.href : 'N/A');
+};
+
+export const loginWithFacebook = async () => {
+    // This would initiate the Facebook OAuth flow
+    try {
+        const redirectUri = getRedirectURI();
+        const appId = FB_APP_ID || 'your-facebook-app-id';
+        const authUrl = `https://www.facebook.com/v18.0/dialog/oauth?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=pages_show_list,pages_read_engagement,instagram_basic,instagram_manage_insights&response_type=code`;
+        window.location.href = authUrl;
+    } catch (error) {
+        console.error('Failed to initiate Facebook OAuth:', error);
+        throw error;
+    }
+};
+
+export const getFacebookProfile = async (accessToken: string) => {
+    try {
+        const response = await fetch(`https://graph.facebook.com/me?fields=id,name,email,picture&access_token=${accessToken}`);
+        if (!response.ok) {
+            throw new Error('Failed to fetch Facebook profile');
+        }
+        return await response.json();
+    } catch (error) {
+        console.error('Error fetching Facebook profile:', error);
+        throw error;
+    }
+};
+
+export const getInstagramAccount = async (accessToken: string, instagramBusinessId?: string) => {
+    try {
+        // If instagram business ID is provided, get that account directly
+        if (instagramBusinessId) {
+            const response = await fetch(`https://graph.facebook.com/${instagramBusinessId}?fields=id,username,followers_count,media_count&access_token=${accessToken}`);
+            if (!response.ok) {
+                return null;
+            }
+            return await response.json();
+        }
+        // Otherwise get Instagram business account from user
+        const response = await fetch(`https://graph.facebook.com/me?fields=instagram_business_account&access_token=${accessToken}`);
+        if (!response.ok) {
+            return null;
+        }
+        const data = await response.json();
+        return data.instagram_business_account || null;
+    } catch (error) {
+        console.error('Error fetching Instagram account:', error);
+        return null;
+    }
+};
+
+export const getPageTokens = async (accessToken: string) => {
+    try {
+        const response = await fetch(`https://graph.facebook.com/me/accounts?access_token=${accessToken}`);
+        if (!response.ok) {
+            throw new Error('Failed to fetch Facebook pages');
+        }
+        const data = await response.json();
+        return data.data || [];
+    } catch (error) {
+        console.error('Error fetching page tokens:', error);
+        throw error;
+    }
 };
 
 export const handleFacebookCallback = async (passedCode?: string, passedState?: string) => {
@@ -108,6 +174,39 @@ export const handleFacebookCallback = async (passedCode?: string, passedState?: 
     } catch (error) {
         console.error('❌ Facebook callback error:', error);
         return { success: false, error: error.message };
+    }
+};
+
+/**
+ * Exchange authorization code for access token
+ * NOTE: This MUST be done server-side for security (client secret required)
+ */
+export const exchangeCodeForToken = async (code: string): Promise<any> => {
+    try {
+        const redirectUri = getRedirectURI();
+
+        // Use the API endpoint for token exchange
+        const response = await fetch('/api/facebook/token', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ code, redirectUri })
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.message || 'Token exchange failed');
+        }
+
+        const data = await response.json();
+
+        return {
+            accessToken: data.access_token,
+            expiresIn: data.expires_in,
+            refreshToken: data.refresh_token
+        };
+    } catch (error: any) {
+        console.error('❌ Facebook token exchange error:', error);
+        throw error;
     }
 };
 

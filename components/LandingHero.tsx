@@ -82,8 +82,7 @@ export const LandingHero: React.FC<LandingHeroProps> = ({ onGetStarted }) => {
 
                     <p className="text-xs text-slate-500 mt-2">
                         14-day free trial. No credit card required. Cancel anytime.
-                        </p>
-                    </div>
+                    </p>
                 </div>
 
                 {/* Right content - Dashboard carousel */}

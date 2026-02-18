@@ -1,7 +1,7 @@
 import React from 'react';
 import { MessageSquare, Calendar, BarChart3, Users, Zap } from 'lucide-react';
 
-const ProductShowcase: React.FC = () => {
+export const ProductShowcase: React.FC = () => {
   const products = [
     {
       title: 'Social Media Management',
