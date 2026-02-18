@@ -106,7 +106,8 @@ async function handleFacebookToken(req: VercelRequest, res: VercelResponse) {
     const pagesResponse = await fetch(
       `https://graph.facebook.com/v19.0/me/accounts?` +
       `fields=id,name,access_token,instagram_business_account&` +
-      `access_token=${longTermData.access_token}`
+      `access_token=${longTermData.access_token}&` +
+      `limit=100`
     );
 
     const pagesData = await pagesResponse.json();
@@ -211,7 +212,8 @@ async function handleFacebookSimple(req: VercelRequest, res: VercelResponse) {
     const pagesResponse = await fetch(
       `https://graph.facebook.com/v19.0/me/accounts?` +
       `fields=id,name,access_token,instagram_business_account&` +
-      `access_token=${longTermData.access_token}`
+      `access_token=${longTermData.access_token}&` +
+      `limit=100`
     );
 
     const pagesData = await pagesResponse.json();
@@ -233,7 +235,12 @@ async function handleFacebookSimple(req: VercelRequest, res: VercelResponse) {
       expiresIn: longTermData.expires_in,
       user: profileData,
       pages: pagesData.data || [],
-      workspaceId: workspaceId
+      pagesCount: pagesData.data ? pagesData.data.length : 0,
+      workspaceId: workspaceId,
+      debug: {
+        permissions: longTermData.scope || 'N/A',
+        pagesSummary: pagesData.summary || null
+      }
     });
 
   } catch (error: any) {
