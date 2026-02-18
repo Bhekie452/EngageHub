@@ -168,6 +168,208 @@ app.get('/api/utils/:endpoint', (req, res) => {
 });
 
 const PORT = process.env.PORT || 3001;
+
+// ============================================
+// Facebook OAuth Handler for Local Development
+// ============================================
+async function handleFacebookAuth(req, res) {
+  const { workspaceId, action } = req.query;
+  
+  const clientId = process.env.FACEBOOK_APP_ID;
+  const clientSecret = process.env.FACEBOOK_APP_SECRET;
+  const redirectUri = 'http://localhost:3000/#/pages/auth/facebook/callback';
+  
+  if (!clientId || !clientSecret) {
+    return res.status(500).json({ 
+      error: 'Facebook credentials not configured',
+      details: 'FACEBOOK_APP_ID or FACEBOOK_APP_SECRET not set in environment variables'
+    });
+  }
+  
+  // Handle token exchange (callback)
+  if (action === 'callback') {
+    const { code } = req.query;
+    if (!code) {
+      return res.status(400).json({ error: 'Authorization code required' });
+    }
+    
+    try {
+      // Exchange authorization code for access token
+      const tokenResponse = await fetch(
+        `https://graph.facebook.com/v19.0/oauth/access_token?` +
+        `client_id=${clientId}&` +
+        `client_secret=${clientSecret}&` +
+        `redirect_uri=${encodeURIComponent(redirectUri)}&` +
+        `code=${code}`
+      );
+      
+      const tokenData = await tokenResponse.json();
+      
+      if (tokenData.error) {
+        return res.status(400).json({ error: tokenData.error.message });
+      }
+      
+      // Exchange short-lived token for long-lived token
+      const longTermResponse = await fetch(
+        `https://graph.facebook.com/v19.0/oauth/access_token?` +
+        `grant_type=fb_exchange_token&` +
+        `client_id=${clientId}&` +
+        `client_secret=${clientSecret}&` +
+        `fb_exchange_token=${tokenData.access_token}`
+      );
+      
+      const longTermData = await longTermResponse.json();
+      
+      if (longTermData.error) {
+        return res.status(400).json({ error: longTermData.error.message });
+      }
+      
+      // Get Facebook Pages
+      const pagesResponse = await fetch(
+        `https://graph.facebook.com/v19.0/me/accounts?` +
+        `fields=id,name,access_token,instagram_business_account&` +
+        `access_token=${longTermData.access_token}`
+      );
+      
+      const pagesData = await pagesResponse.json();
+      
+      // Get user profile
+      const profileResponse = await fetch(
+        `https://graph.facebook.com/v19.0/me?` +
+        `fields=id,name,email&` +
+        `access_token=${longTermData.access_token}`
+      );
+      
+      const profileData = await profileResponse.json();
+      
+      return res.status(200).json({
+        success: true,
+        accessToken: longTermData.access_token,
+        expiresIn: longTermData.expires_in,
+        user: profileData,
+        pages: pagesData.data || []
+      });
+      
+    } catch (error) {
+      console.error('Facebook token exchange failed:', error);
+      return res.status(500).json({ error: error.message });
+    }
+  }
+  
+  // Handle auth initiation
+  const scopes = 'public_profile,email,pages_show_list,pages_read_engagement,pages_manage_posts,instagram_basic,instagram_content_publish';
+  const state = JSON.stringify({ workspaceId: workspaceId || 'c9a454c5-a5f3-42dd-9fbd-cedd4c1c49a9' });
+  
+  const facebookAuthUrl = new URL('https://www.facebook.com/v19.0/dialog/oauth');
+  facebookAuthUrl.searchParams.set('client_id', clientId);
+  facebookAuthUrl.searchParams.set('redirect_uri', redirectUri);
+  facebookAuthUrl.searchParams.set('scope', scopes);
+  facebookAuthUrl.searchParams.set('state', state);
+  facebookAuthUrl.searchParams.set('response_type', 'code');
+  
+  console.log('[facebook-auth] Redirecting to Facebook OAuth');
+  console.log('[facebook-auth] Redirect URI:', redirectUri);
+  
+  // Redirect to Facebook
+  return res.redirect(facebookAuthUrl.toString());
+}
+
+// Add auth route handler
+app.get('/api/auth', async (req, res) => {
+  const { provider, action } = req.query;
+  
+  console.log(`[API] Auth request: provider=${provider}, action=${action}`);
+  
+  if (provider === 'facebook') {
+    return handleFacebookAuth(req, res);
+  }
+  
+  return res.status(404).json({ error: 'Provider not found' });
+});
+
+app.post('/api/auth', async (req, res) => {
+  const { provider, action } = req.query;
+  
+  console.log(`[API] Auth POST request: provider=${provider}, action=${action}`);
+  
+  if (provider === 'facebook' && action === 'token') {
+    const { code } = req.body;
+    
+    if (!code) {
+      return res.status(400).json({ error: 'Authorization code required' });
+    }
+    
+    const clientId = process.env.FACEBOOK_APP_ID;
+    const clientSecret = process.env.FACEBOOK_APP_SECRET;
+    const redirectUri = 'http://localhost:3000/#/pages/auth/facebook/callback';
+    
+    try {
+      // Exchange authorization code for access token
+      const tokenResponse = await fetch(
+        `https://graph.facebook.com/v19.0/oauth/access_token?` +
+        `client_id=${clientId}&` +
+        `client_secret=${clientSecret}&` +
+        `redirect_uri=${encodeURIComponent(redirectUri)}&` +
+        `code=${code}`
+      );
+      
+      const tokenData = await tokenResponse.json();
+      
+      if (tokenData.error) {
+        return res.status(400).json({ error: tokenData.error.message });
+      }
+      
+      // Exchange short-lived token for long-lived token
+      const longTermResponse = await fetch(
+        `https://graph.facebook.com/v19.0/oauth/access_token?` +
+        `grant_type=fb_exchange_token&` +
+        `client_id=${clientId}&` +
+        `client_secret=${clientSecret}&` +
+        `fb_exchange_token=${tokenData.access_token}`
+      );
+      
+      const longTermData = await longTermResponse.json();
+      
+      if (longTermData.error) {
+        return res.status(400).json({ error: longTermData.error.message });
+      }
+      
+      // Get Facebook Pages
+      const pagesResponse = await fetch(
+        `https://graph.facebook.com/v19.0/me/accounts?` +
+        `fields=id,name,access_token,instagram_business_account&` +
+        `access_token=${longTermData.access_token}`
+      );
+      
+      const pagesData = await pagesResponse.json();
+      
+      // Get user profile
+      const profileResponse = await fetch(
+        `https://graph.facebook.com/v19.0/me?` +
+        `fields=id,name,email&` +
+        `access_token=${longTermData.access_token}`
+      );
+      
+      const profileData = await profileResponse.json();
+      
+      return res.status(200).json({
+        success: true,
+        accessToken: longTermData.access_token,
+        expiresIn: longTermData.expires_in,
+        user: profileData,
+        pages: pagesData.data || []
+      });
+      
+    } catch (error) {
+      console.error('Facebook token exchange failed:', error);
+      return res.status(500).json({ error: error.message });
+    }
+  }
+  
+  return res.status(404).json({ error: 'Action not found' });
+});
+
+// Start server
 app.listen(PORT, () => {
   console.log(`🚀 Local API server running on http://localhost:${PORT}`);
   console.log('📡 Available endpoints:');

@@ -188,6 +188,17 @@ async function handleTikTokToken(req: VercelRequest, res: VercelResponse) {
       // Handle plain text error responses (like "Unsupported response type")
       if (!responseText.startsWith('{') && !responseText.startsWith('[')) {
         console.error('[tiktok-token] Received plain text error:', responseText);
+        // Check if it's a TikTok error message
+        if (responseText.toLowerCase().includes('unsupported') || 
+            responseText.toLowerCase().includes('invalid') ||
+            responseText.toLowerCase().includes('error')) {
+          return res.status(400).json({ 
+            error: 'TikTok API error: ' + responseText.trim(),
+            details: responseText.trim(),
+            rawResponse: responseText
+          });
+        }
+        // For unknown plain text, also return 400
         return res.status(400).json({ 
           error: 'TikTok API error: ' + responseText.trim(),
           details: responseText.trim(),
@@ -197,12 +208,12 @@ async function handleTikTokToken(req: VercelRequest, res: VercelResponse) {
       
       // Try to parse as JSON
       tokenData = JSON.parse(responseText);
-    } catch (parseError) {
+    } catch (parseError: any) {
       console.error('[tiktok-token] JSON parse error:', parseError);
       console.log('[tiktok-token] Response that failed to parse:', responseText?.substring(0, 500) || 'No response text');
       return res.status(500).json({ 
         error: 'Invalid response from TikTok',
-        details: 'Response parsing failed',
+        details: 'Response parsing failed: ' + (parseError?.message || 'Unknown error'),
         rawResponse: responseText?.substring(0, 500) + '...' || 'No response available'
       });
     }

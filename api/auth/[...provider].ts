@@ -207,7 +207,7 @@ async function handleFacebookAuth(req: VercelRequest, res: VercelResponse) {
   
   const clientId = process.env.FACEBOOK_APP_ID;
   const clientSecret = process.env.FACEBOOK_APP_SECRET;
-  const redirectUri = 'https://engage-hub-ten.vercel.app/auth/facebook/callback';
+  const redirectUri = 'https://engage-hub-ten.vercel.app/api/auth?provider=facebook&action=callback';
   
   if (!clientId || !clientSecret) {
     return res.status(500).json({ 
@@ -309,14 +309,24 @@ async function handleFacebookCallback(req: VercelRequest, res: VercelResponse) {
   const { code, state } = req.query;
 
   if (!code) {
-    return res.status(400).json({ error: 'Authorization code required' });
+    const error = req.query.error as string;
+    const errorDescription = req.query.error_description as string;
+    console.error('[facebook-callback] Error:', error, errorDescription);
+    return res.redirect(`/social-media?error=${encodeURIComponent(error || 'OAuth error')}`);
   }
 
-  // For now, just return the code to the frontend
-  // In a real app, you would exchange the code server-side
-  return res.status(200).json({
-    success: true,
-    code,
-    message: 'Authorization received'
-  });
+  // Parse state to get workspaceId
+  let workspaceId = 'c9a454c5-a5f3-42dd-9fbd-cedd4c1c49a9';
+  try {
+    if (state) {
+      const stateData = JSON.parse(state as string);
+      workspaceId = stateData.workspaceId || workspaceId;
+    }
+  } catch (e) {
+    console.log('[facebook-callback] Could not parse state:', e);
+  }
+
+  // Redirect to frontend with the code
+  console.log('[facebook-callback] Redirecting with code');
+  return res.redirect(`/social-media?facebook_code=${code}&workspaceId=${workspaceId}`);
 }

@@ -138,23 +138,34 @@ export const exchangeCodeForToken = async (code: string): Promise<{ accessToken:
             let errorMessage = 'Token exchange failed';
             const contentType = response.headers.get('content-type');
             
+            // Check if response is JSON
             if (contentType && contentType.includes('application/json')) {
                 // Handle JSON error response
                 try {
                     const error = await response.json();
+                    console.error('[exchangeCodeForToken] JSON error response:', error);
                     errorMessage = error.message || error.error || error.error_description || error.details || 'Token exchange failed';
                     // Include raw response details if available
                     if (error.rawResponse) {
                         console.error('[exchangeCodeForToken] Raw TikTok response:', error.rawResponse);
                     }
-                } catch {
+                } catch (parseError) {
+                    console.error('[exchangeCodeForToken] Failed to parse JSON error:', parseError);
                     errorMessage = response.statusText || 'Token exchange failed';
                 }
             } else {
-                // Handle non-JSON error response (e.g., TikTok returning plain text errors)
+                // Handle non-JSON error response (e.g., HTML error pages, plain text errors)
                 const text = await response.text();
                 console.error('[exchangeCodeForToken] Non-JSON error response:', text);
-                errorMessage = text || response.statusText || 'Token exchange failed';
+                console.error('[exchangeCodeForToken] Response status:', response.status);
+                console.error('[exchangeCodeForToken] Content-Type:', contentType);
+                
+                // Check if it's a server error (500) - show more helpful message
+                if (response.status >= 500) {
+                    errorMessage = `Server error (${response.status}): The OAuth service is experiencing issues. Please try again later.`;
+                } else {
+                    errorMessage = text || response.statusText || 'Token exchange failed';
+                }
             }
             throw new Error(errorMessage);
         }
