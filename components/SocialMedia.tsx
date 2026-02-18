@@ -1331,7 +1331,16 @@ const SocialMedia: React.FC = () => {
               { name: 'YouTube', handle: 'Engagehub Tutorials', platform: 'youtube', icon: <Youtube className="text-red-600" /> },
             ].map((account, idx) => {
               const connectedAccount = connectedAccounts.find(ca => ca.platform === account.platform);
-              const isConnected = !!connectedAccount;
+              // For Instagram, also check if Facebook has an Instagram business account linked
+              const facebookAccount = connectedAccounts.find(ca => ca.platform === 'facebook');
+              const hasInstagramViaFacebook = facebookAccount?.platform_data?.instagram_business_account;
+              const isConnected = account.platform === 'instagram' 
+                ? !!hasInstagramViaFacebook 
+                : !!connectedAccount;
+              // For Instagram, use Facebook account data if available
+              const displayAccount = account.platform === 'instagram' && hasInstagramViaFacebook 
+                ? { display_name: 'Instagram (via Facebook)', username: facebookAccount.username } 
+                : connectedAccount;
 
               return (
                 <div key={idx} className={`p-6 rounded-2xl border flex flex-col justify-between group transition-all duration-300 shadow-sm min-h-[160px] ${isConnected ? 'bg-white border-blue-100 ring-1 ring-blue-50/50 hover:shadow-lg hover:shadow-blue-100/50' : 'bg-gray-50/50 border-gray-100 filter grayscale-[0.2] hover:bg-white'}`}>
@@ -1341,7 +1350,7 @@ const SocialMedia: React.FC = () => {
                     </div>
                     <div className="overflow-hidden">
                       <h4 className={`text-md font-black truncate leading-tight ${isConnected ? 'text-gray-900' : 'text-gray-500'}`}>
-                        {isConnected && (connectedAccount.display_name || connectedAccount.username) ? (connectedAccount.display_name || connectedAccount.username) : account.name}
+                        {isConnected && (displayAccount?.display_name || displayAccount?.username || account.name) ? (displayAccount?.display_name || displayAccount?.username) : account.name}
                       </h4>
                       <p className="text-xs text-gray-400 font-semibold mt-1 truncate uppercase tracking-wider">
                         {isConnected ? 'Connected' : account.handle}
