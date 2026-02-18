@@ -313,25 +313,25 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onSwitchToRegister }) => {
                 <div className="flex-1 h-px bg-slate-200"></div>
               </div>
 
-              <div className="space-y-3">
+              <div className="mt-3 flex gap-3">
                 <button
                   type="button"
                   onClick={() => handleOAuthSignIn('google')}
                   disabled={loading}
-                  className="w-full bg-white border-2 border-slate-200 text-slate-700 py-3.5 rounded-2xl font-semibold hover:bg-slate-50 hover:border-slate-300 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-3 shadow-sm hover:shadow-md"
+                  className="flex-1 bg-white border-2 border-slate-200 text-slate-700 py-3.5 rounded-2xl font-semibold hover:bg-slate-50 hover:border-slate-300 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-3 shadow-sm hover:shadow-md"
                 >
                   <GoogleIcon />
-                  Continue with Google
+                  Google
                 </button>
 
                 <button
                   type="button"
                   onClick={() => handleOAuthSignIn('facebook')}
                   disabled={loading}
-                  className="w-full bg-white border-2 border-slate-200 text-slate-700 py-3.5 rounded-2xl font-semibold hover:bg-slate-50 hover:border-slate-300 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-3 shadow-sm hover:shadow-md"
+                  className="flex-1 bg-white border-2 border-slate-200 text-slate-700 py-3.5 rounded-2xl font-semibold hover:bg-slate-50 hover:border-slate-300 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-3 shadow-sm hover:shadow-md"
                 >
                   <Facebook size={20} className="text-blue-600" />
-                  Continue with Facebook
+                  Facebook
                 </button>
               </div>
 
