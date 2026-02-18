@@ -201,14 +201,18 @@ async function handleConnectPage(req: VercelRequest, res: VercelResponse) {
   const supabase = createClient(supabaseUrl, supabaseKey);
 
   try {
-    // Get workspace owner
-    const { data: workspaceData, error: workspaceError } = await supabase
-      .from('workspaces')
-      .select('owner_id')
-      .eq('id', workspaceId)
-      .single();
-
-    const ownerId = workspaceData?.owner_id;
+    // Try to get workspace owner, but don't fail if not found
+    let ownerId = null;
+    try {
+      const { data: workspaceData } = await supabase
+        .from('workspaces')
+        .select('owner_id')
+        .eq('id', workspaceId)
+        .single();
+      ownerId = workspaceData?.owner_id;
+    } catch (e) {
+      console.log('[handleConnectPage] Could not get workspace owner:', e);
+    }
 
     // Save to social_accounts table
     const { data, error } = await supabase
