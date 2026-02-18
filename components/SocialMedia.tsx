@@ -1339,10 +1339,11 @@ const SocialMedia: React.FC = () => {
               const isConnected = account.platform === 'instagram' 
                 ? !!instagramAccount || !!hasInstagramViaFacebook
                 : !!connectedAccount;
-              // For Instagram, use the Instagram account data if available
-              const displayAccount = account.platform === 'instagram' 
-                ? (instagramAccount || { display_name: facebookAccount?.username || 'Instagram', username: facebookAccount?.username })
-                : connectedAccount;
+              // For Instagram, use the Instagram account data; for others, use connected account
+              let displayAccount = connectedAccount;
+              if (account.platform === 'instagram' && (instagramAccount || hasInstagramViaFacebook)) {
+                displayAccount = instagramAccount || { display_name: facebookAccount?.username || 'Instagram', username: facebookAccount?.username };
+              }
 
               return (
                 <div key={idx} className={`p-6 rounded-2xl border flex flex-col justify-between group transition-all duration-300 shadow-sm min-h-[160px] ${isConnected ? 'bg-white border-blue-100 ring-1 ring-blue-50/50 hover:shadow-lg hover:shadow-blue-100/50' : 'bg-white border-gray-100 hover:border-blue-200 hover:shadow-md'}`}>
