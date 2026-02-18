@@ -18,9 +18,8 @@ const FB_APP_ID = import.meta.env.VITE_FACEBOOK_APP_ID || '2106228116796555';
 
 export const getRedirectURI = (): string => {
     // Always use the FRONTEND callback URL which is whitelisted in Meta
-    // HashRouter requires #/ prefix for proper routing
     const origin = typeof window !== 'undefined' ? window.location.origin : (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
-    return `${origin}/#/pages/auth/facebook/callback`;
+    return `${origin}/auth/facebook/callback`;
 };
 
 export const initiateFacebookOAuth = () => {
