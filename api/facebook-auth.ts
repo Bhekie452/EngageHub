@@ -1,4 +1,5 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
+import { createClient } from '@supabase/supabase-js';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const { action } = req.query;
@@ -197,7 +198,6 @@ async function handleConnectPage(req: VercelRequest, res: VercelResponse) {
     return res.status(500).json({ error: 'Database configuration missing' });
   }
 
-  const { createClient } = require('@supabase/supabase-js');
   const supabase = createClient(supabaseUrl, supabaseKey);
 
   try {
