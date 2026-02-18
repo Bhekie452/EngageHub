@@ -179,6 +179,10 @@ async function handleConnectPage(req: VercelRequest, res: VercelResponse) {
 
   const { pageId, pageAccessToken, pageName, workspaceId, instagramBusinessAccountId } = req.body;
 
+  // Use accessToken if pageAccessToken is not provided
+  const accessToken = pageAccessToken || req.body.accessToken;
+  const igAccountId = instagramBusinessAccountId || (req.body.instagramBusinessAccount?.id);
+
   if (!pageId || !workspaceId) {
     return res.status(400).json({ error: 'pageId and workspaceId are required' });
   }
@@ -218,9 +222,9 @@ async function handleConnectPage(req: VercelRequest, res: VercelResponse) {
           account_id: pageId,
           username: pageName,
           display_name: pageName,
-          access_token: pageAccessToken,
+          access_token: accessToken,
           platform_data: {
-            instagram_business_account: instagramBusinessAccountId
+            instagram_business_account: igAccountId
           },
           is_active: true,
           connection_status: 'connected',
