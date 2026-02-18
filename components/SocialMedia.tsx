@@ -1339,7 +1339,7 @@ const SocialMedia: React.FC = () => {
                 : !!connectedAccount;
               // For Instagram, use Facebook account data if available
               const displayAccount = account.platform === 'instagram' && hasInstagramViaFacebook 
-                ? { display_name: 'Instagram (via Facebook)', username: facebookAccount.username } 
+                ? { display_name: facebookAccount?.username || 'Instagram', username: facebookAccount?.username } 
                 : connectedAccount;
 
               return (
