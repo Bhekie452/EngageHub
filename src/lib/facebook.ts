@@ -405,7 +405,7 @@ export const initiateFacebookOAuth = () => {
     const baseUrl = window.location.origin;
     
     // Redirect to backend auth endpoint instead of managing it here
-    const backendAuthUrl = `${baseUrl}/api/auth?provider=facebook&action=auth&workspaceId=${workspaceId}`;
+    const backendAuthUrl = `${baseUrl}/api/facebook?action=auth&workspaceId=${workspaceId}`;
     
     console.log('🚀 Redirecting to Backend Facebook OAuth Handshake...');
     window.location.href = backendAuthUrl;
