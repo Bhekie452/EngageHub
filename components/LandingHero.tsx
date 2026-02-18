@@ -130,13 +130,12 @@ export const LandingHero: React.FC<LandingHeroProps> = ({ onGetStarted }) => {
                         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-32 h-32 bg-gradient-to-r from-blue-500 via-purple-500 to-cyan-500 rounded-full blur-2xl opacity-60 animate-pulse"></div>
                         
                         {/* Central hub - glassmorphism sphere */}
-                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-24 h-24 bg-gradient-to-br from-blue-500/30 via-indigo-500/30 to-purple-500/30 rounded-full backdrop-blur-md border border-white/20 shadow-2xl flex items-center justify-center z-20">
-                            <div className="w-16 h-16 bg-gradient-to-br from-blue-400 to-purple-500 rounded-full flex items-center justify-center shadow-lg">
-                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-8 h-8 text-white">
-                                    <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
-                                    <line x1="2" y1="20" x2="22" y2="20"></line>
-                                </svg>
-                            </div>
+                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-72 h-56 backdrop-blur-md border border-white/20 shadow-2xl flex items-center justify-center z-20 overflow-hidden rounded-2xl">
+                            <img 
+                                src="/social1.avif" 
+                                alt="EngageHub Dashboard" 
+                                className="w-full h-full object-contain"
+                            />
                         </div>
 
                         {/* Orbital rings */}
