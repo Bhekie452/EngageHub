@@ -1,161 +1,212 @@
-/**
- * Facebook OAuth & Graph API Utility - FINAL VERSION
- * Prevents duplicate token exchanges with triple guard system
- * Uses redirect-based OAuth for localhost compatibility
- */
+import { createClient } from '@supabase/supabase-js';
 
-// TypeScript types for Facebook SDK
-declare global {
-    interface Window {
-        FB?: {
-            init: (params: any) => void;
-            login: (callback: (response: any) => void, options?: any) => void;
-            logout: (callback: (response: any) => void) => void;
-            getAuthResponse: () => any;
-            getLoginStatus: (callback: (response: any) => void) => void;
-            api: (path: string, callback: (response: any) => void) => void;
-            ui: (params: any, callback: (response: any) => void) => void;
-            Event: {
-                subscribe: (eventName: string, callback: (response: any) => void) => void;
-                unsubscribe: (eventName: string, callback: (response: any) => void) => void;
-            };
-            XFBML: {
-                parse: (element?: HTMLElement) => void;
-            };
-            AppEvents?: {
-                logPageView: () => void;
-                logEvent: (eventName: string, valueToSum?: number, parameters?: any) => void;
-            };
-        };
-        fbAsyncInit?: () => void;
-        
-        // 🔥 DEBUG: Attach Facebook functions to window for testing
-        initiateFacebookOAuth?: () => void;
-        handleFacebookCallback?: () => Promise<any>;
-        cleanupOAuthState?: () => void;
-        testFacebookConnection?: () => Promise<any>;
-        verifyFacebookConnection?: () => Promise<any>;
-        quickFacebookTest?: () => void;
-        diagnoseFacebookConnection?: () => Promise<void>;
-        checkFacebookPermissions?: () => Promise<void>;
-    }
-}
+// Initialize Supabase
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_ANON_KEY
+);
 
+// Facebook App Configuration
 const FB_APP_ID = import.meta.env.VITE_FACEBOOK_APP_ID || '2106228116796555';
 
-// Triple guard system// 🔥 CRITICAL: Global lock to prevent ANY duplicate processing
-let globalProcessingLock = false;
+// ------------------------------------------------------------------
+//  Facebook OAuth and Connection Functions
+// ------------------------------------------------------------------
 
-// 🔥 CRITICAL: Prevent duplicate requests
-let ongoingRequest: Promise<any[]> | null = null;
-let lastFetchedUserId: string | null = null;
-
-// 🔥 CRITICAL: Lock for OAuth callback processing
-const FB_LOCK = 'facebook_oauth_lock';
-
-/**
- * Scopes for Facebook Login
- */
-const getLoginScope = (): string =>
-    import.meta.env.VITE_FACEBOOK_SCOPES || 
-    'email,public_profile,pages_show_list,instagram_basic,pages_read_engagement,pages_manage_posts';
-
-/**
- * Get redirect URI - use dedicated callback route for consistency
- */
-const getRedirectURI = (): string => {
-    if (typeof window === 'undefined') {
-        return 'http://localhost:3000/#/pages/auth/facebook/callback';
-    }
-    
-    // Always use the dedicated callback route for OAuth with hash routing
-    const origin = window.location.origin;
+export const getRedirectURI = (): string => {
+    // Always use the FRONTEND callback URL which is whitelisted in Meta
+    // HashRouter requires #/ prefix for proper routing
+    const origin = typeof window !== 'undefined' ? window.location.origin : (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
     return `${origin}/#/pages/auth/facebook/callback`;
 };
 
-// Token storage functions
-/**
- * Store Page access tokens (not user tokens) with concurrency protection
- */
-const storePageTokens = (pages: any[]): void => {
+export const initiateFacebookOAuth = () => {
+    console.log('🔍 Facebook OAuth Debug Info:');
+    console.log('App ID:', FB_APP_ID);
+    console.log('Redirect URI:', getRedirectURI());
+    console.log('Full URL:', typeof window !== 'undefined' ? window.location.href : 'N/A');
+};
+
+export const handleFacebookCallback = async (passedCode?: string, passedState?: string) => {
+    //  DEBUG: Log callback entry state
+    console.log('🔍 [DEBUG] Facebook callback triggered:', {
+        url: typeof window !== 'undefined' ? window.location.href : 'N/A',
+        search: typeof window !== 'undefined' ? window.location.search : 'N/A',
+        passedCode: !!passedCode,
+        passedState: !!passedState,
+        timestamp: new Date().toISOString(),
+    });
+    
+    if (typeof window === 'undefined') return;
+
+    try {
+        const urlParams = new URLSearchParams(window.location.search);
+        const code = passedCode || urlParams.get('code');
+        const state = passedState || urlParams.get('state');
+
+        if (!code) {
+            console.error('❌ No authorization code found');
+            return { success: false, error: 'No authorization code' };
+        }
+
+        // Parse state parameter
+        let workspaceId;
+        try {
+            const parsedState = JSON.parse(decodeURIComponent(state || ''));
+            workspaceId = parsedState?.workspaceId;
+        } catch (e) {
+            console.error('❌ Failed to parse state parameter:', e);
+            return { success: false, error: 'Invalid state parameter' };
+        }
+
+        if (!workspaceId) {
+            console.error('❌ No workspace ID in state');
+            return { success: false, error: 'Missing workspace ID' };
+        }
+
+        console.log('🔍 [DEBUG] OAuth state parsed:', { workspaceId, state: passedState });
+
+        // 🔥 CRITICAL: Remove code from URL IMMEDIATELY
+        const cleanUrl = new URL(typeof window !== 'undefined' ? window.location.href : '');
+        cleanUrl.searchParams.delete("code");
+        cleanUrl.searchParams.delete("state");
+        if (typeof window !== 'undefined') {
+            window.history.replaceState({}, "", cleanUrl.pathname + cleanUrl.search);
+        }
+        console.log('🗑️ Code removed from URL');
+        console.log('🔍 [DEBUG] Code removed from URL');
+
+        // Call backend to handle OAuth
+        const backendUrl = `${typeof window !== 'undefined' ? window.location.origin : ''}/api/facebook?action=simple&code=${encodeURIComponent(code)}&workspaceId=${encodeURIComponent(workspaceId)}`;
+        
+        console.log('🔍 [DEBUG] Backend OAuth URL:', backendUrl);
+        
+        const response = await fetch(backendUrl);
+        const result = await response.json();
+
+        if (!response.ok) {
+            console.error('❌ Backend OAuth error:', result);
+            return { success: false, error: result.error || 'Backend error' };
+        }
+
+        if (result.error) {
+            console.error('❌ OAuth processing error:', result.error);
+            return { success: false, error: result.error };
+        }
+
+        console.log('✅ OAuth successful:', result);
+        window.dispatchEvent(new CustomEvent('facebook:oauth-success', { 
+            detail: { 
+                success: true, 
+                pages: result.pages || [],
+                message: result.message 
+            } 
+        }));
+
+        return { success: true, pages: result.pages || [], message: result.message };
+
+    } catch (error) {
+        console.error('❌ Facebook callback error:', error);
+        return { success: false, error: error.message };
+    }
+};
+
+export const cleanupOAuthState = () => {
+    if (typeof window === 'undefined') return;
+    
+    // Clear any OAuth-related state from localStorage/sessionStorage
+    const keysToRemove = [];
+    for (let i = 0; i < sessionStorage.length; i++) {
+        const key = sessionStorage.key(i);
+        if (key && (key.includes('facebook') || key.includes('oauth'))) {
+            keysToRemove.push(key);
+        }
+    }
+    
+    keysToRemove.forEach(key => sessionStorage.removeItem(key));
+    console.log('🧹 OAuth state cleaned up');
+};
+
+export const getStoredFacebookPages = () => {
+    if (typeof window === 'undefined') return [];
+
+    try {
+        const cached = localStorage.getItem('facebook_pages');
+        if (cached) {
+            const parsed = JSON.parse(cached);
+            
+            // Handle new data structure with timestamp
+            let pages = [];
+            if (parsed.pages && Array.isArray(parsed.pages)) {
+                pages = parsed.pages;
+                console.log(`✅ Using ${pages.length} pages from localStorage (timestamp: ${new Date(parsed.timestamp).toLocaleString()})`);
+            } else if (Array.isArray(parsed)) {
+                // Handle old format (backward compatibility)
+                pages = parsed;
+                console.log(`✅ Using ${pages.length} pages from localStorage (old format)`);
+            }
+                
+            return pages;
+        }
+    } catch (error) {
+        console.error('❌ Error parsing localStorage pages:', error);
+    }
+    
+    console.log('❌ No Facebook pages found');
+    return [];
+};
+
+export const storeFacebookPages = (pages: any[]) => {
+    if (typeof window === 'undefined') return;
+
+    try {
+        const data = {
+            pages: pages,
+            timestamp: new Date().toISOString()
+        };
+        
+        localStorage.setItem('facebook_pages', JSON.stringify(data));
+        console.log(`✅ Stored ${pages.length} Facebook pages to localStorage`);
+        
+    } catch (error) {
+        console.error('❌ Error storing Facebook pages:', error);
+    }
+};
+
+export const getFacebookAccessToken = () => {
+    if (typeof window === 'undefined') return null;
+    
+    return localStorage.getItem('facebook_access_token');
+};
+
+export const setFacebookAccessToken = (token: string) => {
     if (typeof window === 'undefined') return;
     
     try {
-        // Add timestamp to prevent concurrency issues
-        const dataWithTimestamp = {
-            pages: pages,
-            timestamp: Date.now(),
-            version: '1.0'
-        };
-        
-        localStorage.setItem('facebook_pages', JSON.stringify(dataWithTimestamp));
-        console.log(`✅ Stored ${pages.length} Facebook Page tokens`);
-        
-        // Log what we stored
-        pages.forEach((page, i) => {
-            console.log(`📄 Page ${i+1}: ${page.pageName} (${page.pageId}) - Instagram: ${page.hasInstagram ? '✅' : '❌'}`);
-        });
+        localStorage.setItem('facebook_access_token', token);
+        console.log('✅ Facebook access token stored');
     } catch (error) {
-        console.error('❌ Error storing Page tokens:', error);
+        console.error('❌ Error storing Facebook token:', error);
     }
 };
 
-/**
- * Store user access token (for refreshing Page tokens)
- */
-const storeAccessToken = (token: string, expiresIn?: number): void => {
+export const clearFacebookAuth = () => {
     if (typeof window === 'undefined') return;
     
-    localStorage.setItem('facebook_access_token', token);
-    if (expiresIn) {
-        const expiresAt = Date.now() + (expiresIn * 1000);
-        localStorage.setItem('facebook_token_expires', expiresAt.toString());
+    try {
+        localStorage.removeItem('facebook_access_token');
+        localStorage.removeItem('facebook_user_id');
+        localStorage.removeItem('facebook_pages');
+        console.log('✅ Facebook auth cleared');
+    } catch (error) {
+        console.error('❌ Error clearing Facebook auth:', error);
     }
-    console.log('✅ User access token stored in localStorage (for Page token refresh)');
 };
 
-const clearStoredData = (): void => {
-    if (typeof window === 'undefined') return;
-    
-    localStorage.removeItem('facebook_access_token');
-    localStorage.removeItem('facebook_token_expires');
-    localStorage.removeItem('facebook_pages');
-    localStorage.removeItem('facebook_processing');
-    console.log('🗑️ Facebook data cleared from localStorage');
-};
+// ------------------------------------------------------------------
+//  Facebook SDK Initialization
+// ------------------------------------------------------------------
 
-export const getStoredAccessToken = (): string | null => {
-    if (typeof window === 'undefined') return null;
-    
-    const token = localStorage.getItem('facebook_access_token');
-    const expiresAt = localStorage.getItem('facebook_token_expires');
-    
-    if (expiresAt && Date.now() > parseInt(expiresAt)) {
-        console.log('⏰ Token expired, clearing stored data');
-        clearStoredData();
-        return null;
-    }
-    
-    return token;
-};
-
-export const isConnectedToFacebook = (): boolean => {
-    return !!getStoredAccessToken();
-};
-
-// Debug logging in development
-if (typeof window !== 'undefined' && import.meta.env.DEV) {
-    setTimeout(() => {
-        console.log('🔍 Facebook OAuth Debug Info:');
-        console.log('App ID:', FB_APP_ID);
-        console.log('Redirect URI:', getRedirectURI());
-        console.log('Full URL:', window.location.href);
-    }, 0);
-}
-
-/**
- * Initialize Facebook SDK (optional)
- */
 export const initFacebookSDK = () => {
     return new Promise<boolean>((resolve) => {
         const allowLocalhostSDK = import.meta.env.VITE_FACEBOOK_SDK_LOCALHOST === 'true';
@@ -191,791 +242,161 @@ export const initFacebookSDK = () => {
             }
         };
 
-        const js = document.createElement('script');
-        js.id = 'facebook-jssdk';
-        js.src = 'https://connect.facebook.net/en_US/sdk.js';
-        js.async = true;
-        js.onerror = () => {
-            clearTimeout(loadTimeout);
-            resolve(false);
-        };
-        const fjs = document.getElementsByTagName('script')[0];
-        if (fjs?.parentNode) fjs.parentNode.insertBefore(js, fjs);
-        else document.body.appendChild(js);
-    });
-};
-
-/**
- * Clean up stale OAuth locks
- */
-export const cleanupOAuthState = (): void => {
-    if (typeof window === 'undefined') return;
-    
-    console.log('🧹 Cleaning up OAuth state...');
-    
-    // Clear sessionStorage locks
-    sessionStorage.removeItem('facebook_oauth_in_progress');
-    
-    // Clear all exchange tracking
-    Object.keys(sessionStorage)
-        .filter(key => key.startsWith('fb_exchange_'))
-        .forEach(key => sessionStorage.removeItem(key));
-    
-    // Clear global processing lock
-    globalProcessingLock = false;
-    
-    console.log('✅ OAuth state cleaned up');
-};
-
-/**
- * Handle Facebook OAuth callback with duplicate prevention
- */
-export const handleFacebookCallback = async (passedCode?: string, passedState?: string): Promise<any> => {
-    if (typeof window === 'undefined') return null;
-    
-    //  DEBUG: Log callback entry state
-    console.log('🔍 [DEBUG] Facebook callback triggered:', {
-        url: window.location.href,
-        search: window.location.search,
-        passedCode: !!passedCode,
-        passedState: !!passedState,
-        timestamp: new Date().toISOString(),
-        sessionStorageKeys: Object.keys(sessionStorage).filter(k => k.includes('facebook'))
-    });
-    
-    //  CRITICAL: Global lock - prevent ANY duplicates
-    if (globalProcessingLock) {
-        console.warn("🛑 Global lock active - another process is handling Facebook callback");
-        console.log('🔍 [DEBUG] Global lock blocked callback');
-        return { success: false, skipped: true };
-    }
-    
-    globalProcessingLock = true;
-    console.log('🔒 Global lock engaged for Facebook callback');
-    console.log('🔍 [DEBUG] Global lock engaged');
-    
-    try {
-        const urlParams = new URLSearchParams(window.location.search);
-        const code = passedCode || urlParams.get('code');
-        const state = passedState || urlParams.get('state');
-        const error = urlParams.get('error');
-
-        if (error) {
-            console.error('❌ Facebook OAuth error:', error);
-            throw new Error(`Facebook login error: ${error}`);
-        }
-
-        // 🔥 CRITICAL: Improved state validation
-        let isFacebookOauth = state === 'facebook_oauth';
-        let stateData: any = null;
-
-        if (!isFacebookOauth && state) {
-            try {
-                // Try parsing as JSON (backend-assisted flow)
-                stateData = JSON.parse(decodeURIComponent(state));
-                if (stateData && (stateData.workspaceId || stateData.origin)) {
-                    isFacebookOauth = true;
-                    console.log('✅ Recognized JSON state from backend:', stateData);
-                    
-                    // If we have a workspaceId in state, ensure it's used
-                    if (stateData.workspaceId) {
-                        localStorage.setItem('current_workspace_id', stateData.workspaceId);
-                    }
-                }
-            } catch (e) {
-                // Not JSON, ignore
-            }
-        }
-
-        if (!code || !isFacebookOauth) {
-            console.log('🔍 [DEBUG] Not a Facebook callback or invalid state:', { code: !!code, state });
-            return null; // Not a Facebook callback
-        }
-
-        // 🔥 CRITICAL: Create a unique key for this specific code
-        const codeKey = `fb_code_${code.substring(0, 20)}`;
+        // Load Facebook SDK
+        const script = document.createElement('script');
+        script.src = 'https://connect.facebook.net/en_US/sdk.js';
+        script.async = true;
+        script.defer = true;
         
-        // Check if this exact code was already processed or is currently being processed
-        const existingStatus = sessionStorage.getItem(codeKey);
-        if (existingStatus === "processed" || existingStatus === "processing") {
-            const statusMsg = existingStatus === "processed" ? "already processed" : "currently being processed";
-            console.warn(`🛑 This authorization code is ${statusMsg} - skipping duplicate request`);
-            console.log(`🔍 [DEBUG] Code status: ${existingStatus} - skipping`);
-            
-            // Wait a moment for the original request to finish if it's still processing
-            if (existingStatus === "processing") {
-                await new Promise(resolve => setTimeout(resolve, 2000));
-            }
-            
-            const existingToken = getStoredAccessToken();
-            return { 
-                success: !!existingToken, 
-                accessToken: existingToken, 
-                skipped: true,
-                message: existingStatus === "processing" ? "Request already in progress" : "Already connected"
-            };
-        }
-        
-        // Mark this code as being processed IMMEDIATELY
-        sessionStorage.setItem(codeKey, "processing");
-        
-        console.log('🔄 Facebook OAuth callback detected, processing...');
-        console.log('🔍 [DEBUG] Processing new code:', {
-            codeKey,
-            codeLength: code.length,
-            timestamp: Date.now()
-        });
-        
-        // 🔥 CRITICAL: Remove code from URL IMMEDIATELY
-        const cleanUrl = new URL(window.location.href);
-        cleanUrl.searchParams.delete("code");
-        cleanUrl.searchParams.delete("state");
-        window.history.replaceState({}, "", cleanUrl.pathname + cleanUrl.search);
-        console.log('🗑️ Code removed from URL');
-        console.log('🔍 [DEBUG] Code removed from URL');
-        
-        const result = await exchangeCodeForToken(code);
-        
-        if (result && result.success) {
-            // 🔥 CRITICAL: Mark this code as processed
-            sessionStorage.setItem(codeKey, "processed");
-            
-            // 🔥 NEW: Store pages for selection screen
-            if (result.pages && result.pages.length > 0) {
-                console.log(`📄 Found ${result.pages.length} Facebook Pages - preparing for selection`);
-                sessionStorage.setItem('facebook_pages_pending', JSON.stringify(result.pages));
-                return { 
-                    success: true, 
-                    needsPageSelection: true,
-                    pages: result.pages,
-                    message: 'Pages available for selection' 
-                };
-            }
-            
-            // Also store user token for refreshing Page tokens
-            if (result.accessToken) {
-                storeAccessToken(result.accessToken, result.expiresIn);
-            }
-            
-            console.log('✅ Facebook connection successful');
-            console.log('📋 Result:', result);
-            
-            // Dispatch success event
-            const event = new CustomEvent('facebookConnected', { 
-                detail: { 
-                    success: true, 
-                    pages: result.pages,
-                    message: result.message 
-                } 
-            });
-            window.dispatchEvent(event);
-            
-            return { success: true, pages: result.pages, message: result.message, accessToken: result.accessToken };
-        }
-        
-        // If we reach here, no success condition was met
-        console.log('🔍 [DEBUG] No success condition met, result:', result);
-        return { success: false, message: 'No success condition met' };
-    } catch (error: any) {
-        console.error('❌ Facebook token exchange failed:', error);
-        console.log('🔍 [DEBUG] Token exchange failed:', {
-            error: error.message,
-            timestamp: Date.now()
-        });
-        throw error;
-    } finally {
-        // 🔥 CRITICAL: Release global lock after delay
-        setTimeout(() => {
-            globalProcessingLock = false;
-            console.log('🔓 Global lock released');
-            console.log('🔍 [DEBUG] Global lock released');
-        }, 1000);
-    }
-    
-    return null;
-};
-
-/**
- * Initiate Facebook OAuth flow with URL-based deduplication
- */
-export const initiateFacebookOAuth = () => {
-    if (typeof window === 'undefined') return;
-
-    const workspaceId = localStorage.getItem('current_workspace_id') || 'c9a454c5-a5f3-42dd-9fbd-cedd4c1c49a9';
-    const baseUrl = window.location.origin;
-    
-    // Redirect to backend auth endpoint instead of managing it here
-    const backendAuthUrl = `${baseUrl}/api/facebook-auth?action=auth&workspaceId=${workspaceId}`;
-    
-    console.log('🚀 Redirecting to Backend Facebook OAuth Handshake...');
-    window.location.href = backendAuthUrl;
-};
-
-/**
- * Fetch Facebook connections from database
- */
-export const fetchFacebookConnections = async (workspaceId: string): Promise<any[]> => {
-    if (!workspaceId) {
-        console.log('❌ No workspaceId provided');
-        return [];
-    }
-
-    try {
-        console.log('📋 Fetching Facebook connections from database...');
-        
-        const response = await fetch(`/api/facebook?action=connections&workspaceId=${workspaceId}`);
-        const data = await response.json();
-        
-        if (data.success) {
-            console.log(`✅ Fetched ${data.connections.length} connections from database`);
-            return data.connections;
+        if (document.head) {
+            document.head.appendChild(script);
         } else {
-            console.log('⚠️ Database fetch failed, using localStorage fallback');
-            return [];
+            document.body.appendChild(script);
         }
-    } catch (error) {
-        console.log('❌ Error fetching from database, using localStorage fallback:', error);
-        return [];
-    }
+    });
 };
 
-/**
- * Get Facebook pages with database fallback and concurrency protection
- */
-export const getFacebookPages = async (workspaceId?: string): Promise<any[]> => {
-    // First try database
-    if (workspaceId) {
-        try {
-            const connections = await fetchFacebookConnections(workspaceId);
-            if (connections.length > 0) {
-                console.log('✅ Using pages from database');
-                return connections;
-            }
-        } catch (error) {
-            console.log('⚠️ Database fetch failed, trying localStorage');
-        }
-    }
-    
-    // Fallback to localStorage with concurrency protection
-    if (typeof window !== 'undefined') {
-        try {
-            const cached = localStorage.getItem('facebook_pages');
-            if (cached) {
-                const parsed = JSON.parse(cached);
-                
-                // Handle new data structure with timestamp
-                let pages = [];
-                if (parsed.pages && Array.isArray(parsed.pages)) {
-                    pages = parsed.pages;
-                    console.log(`✅ Using ${pages.length} pages from localStorage (timestamp: ${new Date(parsed.timestamp).toLocaleString()})`);
-                } else if (Array.isArray(parsed)) {
-                    // Handle old format (backward compatibility)
-                    pages = parsed;
-                    console.log(`✅ Using ${pages.length} pages from localStorage (old format)`);
-                }
-                
-                return pages;
-            }
-        } catch (error) {
-            console.error('❌ Error parsing localStorage pages:', error);
-        }
-    }
-    
-    console.log('❌ No Facebook pages found');
-};
-
-if (typeof window !== 'undefined') {
-    try {
-        const cached = localStorage.getItem('facebook_pages');
-        if (cached) {
-            const parsed = JSON.parse(cached);
-                
-            // Handle new data structure with timestamp
-            let pages = [];
-            if (parsed.pages && Array.isArray(parsed.pages)) {
-                pages = parsed.pages;
-                console.log(` Using ${pages.length} pages from localStorage (timestamp: ${new Date(parsed.timestamp).toLocaleString()})`);
-            } else if (Array.isArray(parsed)) {
-                // Handle old format (backward compatibility)
-                pages = parsed;
-                console.log(` Using ${pages.length} pages from localStorage (old format)`);
-            }
-                
-            return pages;
-        }
-    } catch (error) {
-        console.error(' Error parsing localStorage pages:', error);
-    }
-}
+// ------------------------------------------------------------------
+//  Utility Functions
+// ------------------------------------------------------------------
 
 export const needsSecurityChallenge = (error: any): boolean => {
-return (
-    error?.error === 'FACEBOOK_SECURITY_CHALLENGE' ||
-    error?.message?.includes('security challenge') ||
-    error?.message?.includes('reauth')
-);
-};
-
-            let pages = [];
-            if (parsed.pages && Array.isArray(parsed.pages)) {
-                pages = parsed.pages;
-                console.log(`✅ Using ${pages.length} pages from localStorage (timestamp: ${new Date(parsed.timestamp).toLocaleString()})`);
-            } else if (Array.isArray(parsed)) {
-                // Handle old format (backward compatibility)
-                pages = parsed;
-                console.log(`✅ Using ${pages.length} pages from localStorage (old format)`);
-            }
-                
-            return pages;
-        }
-    } catch (error) {
-        console.error('❌ Error parsing localStorage pages:', error);
-    }
-            if (accountsData.error) {
-                console.log('❌ Accounts fetch failed:', accountsData.error);
-                return;
-            }
-            
-            const allItems = accountsData.data || [];
-            console.log(`📊 Total items returned: ${allItems.length}`);
-            
-            if (allItems.length === 0) {
-                console.log('⚠️ NO ITEMS RETURNED!');
-                console.log('💡 This means:');
-                console.log('   1. You have NO Facebook Pages');  
-                console.log('   2. Your token lacks pages_show_list permission');
-                console.log('   3. Your Pages are not accessible');
-                console.log('');
-                console.log('🔧 SOLUTION:');
-                console.log('   1. Create Facebook Pages: https://facebook.com/pages/create');
-                console.log('   2. Link Instagram Business accounts to Pages');
-                console.log('   3. Reconnect Facebook with proper permissions');
-                return;
-            }
-            
-            console.log('📄 Analyzing returned items...');
-            allItems.forEach((item, index) => {
-                console.log(`\n📋 Item ${index + 1}:`);
-                console.log(`   ID: ${item.id}`);
-                console.log(`   Name: ${item.name}`);
-                console.log(`   Category: ${item.category || 'NO CATEGORY (personal profile?)'}`);
-                console.log(`   Has Instagram: ${item.instagram_business_account ? '✅ Yes' : '❌ No'}`);
-                console.log(`   Has Access Token: ${item.access_token ? '✅ Yes' : '❌ No'}`);
-                
-                if (!item.category) {
-                    console.log('   ⚠️ This looks like a PERSONAL PROFILE, not a Page!');
-                }
-            });
-            
-            const actualPages = allItems.filter(item => item.category);
-            const pagesWithInstagram = actualPages.filter(page => page.instagram_business_account);
-            
-            console.log('\n📊 SUMMARY:');
-            console.log(`   Total items: ${allItems.length}`);
-            console.log(`   Actual Pages (with category): ${actualPages.length}`);
-            console.log(`   Pages with Instagram: ${pagesWithInstagram.length}`);
-            
-            if (actualPages.length === 0) {
-                console.log('\n❌ DIAGNOSIS: Only personal profiles returned!');
-                console.log('🔧 SOLUTION: Create Facebook Pages and reconnect');
-            } else if (pagesWithInstagram.length === 0) {
-                console.log('\n⚠️ DIAGNOSIS: Pages found but no Instagram linked!');
-                console.log('🔧 SOLUTION: Link Instagram Business accounts to your Pages');
-            } else {
-                console.log('\n✅ DIAGNOSIS: Everything looks good!');
-            }
-            
-        } catch (error) {
-            console.log('❌ /me/accounts request failed:', error);
-        }
-    };
-    
-    // Add permission checker function
-    window.checkFacebookPermissions = async function() {
-        console.log('🔐 Checking Facebook Token Permissions...');
-        
-        const token = localStorage.getItem('facebook_access_token');
-        if (!token) {
-            console.log('❌ No token found - connect Facebook first');
-            return;
-        }
-        
-        console.log('🔑 Token found:', token.substring(0, 20) + '...');
-        
-        try {
-            // Check permissions
-            const permsResponse = await fetch(`https://graph.facebook.com/v21.0/me/permissions?access_token=${token}`);
-            const permsData = await permsResponse.json();
-            
-            console.log('📋 Full Permissions Response:', permsData);
-            
-            if (permsData.error) {
-                console.log('❌ Error checking permissions:', permsData.error);
-                return;
-            }
-            
-            const permissions = permsData.data || [];
-            console.log(`🔐 Total permissions: ${permissions.length}`);
-            
-            // Check for critical permissions
-            const criticalPerms = ['pages_show_list', 'pages_read_engagement', 'instagram_basic', 'instagram_content_publish'];
-            
-            console.log('\n🔍 CRITICAL PERMISSIONS CHECK:');
-            criticalPerms.forEach(perm => {
-                const hasPermission = permissions.some(p => p.permission === perm && p.status === 'granted');
-                console.log(`${hasPermission ? '✅' : '❌'} ${perm}: ${hasPermission ? 'GRANTED' : 'MISSING'}`);
-            });
-            
-            console.log('\n📄 ALL PERMISSIONS:');
-            permissions.forEach(p => {
-                console.log(`   ${p.permission}: ${p.status}`);
-            });
-            
-            // Check if pages_show_list is missing
-            const hasPagesPermission = permissions.some(p => p.permission === 'pages_show_list' && p.status === 'granted');
-            
-            if (!hasPagesPermission) {
-                console.log('\n❌ DIAGNOSIS: MISSING pages_show_list PERMISSION!');
-                console.log('🔧 SOLUTION:');
-                console.log('   1. Disconnect current Facebook connection');
-                console.log('   2. Click "Connect Facebook" again');
-                console.log('   3. Make sure to grant ALL requested permissions');
-                console.log('   4. pages_show_list is REQUIRED to access Facebook Pages');
-            } else {
-                console.log('\n✅ pages_show_list permission found!');
-                
-                // If permissions are OK, check what accounts are returned
-                console.log('\n📄 Testing /me/accounts with proper permissions...');
-                try {
-                    const accountsResponse = await fetch(`https://graph.facebook.com/v21.0/me/accounts?access_token=${token}`);
-                    const accountsData = await accountsResponse.json();
-                    console.log('📋 Accounts Response:', accountsData);
-                    
-                    if (accountsData.data && accountsData.data.length > 0) {
-                        console.log(`✅ Found ${accountsData.data.length} accounts/pages`);
-                        accountsData.data.forEach((item, i) => {
-                            console.log(`\n📄 Item ${i+1}:`);
-                            console.log(`   Name: ${item.name}`);
-                            console.log(`   Category: ${item.category || 'NO CATEGORY'}`);
-                            console.log(`   Has Instagram: ${item.instagram_business_account ? '✅' : '❌'}`);
-                        });
-                    } else {
-                        console.log('❌ No accounts returned - even with proper permissions');
-                        console.log('💡 This means:');
-                        console.log('   1. You have no Facebook Pages');
-                        console.log('   2. Pages exist but you\'re not an admin');
-                        console.log('   3. Pages are restricted/inactive');
-                    }
-                } catch (error) {
-                    console.log('❌ Error checking accounts:', error);
-                }
-            }
-            
-        } catch (error) {
-            console.log('❌ Permission check failed:', error);
-        }
-    };
-    
-    console.log('🔥 Facebook functions attached to window for testing');
-}
-export const loginWithFacebook = () => {
-    return new Promise((resolve) => {
-        initiateFacebookOAuth();
-        // Resolve quickly - the redirect will take over
-        resolve({ success: true, message: 'Redirecting to Facebook...' });
-    });
-};
-
-/**
- * Exchange authorization code for access token
- */
-export const exchangeCodeForToken = async (code: string): Promise<any> => {
-    const redirectUri = getRedirectURI();
-    const workspaceId = localStorage.getItem('current_workspace_id') || 'c9a454c5-a5f3-42dd-9fbd-cedd4c1c49a9';
-    
-    console.log('🔄 Exchanging authorization code for access token...');
-    console.log('📋 Code length:', code.length);
-    console.log('📋 Redirect URI:', redirectUri);
-    console.log('📋 Workspace ID:', workspaceId);
-
-    try {
-        // 🎯 THIS IS THE API CALL TO /api/facebook-auth?action=simple
-        const response = await fetch(`/api/facebook-auth?action=simple`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ code, redirectUri, workspaceId })
-        });
-
-        // 🔥 CRITICAL: Check if response is JSON before parsing
-        const responseText = await response.text();
-        console.log('📋 Raw response:', responseText.substring(0, 200) + (responseText.length > 200 ? '...' : ''));
-        
-        let data;
-        try {
-            data = JSON.parse(responseText);
-        } catch (parseError) {
-            console.error('❌ JSON parse error:', parseError);
-            console.error('❌ Response text:', responseText);
-            
-            // Check if it's an HTML error page
-            if (responseText.includes('<!DOCTYPE html>') || responseText.includes('<html>')) {
-                throw new Error('Server returned HTML error page instead of JSON. Check server logs.');
-            }
-            
-            throw new Error(`Invalid JSON response: ${responseText.substring(0, 100)}...`);
-        }
-
-        if (!response.ok) {
-            console.error('❌ Backend error response:', data);
-            
-            if (data.error?.includes('already been used')) {
-                throw new Error('This authorization code has already been used');
-            }
-            
-            throw new Error(data.error || 'Token exchange failed');
-        }
-
-        console.log('✅ Token exchange successful');
-        console.log('📋 Token length:', data.accessToken?.length || 0);
-        console.log('📋 Expires in:', data.expiresIn);
-
-        return { 
-            success: true,
-            accessToken: data.accessToken, 
-            expiresIn: data.expiresIn, 
-            pages: data.pages, 
-            message: data.message 
-        };
-        
-    } catch (error: any) {
-        console.error('❌ Token exchange failed:', error);
-        throw error;
-    }
-};
-
-/**
- * Get Facebook user profile
- */
-export const getFacebookProfile = async (userAccessToken?: string): Promise<{ id: string; name: string }> => {
-    const token = userAccessToken || getStoredAccessToken();
-    
-    if (!token) {
-        throw new Error('No Facebook access token available');
-    }
-
-    const response = await fetch(
-        `https://graph.facebook.com/v21.0/me?fields=id,name&access_token=${token}`
+    return (
+        error?.error === 'FACEBOOK_SECURITY_CHALLENGE' ||
+        error?.message?.includes('security challenge') ||
+        error?.message?.includes('reauth')
     );
-    const data = await response.json();
-    if (data.error) throw new Error(data.error.message || 'Failed to fetch profile');
-    return { id: String(data.id), name: data.name || 'Facebook' };
 };
 
- /**
- * Get Facebook Pages with caching
- */
-export const getPageTokens = async (userAccessToken?: string): Promise<any[]> => {
+export const formatFacebookError = (error: any): string => {
+    if (!error) return 'Unknown error';
+    
+    if (typeof error === 'string') return error;
+    if (error?.message) return error.message;
+    if (error?.error?.message) return error.error.message;
+    
+    return JSON.stringify(error);
+};
+
+export const validateFacebookToken = async (token: string) => {
     try {
-        // If same user and request already in progress, return existing promise
-        if (ongoingRequest && lastFetchedUserId === userAccessToken) {
-            return ongoingRequest;
-        }
-
-        // Create new request
-        const request = (async () => {
-            // Check cache first
-            if (typeof window !== 'undefined') {
-                const cached = localStorage.getItem('facebook_pages');
-                if (cached) {
-                    try {
-                        const parsed = JSON.parse(cached);
-                        if (parsed && parsed.length > 0) {
-                            console.log('[getPageTokens] Using cached pages:', parsed.length);
-                            return parsed;
-                        }
-                    } catch (e) {
-                        console.warn('[getPageTokens] Invalid cache, fetching fresh');
-                    }
-                }
-            }
-
-            const token = userAccessToken || getStoredAccessToken();
-            
-            if (token) {
-                const response = await fetch(
-                    `https://graph.facebook.com/v21.0/me/accounts?fields=id,name,access_token,instagram_business_account&access_token=${token}` 
-                );
-                const data = await response.json();
-                
-                if (data.error) {
-                    throw new Error(data.error.message || 'Failed to fetch pages');
-                }
-                
-                const pages = data.data || [];
-                
-                // ✅ NEW: Validate Instagram connection
-                const pagesWithInstagram = pages.filter((page: any) => page.instagram_business_account);
-                const pagesWithoutInstagram = pages.filter((page: any) => !page.instagram_business_account);
-                
-                if (pagesWithoutInstagram.length > 0) {
-                    console.warn('⚠️ Some pages have no Instagram account:', 
-                        pagesWithoutInstagram.map((p: any) => p.name));
-                }
-                
-                if (pagesWithInstagram.length === 0) {
-                    throw new Error(
-                        'No Instagram Business accounts found. Please:\n' +
-                        '1. Convert your Instagram to a Business account\n' +
-                        '2. Link it to your Facebook Page\n' +
-                        '3. Reconnect your Facebook account'
-                    );
-                }
-                
-                console.log(`✅ Found ${pagesWithInstagram.length} pages with Instagram`);
-                
-                // Cache ALL pages (even without Instagram)
-                if (typeof window !== 'undefined' && pages.length > 0) {
-                    localStorage.setItem('facebook_pages', JSON.stringify(pages));
-                }
-                
-                return pages;
-            } else {
-                const workspaceId = localStorage.getItem('current_workspace_id') || 'c9a454c5-a5f3-42dd-9fbd-cedd4c1c49a9';
-                const response = await fetch(`/api/facebook-auth?action=simple&workspaceId=${workspaceId}`);
-                const data = await response.json();
-                if (!response.ok || data.error) throw new Error(data.error || 'Failed to fetch pages');
-                return data.pages || [];
-            }
-        })();
-
-        // Store as ongoing request
-        ongoingRequest = request;
-        lastFetchedUserId = userAccessToken || '';
+        const response = await fetch(`https://graph.facebook.com/v21.0/me?fields=id,name&access_token=${token}`);
+        const data = await response.json();
         
-        return request;
-    } catch (error: any) {
-        console.error('❌ Failed to get pages:', error);
-        throw error;
+        return {
+            valid: !data.error,
+            user: data,
+            error: data.error
+        };
+    } catch (error) {
+        return {
+            valid: false,
+            user: null,
+            error: error.message
+        };
     }
 };
-export const disconnectFacebook = (): void => {
-    clearStoredData();
-    
-    // Fire disconnect event
-    window.dispatchEvent(new CustomEvent('facebook-disconnected'));
-    
-    console.log('🔌 Disconnected from Facebook');
-};
 
-/**
- * Get Instagram Business account details
- */
-export const getInstagramAccount = async (pageAccessToken: string, instagramBusinessAccountId: string): Promise<any> => {
+export const getFacebookPagesFromAPI = async (accessToken: string) => {
     try {
         const response = await fetch(
-            `https://graph.facebook.com/v21.0/${instagramBusinessAccountId}?fields=id,username,profile_picture_url&access_token=${pageAccessToken}`
+            `https://graph.facebook.com/v21.0/me/accounts?fields=id,name,access_token,instagram_business_account,category&access_token=${accessToken}`
         );
         const data = await response.json();
-
+        
         if (data.error) {
-            throw new Error(data.error.message || 'Failed to fetch Instagram account');
-        }
-
-        return data;
-    } catch (error: any) {
-        throw new Error(`Failed to get Instagram account: ${error.message}`);
-    }
-};
-
-/**
- * Get all Instagram accounts from connected Facebook pages
- */
-export const getConnectedInstagramAccounts = async (userAccessToken?: string): Promise<any[]> => {
-    try {
-        const pages = await getPageTokens(userAccessToken);
-        const instagramAccounts = [];
-        
-        for (const page of pages) {
-            if (page.instagram_business_account) {
-                try {
-                    const igAccount = await getInstagramAccount(
-                        page.access_token,
-                        page.instagram_business_account.id
-                    );
-                    
-                    instagramAccounts.push({
-                        pageId: page.id,
-                        pageName: page.name,
-                        pageToken: page.access_token,
-                        instagram: {
-                            id: igAccount.id,
-                            username: igAccount.username,
-                            profilePicture: igAccount.profile_picture_url
-                        }
-                    });
-                } catch (error) {
-                    console.warn(`⚠️ Failed to fetch Instagram for page ${page.name}:`, error);
-                }
-            }
+            throw new Error(data.error.message);
         }
         
-        if (instagramAccounts.length === 0) {
-            throw new Error('No Instagram Business accounts found on your Facebook pages');
-        }
-        
-        return instagramAccounts;
-    } catch (error: any) {
-        console.error('❌ Failed to get Instagram accounts:', error);
+        return data.data || [];
+    } catch (error) {
+        console.error('❌ Error fetching Facebook pages:', error);
         throw error;
     }
 };
 
-/**
- * Debug Instagram connection
- */
-export const debugInstagramConnection = async (): Promise<void> => {
-    console.log('🔍 Debugging Instagram Connection...\n');
-    
-    // Check 1: Token exists
-    const token = getStoredAccessToken();
-    console.log('1. Access Token:', token ? '✅ Found' : '❌ Missing');
-    
-    if (!token) {
-        console.log('→ Run initiateFacebookOAuth() first');
-        return;
-    }
-    
-    // Check 2: Fetch pages
+export const connectFacebookPage = async (pageId: string, pageAccessToken: string, pageName: string) => {
     try {
-        const pages = await getPageTokens();
-        console.log(`2. Facebook Pages: ✅ ${pages.length} found`);
+        const response = await fetch('/api/facebook?action=connect-page', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                workspaceId: localStorage.getItem('current_workspace_id'),
+                pageId,
+                pageAccessToken,
+                pageName,
+            }),
+        });
+
+        const result = await response.json();
         
-        // Check 3: Instagram accounts
-        const pagesWithIG = pages.filter(p => p.instagram_business_account);
-        console.log(`3. Pages with Instagram: ${pagesWithIG.length > 0 ? '✅' : '❌'} ${pagesWithIG.length}`);
-        
-        if (pagesWithIG.length === 0) {
-            console.log('❌ No Instagram Business accounts linked!');
-            console.log('\nSetup required:');
-            console.log('1. Convert Instagram to Business account');
-            console.log('2. Link Instagram to Facebook Page');
-            console.log('3. Reconnect with proper scopes');
-            return;
+        if (!response.ok) {
+            throw new Error(result.error || 'Failed to connect page');
         }
-        
-        // Check 4: Fetch Instagram details
-        for (const page of pagesWithIG) {
-            const igAccount = await getInstagramAccount(
-                page.access_token,
-                page.instagram_business_account.id
-            );
-            console.log(`\n✅ Instagram Account Found:`);
-            console.log(`   Page: ${page.name}`);
-            console.log(`   Instagram: @${igAccount.username}`);
-            console.log(`   ID: ${igAccount.id}`);
-        }
-        
+
+        return result;
     } catch (error) {
-        console.error('❌ Error:', error);
+        console.error('❌ Error connecting Facebook page:', error);
+        throw error;
+    }
+};
+
+export const getFacebookConnections = async () => {
+    try {
+        const workspaceId = localStorage.getItem('current_workspace_id');
+        if (!workspaceId) return [];
+
+        const response = await fetch(`/api/facebook?action=get-connections&workspaceId=${workspaceId}`);
+        const data = await response.json();
+        
+        if (!response.ok) {
+            throw new Error(data.error || 'Failed to fetch connections');
+        }
+
+        return data.connections || [];
+    } catch (error) {
+        console.error('❌ Error fetching Facebook connections:', error);
+        throw error;
+    }
+};
+
+export const getFacebookEngagementMetrics = async () => {
+    try {
+        const workspaceId = localStorage.getItem('current_workspace_id');
+        if (!workspaceId) return null;
+
+        const response = await fetch(`/api/facebook?action=get-engagement-metrics&workspaceId=${workspaceId}`);
+        const data = await response.json();
+        
+        if (!response.ok) {
+            throw new Error(data.error || 'Failed to fetch engagement metrics');
+        }
+
+        return data.metrics;
+    } catch (error) {
+        console.error('❌ Error fetching Facebook engagement:', error);
+        throw error;
+    }
+};
+
+// ------------------------------------------------------------------
+//  Event Handlers
+// ------------------------------------------------------------------
+
+export const handleFacebookAuthSuccess = (result: any) => {
+    if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('facebook:auth-success', { 
+            detail: result 
+        }));
+    }
+};
+
+export const handleFacebookAuthError = (error: any) => {
+    if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('facebook:auth-error', { 
+            detail: { error } 
+        }));
     }
 };
