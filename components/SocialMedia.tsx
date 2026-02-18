@@ -1323,7 +1323,6 @@ const SocialMedia: React.FC = () => {
             <FacebookConnection />
 
             {[
-              { name: 'Facebook', handle: '@EngagehubTestingPage', platform: 'facebook', icon: <Facebook className="text-blue-600" /> },
               { name: 'Instagram', handle: '@engagehub_creations', platform: 'instagram', icon: <Instagram className="text-pink-600" /> },
               { name: 'LinkedIn Profile', handle: 'John Doe', platform: 'linkedin', icon: <Linkedin className="text-blue-700" /> },
               { name: 'X (Twitter)', handle: '@engagehub', platform: 'twitter', icon: <X className="text-black" /> },
