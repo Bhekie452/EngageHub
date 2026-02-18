@@ -89,8 +89,24 @@ export default function Footer() {
   }, []);
 
   const handleConnect = (platform: string) => {
-    // TODO: Open OAuth flow for each platform
-    console.log(`Connect ${platform}`);
+    const baseUrl = window.location.origin;
+    const workspaceId = 'YOUR_WORKSPACE_ID'; // TODO: get from context
+    const returnUrl = encodeURIComponent(baseUrl);
+
+    const oauthUrls = {
+      facebook: `https://zourlqrkoyugzymxkbgn.functions.supabase.co/facebook-oauth/start?workspaceId=${workspaceId}&returnUrl=${returnUrl}`,
+      instagram: `https://zourlqrkoyugzymxkbgn.functions.supabase.co/instagram-oauth/start?workspaceId=${workspaceId}&returnUrl=${returnUrl}`,
+      twitter: `https://zourlqrkoyugzymxkbgn.functions.supabase.co/twitter-oauth/start?workspaceId=${workspaceId}&returnUrl=${returnUrl}`,
+      linkedin: `https://zourlqrkoyugzymxkbgn.functions.supabase.co/linkedin-oauth/start?workspaceId=${workspaceId}&returnUrl=${returnUrl}`,
+      tiktok: `https://zourlqrkoyugzymxkbgn.functions.supabase.co/tiktok-oauth/start?workspaceId=${workspaceId}&returnUrl=${returnUrl}`,
+    };
+
+    const url = oauthUrls[platform as keyof typeof oauthUrls];
+    if (url) {
+      window.open(url, '_blank');
+    } else {
+      console.error(`Unsupported platform: ${platform}`);
+    }
   };
 
   return (
@@ -144,9 +160,6 @@ export default function Footer() {
               </div>
             );
           })}
-        </div>
-        <div className="mt-4 text-center text-xs text-gray-500 dark:text-slate-400">
-          Connected profiles are used for publishing and analytics.
         </div>
       </div>
     </footer>
