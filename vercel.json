@@ -1,28 +1,5 @@
 {
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
-  "framework": "vite",
-  "functions": {
-    "api/auth/[...provider].ts": {
-      "runtime": "@vercel/node@latest"
-    }
-  },
-  "routes": [
-    {
-      "src": "/api/auth",
-      "dest": "/api/auth/[...provider].ts"
-    },
-    {
-      "src": "/api/auth/(.*)",
-      "dest": "/api/auth/[...provider].ts"
-    },
-    {
-      "src": "/api/(.*)",
-      "dest": "/api/$1"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/index.html"
-    }
-  ]
+  "framework": "vite"
 }
