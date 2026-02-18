@@ -13,48 +13,20 @@ interface SocialPlatform {
   component?: React.ReactNode;
 }
 
-interface ConnectedAccount {
-  platform: string;
-  account_id: string;
-  username: string;
-  display_name: string;
-}
-
 export default function SocialMedia() {
   const [activeTab, setActiveTab] = useState<'connections' | 'pages'>('connections');
-  const [connectedAccounts, setConnectedAccounts] = useState<ConnectedAccount[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [connectedPlatforms, setConnectedPlatforms] = useState<string[]>([]);
 
   useEffect(() => {
-    fetchConnectedAccounts();
+    // Load connected platforms from localStorage
+    const stored = localStorage.getItem('connected_platforms');
+    if (stored) {
+      setConnectedPlatforms(JSON.parse(stored));
+    }
   }, []);
 
-  const fetchConnectedAccounts = async () => {
-    try {
-      const workspaceId = localStorage.getItem('current_workspace_id');
-      if (!workspaceId) {
-        setLoading(false);
-        return;
-      }
-      
-      const response = await fetch(`/api/social-accounts?workspaceId=${workspaceId}`);
-      const data = await response.json();
-      
-      if (data.accounts) {
-        setConnectedAccounts(data.accounts);
-        console.log('📱 Fetched connected accounts:', data.accounts);
-      }
-    } catch (error) {
-      console.error('Error fetching connected accounts:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const isPlatformConnected = (platformId: string) => {
-    return connectedAccounts.some(
-      (account) => account.platform.toLowerCase() === platformId.toLowerCase()
-    );
+    return connectedPlatforms.includes(platformId);
   };
 
   const platforms: SocialPlatform[] = [

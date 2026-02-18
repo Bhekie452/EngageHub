@@ -128,6 +128,12 @@ export default function FacebookCallback() {
     .then(res => res.json())
     .then(data => {
       if (data.success) {
+        // Save connected platform to localStorage
+        const connectedPlatforms = JSON.parse(localStorage.getItem('connected_platforms') || '[]');
+        if (!connectedPlatforms.includes('facebook')) {
+          connectedPlatforms.push('facebook');
+          localStorage.setItem('connected_platforms', JSON.stringify(connectedPlatforms));
+        }
         alert(`✅ Connected to Facebook Page: ${selectedPageData.pageName}!`);
         // Force a full page reload to refresh the UI state
         window.location.href = '/#social';
