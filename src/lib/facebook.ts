@@ -938,8 +938,8 @@ export const exchangeCodeForToken = async (code: string): Promise<any> => {
     console.log('📋 Workspace ID:', workspaceId);
 
     try {
-        // 🎯 THIS IS THE API CALL TO /api/facebook?action=simple
-        const response = await fetch(`/api/facebook?action=simple`, {
+        // 🎯 THIS IS THE API CALL TO /api/facebook-auth?action=simple
+        const response = await fetch(`/api/facebook-auth?action=simple`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ code, redirectUri, workspaceId })
@@ -1080,7 +1080,7 @@ export const getPageTokens = async (userAccessToken?: string): Promise<any[]> =>
                 return pages;
             } else {
                 const workspaceId = localStorage.getItem('current_workspace_id') || 'c9a454c5-a5f3-42dd-9fbd-cedd4c1c49a9';
-                const response = await fetch(`/api/facebook?action=simple&workspaceId=${workspaceId}`);
+                const response = await fetch(`/api/facebook-auth?action=simple&workspaceId=${workspaceId}`);
                 const data = await response.json();
                 if (!response.ok || data.error) throw new Error(data.error || 'Failed to fetch pages');
                 return data.pages || [];

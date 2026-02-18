@@ -30,7 +30,7 @@ export const quickFacebookTest = async (): Promise<boolean> => {
   try {
     console.log('⚡ Quick Facebook test...');
     
-    const response = await fetch('/api/facebook?action=simple');
+    const response = await fetch('/api/facebook-auth?action=simple');
     const data = await response.json();
 
     if (!response.ok || data.error) {

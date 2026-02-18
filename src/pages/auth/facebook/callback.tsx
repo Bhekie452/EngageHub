@@ -49,7 +49,7 @@ export default function FacebookCallback() {
       setWorkspaceId(state.workspaceId);
       
       // Call backend for OAuth processing and immediate page fetch
-      const backendUrl = `/api/facebook?action=simple&code=${encodeURIComponent(code)}&workspaceId=${encodeURIComponent(state.workspaceId)}&origin=${encodeURIComponent(state.origin || '')}`;
+      const backendUrl = `/api/facebook-auth?action=simple&code=${encodeURIComponent(code)}&workspaceId=${encodeURIComponent(state.workspaceId)}&origin=${encodeURIComponent(state.origin || '')}`;
       console.log('🔍 Backend URL:', backendUrl);
       
       fetch(backendUrl, {
