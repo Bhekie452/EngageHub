@@ -1334,12 +1334,14 @@ const SocialMedia: React.FC = () => {
               // For Instagram, also check if Facebook has an Instagram business account linked
               const facebookAccount = connectedAccounts.find(ca => ca.platform === 'facebook');
               const hasInstagramViaFacebook = facebookAccount?.platform_data?.instagram_business_account;
+              // For Instagram, check if there's a separate Instagram account
+              const instagramAccount = connectedAccounts.find(ca => ca.platform === 'instagram');
               const isConnected = account.platform === 'instagram' 
-                ? !!hasInstagramViaFacebook 
+                ? !!instagramAccount || !!hasInstagramViaFacebook
                 : !!connectedAccount;
-              // For Instagram, use Facebook account data if available
-              const displayAccount = account.platform === 'instagram' && hasInstagramViaFacebook 
-                ? { display_name: facebookAccount?.username || 'Instagram', username: facebookAccount?.username } 
+              // For Instagram, use the Instagram account data if available
+              const displayAccount = account.platform === 'instagram' 
+                ? (instagramAccount || { display_name: facebookAccount?.username || 'Instagram', username: facebookAccount?.username })
                 : connectedAccount;
 
               return (
