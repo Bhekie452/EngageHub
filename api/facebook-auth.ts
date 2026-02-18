@@ -228,6 +228,8 @@ async function handleFacebookSimple(req: VercelRequest, res: VercelResponse) {
     const profileData = await profileResponse.json();
 
     console.log('[handleFacebookSimple] Success - returning tokens');
+    console.log('[handleFacebookSimple] Pages:', JSON.stringify(pagesData));
+    console.log('[handleFacebookSimple] User:', JSON.stringify(profileData));
     
     return res.status(200).json({
       success: true,
