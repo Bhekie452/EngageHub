@@ -185,17 +185,68 @@ async function handleConnectPage(req: VercelRequest, res: VercelResponse) {
 
   console.log('[handleConnectPage] Connecting page:', pageName, 'ID:', pageId);
 
-  // Return success - in a real app, this would save to database
-  return res.status(200).json({
-    success: true,
-    message: 'Page connected successfully',
-    pageConnection: {
-      pageId,
-      pageName,
-      accessToken: pageAccessToken,
-      instagramBusinessAccountId
+  // Initialize Supabase client
+  const supabaseUrl = process.env.SUPABASE_URL;
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  
+  if (!supabaseUrl || !supabaseKey) {
+    return res.status(500).json({ error: 'Database configuration missing' });
+  }
+
+  const { createClient } = require('@supabase/supabase-js');
+  const supabase = createClient(supabaseUrl, supabaseKey);
+
+  try {
+    // Get workspace owner
+    const { data: workspaceData, error: workspaceError } = await supabase
+      .from('workspaces')
+      .select('owner_id')
+      .eq('id', workspaceId)
+      .single();
+
+    const ownerId = workspaceData?.owner_id;
+
+    // Save to social_accounts table
+    const { data, error } = await supabase
+      .from('social_accounts')
+      .upsert(
+        {
+          workspace_id: workspaceId,
+          connected_by: ownerId,
+          platform: 'facebook',
+          account_type: 'page',
+          account_id: pageId,
+          username: pageName,
+          display_name: pageName,
+          access_token: pageAccessToken,
+          platform_data: {
+            instagram_business_account: instagramBusinessAccountId
+          },
+          is_active: true,
+          connection_status: 'connected',
+          last_sync_at: new Date().toISOString(),
+        },
+        { onConflict: 'workspace_id,platform,account_id' }
+      )
+      .select()
+      .single();
+
+    if (error) {
+      console.error('[handleConnectPage] Database error:', error);
+      return res.status(500).json({ error: error.message });
     }
-  });
+
+    console.log('[handleConnectPage] Page connected successfully:', data);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Page connected successfully',
+      pageConnection: data
+    });
+  } catch (err: any) {
+    console.error('[handleConnectPage] Error:', err);
+    return res.status(500).json({ error: err.message });
+  }
 }
 
 // Handler for action=simple - same as token but GET method with query params
