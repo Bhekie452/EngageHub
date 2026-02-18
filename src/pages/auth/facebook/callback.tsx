@@ -126,6 +126,7 @@ export default function FacebookCallback() {
     .then(data => {
       if (data.success) {
         alert(`✅ Connected to Facebook Page: ${selectedPageData.pageName}!`);
+        // Force a full page reload to refresh the UI state
         window.location.href = '/#social';
       } else {
         alert(`Failed to connect page: ${data.error || 'Unknown error'}`);
