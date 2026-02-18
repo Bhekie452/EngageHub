@@ -33,7 +33,7 @@ async function handleFacebookAuth(req: VercelRequest, res: VercelResponse) {
   
   const clientId = process.env.FACEBOOK_APP_ID;
   const clientSecret = process.env.FACEBOOK_APP_SECRET;
-  const redirectUri = 'https://engage-hub-ten.vercel.app/api/facebook-auth?action=callback';
+  const redirectUri = 'https://engage-hub-ten.vercel.app/#/pages/auth/facebook/callback';
   
   if (!clientId || !clientSecret) {
     return res.status(500).json({ 
@@ -70,7 +70,7 @@ async function handleFacebookToken(req: VercelRequest, res: VercelResponse) {
 
   const clientId = process.env.FACEBOOK_APP_ID;
   const clientSecret = process.env.FACEBOOK_APP_SECRET;
-  const redirectUri = 'https://engage-hub-ten.vercel.app/api/facebook-auth?action=callback';
+  const redirectUri = 'https://engage-hub-ten.vercel.app/#/pages/auth/facebook/callback';
 
   try {
     const tokenResponse = await fetch(
@@ -154,5 +154,5 @@ async function handleFacebookCallback(req: VercelRequest, res: VercelResponse) {
   }
 
   console.log('[facebook-callback] Redirecting with code');
-  return res.redirect(`/social-media?facebook_code=${code}&workspaceId=${workspaceId}`);
+  return res.redirect(`/#/pages/auth/facebook/callback?facebook_code=${code}&workspaceId=${workspaceId}`);
 }
