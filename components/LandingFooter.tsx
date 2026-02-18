@@ -80,17 +80,6 @@ export const LandingFooter: React.FC = () => {
                     <p className="text-sm text-gray-500">
                         © {currentYear} EngageHub. All rights reserved.
                     </p>
-                    <div className="flex gap-6">
-                        {['Privacy Policy', 'Terms of Service', 'Cookie Policy'].map((item) => (
-                            <a
-                                key={item}
-                                href="#"
-                                className="text-sm text-gray-500 hover:text-white transition-colors"
-                            >
-                                {item}
-                            </a>
-                        ))}
-                    </div>
                 </div>
             </div>
         </footer>

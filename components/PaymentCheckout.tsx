@@ -413,7 +413,6 @@ export const PaymentCheckout: React.FC<PaymentCheckoutProps> = ({
 
         {/* Footer Note */}
         <p className="text-xs text-gray-500 text-center mt-6">
-          By proceeding, you agree to our Terms of Service and Privacy Policy.
           You can cancel your subscription anytime.
         </p>
       </div>

@@ -350,7 +350,7 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({ onSwitchToLogin }) =
                 <div className="flex items-start gap-2 pt-2">
                   <input type="checkbox" className="w-4 h-4 mt-1 text-purple-600 rounded border-slate-300 focus:ring-purple-500" required />
                   <span className="text-sm text-slate-600">
-                    I agree to the <a href="#" className="text-purple-600 font-semibold hover:underline">Terms of Service</a> and <a href="#" className="text-purple-600 font-semibold hover:underline">Privacy Policy</a>
+                    I agree to the terms and conditions.
                   </span>
                 </div>
 
