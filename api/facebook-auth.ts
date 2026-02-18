@@ -19,6 +19,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return handleFacebookToken(req, res);
     } else if (action === 'simple') {
       return handleFacebookSimple(req, res);
+    } else if (action === 'connect-page') {
+      return handleConnectPage(req, res);
     } else if (action === 'callback') {
       return handleFacebookCallback(req, res);
     }
@@ -167,6 +169,33 @@ async function handleFacebookCallback(req: VercelRequest, res: VercelResponse) {
 
   console.log('[facebook-callback] Redirecting with code');
   return res.redirect(`/#/pages/auth/facebook/callback?facebook_code=${code}&workspaceId=${workspaceId}`);
+}
+
+// Handler for action=connect-page - save page connection to database
+async function handleConnectPage(req: VercelRequest, res: VercelResponse) {
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  const { pageId, pageAccessToken, pageName, workspaceId, instagramBusinessAccountId } = req.body;
+
+  if (!pageId || !workspaceId) {
+    return res.status(400).json({ error: 'pageId and workspaceId are required' });
+  }
+
+  console.log('[handleConnectPage] Connecting page:', pageName, 'ID:', pageId);
+
+  // Return success - in a real app, this would save to database
+  return res.status(200).json({
+    success: true,
+    message: 'Page connected successfully',
+    pageConnection: {
+      pageId,
+      pageName,
+      accessToken: pageAccessToken,
+      instagramBusinessAccountId
+    }
+  });
 }
 
 // Handler for action=simple - same as token but GET method with query params

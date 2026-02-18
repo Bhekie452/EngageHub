@@ -109,7 +109,7 @@ export default function FacebookCallback() {
     console.log('5. instagramBusinessAccountId:', selectedPageData.instagramBusinessAccountId);
     
     // Call backend to connect selected page
-    fetch('/api/facebook?action=connect-page', {
+    fetch('/api/facebook-auth?action=connect-page', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
