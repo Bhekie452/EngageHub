@@ -101,12 +101,15 @@ export default function FacebookCallback() {
     console.log('🔗 Connecting to page:', selectedPageData.pageName);
     
     // 🔍 DEBUG: Check what we're sending
+    const accessToken = selectedPageData.accessToken || selectedPageData.pageAccessToken;
+    const igAccountId = selectedPageData.instagramBusinessAccount?.id || selectedPageData.instagramBusinessAccountId;
+    
     console.log('=== PAGE CONNECTION DEBUG ===');
     console.log('1. pageId:', selectedPageData.pageId);
-    console.log('2. pageAccessToken:', selectedPageData.pageAccessToken ? 'Present' : 'Missing');
+    console.log('2. pageAccessToken:', accessToken ? 'Present' : 'Missing');
     console.log('3. pageName:', selectedPageData.pageName);
     console.log('4. workspaceId:', workspaceId);
-    console.log('5. instagramBusinessAccountId:', selectedPageData.instagramBusinessAccountId);
+    console.log('5. instagramBusinessAccountId:', igAccountId);
     
     // Call backend to connect selected page
     fetch('/api/facebook-auth?action=connect-page', {
@@ -116,10 +119,10 @@ export default function FacebookCallback() {
       },
       body: JSON.stringify({
         pageId: selectedPageData.pageId,
-        pageAccessToken: selectedPageData.pageAccessToken,
+        pageAccessToken: accessToken,
         pageName: selectedPageData.pageName,
-        workspaceId: workspaceId, // ← Use the stored workspaceId from OAuth state
-        instagramBusinessAccountId: selectedPageData.instagramBusinessAccountId
+        workspaceId: workspaceId,
+        instagramBusinessAccountId: igAccountId
       })
     })
     .then(res => res.json())
