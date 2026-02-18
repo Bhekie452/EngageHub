@@ -42,10 +42,13 @@ export const loginWithFacebook = async () => {
             workspaceId = 'c9a454c5-a5f3-42dd-9fbd-cedd4c1c49a9';
         }
         
-        // Create state parameter with workspace info
-        const state = btoa(JSON.stringify({ workspaceId, returnUrl: window.location.href }));
+        // Create state parameter with workspace info (plain JSON format for callback)
+        const state = JSON.stringify({ 
+            workspaceId, 
+            origin: window.location.origin 
+        });
         
-        const authUrl = `https://www.facebook.com/v18.0/dialog/oauth?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=pages_show_list,pages_read_engagement,instagram_basic,instagram_manage_insights&response_type=code&state=${state}`;
+        const authUrl = `https://www.facebook.com/v18.0/dialog/oauth?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=pages_show_list,pages_read_engagement,instagram_basic,instagram_manage_insights&response_type=code&state=${encodeURIComponent(state)}`;
         window.location.href = authUrl;
     } catch (error) {
         console.error('Failed to initiate Facebook OAuth:', error);
