@@ -112,6 +112,14 @@ async function handleFacebookToken(req: VercelRequest, res: VercelResponse) {
 
     const pagesData = await pagesResponse.json();
 
+    // Map pages to include pageId for frontend compatibility
+    const mappedPages = (pagesData.data || []).map((page: any) => ({
+      pageId: page.id || page.page_id,
+      name: page.name,
+      accessToken: page.access_token,
+      instagramBusinessAccount: page.instagram_business_account
+    }));
+
     const profileResponse = await fetch(
       `https://graph.facebook.com/v19.0/me?` +
       `fields=id,name,email&` +
@@ -125,7 +133,7 @@ async function handleFacebookToken(req: VercelRequest, res: VercelResponse) {
       accessToken: longTermData.access_token,
       expiresIn: longTermData.expires_in,
       user: profileData,
-      pages: pagesData.data || []
+      pages: mappedPages
     });
 
   } catch (error: any) {
@@ -208,15 +216,23 @@ async function handleFacebookSimple(req: VercelRequest, res: VercelResponse) {
       throw new Error(longTermData.error.message);
     }
 
-    // Get user's pages
+    // Get user's pages - add page_id field
     const pagesResponse = await fetch(
       `https://graph.facebook.com/v19.0/me/accounts?` +
-      `fields=id,name,access_token,instagram_business_account&` +
+      `fields=id,page_id,name,access_token,instagram_business_account&` +
       `access_token=${longTermData.access_token}&` +
       `limit=100`
     );
 
     const pagesData = await pagesResponse.json();
+
+    // Map pages to include pageId for frontend compatibility
+    const mappedPages = (pagesData.data || []).map((page: any) => ({
+      pageId: page.id || page.page_id,
+      name: page.name,
+      accessToken: page.access_token,
+      instagramBusinessAccount: page.instagram_business_account
+    }));
 
     // Get user profile
     const profileResponse = await fetch(
@@ -236,8 +252,8 @@ async function handleFacebookSimple(req: VercelRequest, res: VercelResponse) {
       accessToken: longTermData.access_token,
       expiresIn: longTermData.expires_in,
       user: profileData,
-      pages: pagesData.data || [],
-      pagesCount: pagesData.data ? pagesData.data.length : 0,
+      pages: mappedPages,
+      pagesCount: mappedPages.length,
       workspaceId: workspaceId,
       debug: {
         permissions: longTermData.scope || 'N/A',
