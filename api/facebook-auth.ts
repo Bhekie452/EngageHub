@@ -115,6 +115,7 @@ async function handleFacebookToken(req: VercelRequest, res: VercelResponse) {
     // Map pages to include pageId for frontend compatibility
     const mappedPages = (pagesData.data || []).map((page: any) => ({
       pageId: page.id || page.page_id,
+      pageName: page.name, // Add pageName for frontend compatibility
       name: page.name,
       accessToken: page.access_token,
       instagramBusinessAccount: page.instagram_business_account
@@ -229,6 +230,7 @@ async function handleFacebookSimple(req: VercelRequest, res: VercelResponse) {
     // Map pages to include pageId for frontend compatibility
     const mappedPages = (pagesData.data || []).map((page: any) => ({
       pageId: page.id || page.page_id,
+      pageName: page.name, // Add pageName for frontend compatibility
       name: page.name,
       accessToken: page.access_token,
       instagramBusinessAccount: page.instagram_business_account
