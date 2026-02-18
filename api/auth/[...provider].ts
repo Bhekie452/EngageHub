@@ -14,7 +14,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     if (provider === 'facebook') {
-      if (action === 'token') {
+      if (action === 'auth') {
+        return await handleFacebookAuth(req, res);
+      } else if (action === 'token') {
         return await handleFacebookToken(req, res);
       } else if (action === 'callback') {
         return await handleFacebookCallback(req, res);
@@ -197,6 +199,39 @@ async function handleTikTokToken(req: VercelRequest, res: VercelResponse) {
       details: error.message 
     });
   }
+}
+
+// Facebook OAuth - Initiate Auth Flow
+async function handleFacebookAuth(req: VercelRequest, res: VercelResponse) {
+  const { workspaceId } = req.query;
+  
+  const clientId = process.env.FACEBOOK_APP_ID;
+  const clientSecret = process.env.FACEBOOK_APP_SECRET;
+  const redirectUri = 'https://engage-hub-ten.vercel.app/auth/facebook/callback';
+  
+  if (!clientId || !clientSecret) {
+    return res.status(500).json({ 
+      error: 'Facebook credentials not configured',
+      details: 'FACEBOOK_APP_ID or FACEBOOK_APP_SECRET not set in environment variables'
+    });
+  }
+  
+  // Build Facebook OAuth URL
+  const scopes = 'public_profile,email,pages_show_list,pages_read_engagement,pages_manage_posts,instagram_basic,instagram_content_publish';
+  const state = JSON.stringify({ workspaceId: workspaceId || 'c9a454c5-a5f3-42dd-9fbd-cedd4c1c49a9' });
+  
+  const facebookAuthUrl = new URL('https://www.facebook.com/v19.0/dialog/oauth');
+  facebookAuthUrl.searchParams.set('client_id', clientId);
+  facebookAuthUrl.searchParams.set('redirect_uri', redirectUri);
+  facebookAuthUrl.searchParams.set('scope', scopes);
+  facebookAuthUrl.searchParams.set('state', state);
+  facebookAuthUrl.searchParams.set('response_type', 'code');
+  
+  console.log('[facebook-auth] Redirecting to Facebook OAuth');
+  console.log('[facebook-auth] Redirect URI:', redirectUri);
+  
+  // Redirect to Facebook
+  return res.redirect(facebookAuthUrl.toString());
 }
 
 async function handleFacebookToken(req: VercelRequest, res: VercelResponse) {
