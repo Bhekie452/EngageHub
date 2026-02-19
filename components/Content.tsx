@@ -1057,7 +1057,9 @@ const Content: React.FC = () => {
       if (scheduleMode === 'now') {
         const platformsToPublish = [...selectedPlatforms];
         const allMedia = [...uploadedImages, ...uploadedVideos];
+        console.log('[Content] All media before filtering:', allMedia);
         const publicUrls = allMedia.filter((u) => typeof u === 'string' && (u.startsWith('http://') || u.startsWith('https://')));
+        console.log('[Content] Public URLs after filtering:', publicUrls);
         if (platformsToPublish.some((plat) => (plat || '').toLowerCase() === 'youtube') && linkUrl && (linkUrl.startsWith('http://') || linkUrl.startsWith('https://'))) {
           if (!publicUrls.includes(linkUrl)) publicUrls.push(linkUrl);
         }
@@ -1066,6 +1068,11 @@ const Content: React.FC = () => {
         const needsMedia = platformsToPublish.some((p) => ['instagram', 'youtube'].includes((p || '').toLowerCase()));
         if (needsMedia && allMedia.length > 0 && publicUrls.length === 0) {
           toast.error('Instagram and YouTube require publicly accessible media URLs. Your files failed to upload to storage. Please check your Supabase Storage configuration and try again.');
+          setIsSubmitting(false);
+          return;
+        }
+        if (needsMedia && publicUrls.length === 0) {
+          toast.error('Instagram and YouTube require images or videos. Please upload media before posting.');
           setIsSubmitting(false);
           return;
         }
