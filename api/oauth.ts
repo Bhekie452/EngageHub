@@ -237,38 +237,51 @@ async function handleTikTokToken(req: VercelRequest, res: VercelResponse) {
     }
 
     console.log('[tiktok-token] Access token obtained successfully');
+    console.log('[tiktok-token] Token data keys:', Object.keys(tokenData));
+    console.log('[tiktok-token] open_id present:', !!(tokenData.open_id || tokenData.openId));
 
     // Get user info from TikTok (try best-effort). Prefer open_id if present.
     let userInfo: any = {};
     try {
-      const openId = tokenData.open_id || tokenData.openId || tokenData.openId || null;
-      if (openId) {
-        const profileResp = await (async () => {
-          try {
-            const url = `https://open.tiktokapis.com/v2/user/info/?open_id=${encodeURIComponent(openId)}`;
-            const r = await fetch(url, {
-              method: 'GET',
-              headers: { 'Authorization': `Bearer ${access_token}`, 'Accept': 'application/json' }
-            });
-            const txt = await r.text();
-            try { return JSON.parse(txt); } catch { return null; }
-          } catch (e) {
-            console.warn('[tiktok-token] user info fetch failed', e);
-            return null;
-          }
-        })();
-
-        if (profileResp) {
-          const user = profileResp?.data?.user || profileResp?.data || profileResp;
-          userInfo = {
-            open_id: user?.open_id || user?.openId || openId,
-            union_id: user?.union_id || user?.unionId || null,
-            username: user?.username || user?.unique_id || user?.nickname || null,
-            display_name: user?.display_name || user?.nickname || user?.displayName || null,
-            avatar_url: user?.avatar_url || user?.avatar || null,
-            raw: profileResp
-          };
+      const openId = tokenData.open_id || tokenData.openId || null;
+      console.log('[tiktok-token] Attempting profile fetch with openId:', openId ? 'PRESENT' : 'MISSING');
+      
+      // Try fetching profile - with or without open_id
+      const profileResp = await (async () => {
+        try {
+          // Try with open_id if available, otherwise try without it
+          const url = openId 
+            ? `https://open.tiktokapis.com/v2/user/info/?open_id=${encodeURIComponent(openId)}`
+            : `https://open.tiktokapis.com/v2/user/info/`;
+          
+          console.log('[tiktok-token] Fetching profile from:', url);
+          const r = await fetch(url, {
+            method: 'GET',
+            headers: { 'Authorization': `Bearer ${access_token}`, 'Accept': 'application/json' }
+          });
+          const txt = await r.text();
+          console.log('[tiktok-token] Profile response status:', r.status);
+          console.log('[tiktok-token] Profile response preview:', txt.substring(0, 200));
+          try { return JSON.parse(txt); } catch { return null; }
+        } catch (e) {
+          console.warn('[tiktok-token] user info fetch failed', e);
+          return null;
         }
+      })();
+
+      if (profileResp) {
+        const user = profileResp?.data?.user || profileResp?.data || profileResp;
+        userInfo = {
+          open_id: user?.open_id || user?.openId || openId,
+          union_id: user?.union_id || user?.unionId || null,
+          username: user?.username || user?.unique_id || user?.nickname || null,
+          display_name: user?.display_name || user?.nickname || user?.displayName || null,
+          avatar_url: user?.avatar_url || user?.avatar || null,
+          raw: profileResp
+        };
+        console.log('[tiktok-token] Profile fetched successfully:', { username: userInfo.username, display_name: userInfo.display_name });
+      } else {
+        console.warn('[tiktok-token] Profile response was null or invalid');
       }
     } catch (e) {
       console.warn('[tiktok-token] failed to fetch/parse user info', e);
