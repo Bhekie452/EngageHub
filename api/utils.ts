@@ -217,8 +217,10 @@ const handlePublishPost = async (req: VercelRequest, res: VercelResponse) => {
         }
         else if (plat === 'tiktok') {
           // TikTok video publishing via Content Posting API
+          let token = accountTokens?.[plat]?.access_token;
+          
           if (!token) {
-            throw new Error('No TikTok token available');
+            throw new Error('No TikTok token available. Please connect your TikTok account.');
           }
           
           // TikTok requires video URL for direct publishing
