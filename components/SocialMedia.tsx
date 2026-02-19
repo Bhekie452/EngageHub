@@ -1400,12 +1400,12 @@ const SocialMedia: React.FC = () => {
                           <p className="text-xs text-gray-500 font-semibold truncate uppercase tracking-wider">
                             {isConnected ? 'Connected' : account.handle}
                           </p>
-                          {/* If Instagram is derived from a Facebook page, show which Instagram profile it's linked to */}
-                          {isConnected && !connectedAccount && instagramFromFacebook && (
-                            <p className="text-xs text-pink-600 font-semibold mt-1 truncate">
-                              Linked to Instagram: @{instagramFromFacebook.username || instagramFromFacebook.name || instagramFromFacebook.id}
-                            </p>
-                          )}
+                        </div>
+                      ) : account.platform === 'tiktok' ? (
+                        <div className="mt-1">
+                          <p className="text-xs text-gray-500 font-semibold truncate uppercase tracking-wider">
+                            {isConnected ? (displayAccount?.username || displayAccount?.display_name || 'Connected') : account.handle}
+                          </p>
                         </div>
                       ) : (
                         <p className="text-xs text-gray-500 font-semibold mt-1 truncate uppercase tracking-wider">
