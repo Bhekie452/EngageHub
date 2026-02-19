@@ -189,12 +189,15 @@ export const exchangeCodeForToken = async (code: string): Promise<{ accessToken:
     }
 };
 
-export const getTikTokProfile = async (accessToken: string): Promise<any> => {
+export const getTikTokProfile = async (accessToken: string, openId?: string): Promise<any> => {
     try {
+        const body: any = { accessToken };
+        if (openId) body.openId = openId;
+
         const response = await fetch(`/api/oauth?provider=tiktok&action=profile`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ accessToken })
+            body: JSON.stringify(body)
         });
 
         if (!response.ok) {

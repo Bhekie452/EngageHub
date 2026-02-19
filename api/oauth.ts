@@ -239,10 +239,41 @@ async function handleTikTokToken(req: VercelRequest, res: VercelResponse) {
 
     console.log('[tiktok-token] Access token obtained successfully');
 
-    // Get user info from TikTok (optional - some apps may not have permission)
-    // Skip user info for now to avoid errors
+    // Get user info from TikTok (try best-effort). Prefer open_id if present.
     let userInfo: any = {};
-    console.log('[tiktok-token] Skipping user info request - will use token data only');
+    try {
+      const openId = tokenData.open_id || tokenData.openId || tokenData.openId || null;
+      if (openId) {
+        const profileResp = await (async () => {
+          try {
+            const url = `https://open.tiktokapis.com/v2/user/info/?open_id=${encodeURIComponent(openId)}`;
+            const r = await fetch(url, {
+              method: 'GET',
+              headers: { 'Authorization': `Bearer ${access_token}`, 'Accept': 'application/json' }
+            });
+            const txt = await r.text();
+            try { return JSON.parse(txt); } catch { return null; }
+          } catch (e) {
+            console.warn('[tiktok-token] user info fetch failed', e);
+            return null;
+          }
+        })();
+
+        if (profileResp) {
+          const user = profileResp?.data?.user || profileResp?.data || profileResp;
+          userInfo = {
+            open_id: user?.open_id || user?.openId || openId,
+            union_id: user?.union_id || user?.unionId || null,
+            username: user?.username || user?.unique_id || user?.nickname || null,
+            display_name: user?.display_name || user?.nickname || user?.displayName || null,
+            avatar_url: user?.avatar_url || user?.avatar || null,
+            raw: profileResp
+          };
+        }
+      }
+    } catch (e) {
+      console.warn('[tiktok-token] failed to fetch/parse user info', e);
+    }
 
     // Save TikTok account to database
     const { workspaceId, userId } = req.body;
@@ -252,7 +283,7 @@ async function handleTikTokToken(req: VercelRequest, res: VercelResponse) {
     const connectedBy = userId || workspaceId;
     
     if (workspaceId && openId && supabaseKey) {
-      const { error: saveError } = await supabase.from('social_accounts').upsert({
+      const toSave: any = {
         workspace_id: workspaceId,
         platform: 'tiktok',
         account_id: openId,
@@ -261,7 +292,15 @@ async function handleTikTokToken(req: VercelRequest, res: VercelResponse) {
         token_expires_at: new Date(Date.now() + expires_in * 1000).toISOString(),
         is_active: true,
         connected_by: connectedBy
-      }, { onConflict: 'workspace_id,platform,account_id' });
+      };
+      // Persist initial user info if available
+      if (userInfo) {
+        if (userInfo.display_name) toSave.display_name = userInfo.display_name;
+        if (userInfo.username) toSave.username = userInfo.username;
+        if (userInfo.avatar_url) toSave.avatar_url = userInfo.avatar_url;
+      }
+
+      const { error: saveError } = await supabase.from('social_accounts').upsert(toSave, { onConflict: 'workspace_id,platform,account_id' });
       
       if (saveError) {
         console.error('[tiktok-token] Failed to save to database:', saveError);
@@ -299,14 +338,19 @@ async function handleTikTokProfile(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const { accessToken } = req.body;
+    const { accessToken, openId } = req.body;
     if (!accessToken) return res.status(400).json({ error: 'accessToken required' });
 
-    // Try TikTok Open API v2 user info endpoint using Bearer token
-    const urlsToTry = [
-      `https://open.tiktokapis.com/v2/user/info/`,
-      `https://open.tiktokapis.com/v2/user/info`,
-    ];
+    // Try TikTok Open API v2 user info endpoint using Bearer token.
+    // Prefer providing open_id if caller supplied it (more reliable).
+    const base = `https://open.tiktokapis.com/v2/user/info`;
+    const urlsToTry: string[] = [];
+    if (openId) {
+      urlsToTry.push(`${base}/?open_id=${encodeURIComponent(openId)}`);
+      urlsToTry.push(`${base}?open_id=${encodeURIComponent(openId)}`);
+    }
+    urlsToTry.push(`${base}/`);
+    urlsToTry.push(base);
 
     let profileData: any = null;
     for (const url of urlsToTry) {
@@ -319,14 +363,13 @@ async function handleTikTokProfile(req: VercelRequest, res: VercelResponse) {
           }
         });
         const text = await resp.text();
-        // attempt to parse
         let json: any = null;
         try { json = JSON.parse(text); } catch { json = null; }
         if (resp.ok && json) {
           profileData = json;
           break;
         }
-        // if not ok, continue to next
+        // If response contains JSON with an error structure, capture it for debugging but continue
       } catch (e) {
         console.warn('[handleTikTokProfile] fetch attempt failed for', url, e);
       }
@@ -336,7 +379,23 @@ async function handleTikTokProfile(req: VercelRequest, res: VercelResponse) {
       return res.status(502).json({ error: 'Failed to fetch TikTok profile', details: 'No profile response from TikTok' });
     }
 
-    return res.status(200).json(profileData);
+    // Normalize likely shapes to a predictable object
+    // Example v2 response shape: { data: { user: { open_id, union_id, display_name, username, avatar_url } } }
+    const normalized: any = {};
+    try {
+      const user = profileData?.data?.user || profileData?.data || profileData;
+      normalized.user = user;
+      normalized.open_id = user?.open_id || user?.openId || user?.openId || openId || null;
+      normalized.union_id = user?.union_id || user?.unionId || null;
+      normalized.username = user?.username || user?.unique_id || user?.nickname || null;
+      normalized.display_name = user?.display_name || user?.nickname || user?.displayName || normalized.username || null;
+      normalized.avatar_url = user?.avatar_url || user?.avatar || null;
+    } catch (e) {
+      // fallback - return raw
+      return res.status(200).json(profileData);
+    }
+
+    return res.status(200).json({ success: true, profile: normalized, raw: profileData });
   } catch (err: any) {
     console.error('[handleTikTokProfile] Error:', err);
     return res.status(500).json({ error: 'Failed to fetch TikTok profile', details: err.message });
