@@ -507,7 +507,16 @@ export default function FacebookConnection() {
               .map(page => (
                 <div key={page.pageId} className="flex items-center justify-between p-2 pl-3 rounded-xl border border-gray-100 bg-white hover:border-blue-200 transition-all">
                   <div className="flex items-center gap-3 overflow-hidden">
-                    <span className="text-sm font-semibold text-gray-600 truncate">{page.pageName}</span>
+                    <div className="flex flex-col">
+                      <span className="text-sm font-semibold text-gray-600 truncate">{page.pageName}</span>
+                      {/* Show Instagram linkage indicator if the page payload includes Instagram business account info */}
+                      {(page.instagram_business_account || page.instagramBusinessAccountId || page.instagram_business_account_id || page.hasInstagram) && (
+                        <div className="flex items-center gap-2 mt-1">
+                          <Instagram size={12} className="text-pink-500" />
+                          <span className="text-[11px] text-pink-600 font-bold uppercase">Linked to Instagram</span>
+                        </div>
+                      )}
+                    </div>
                   </div>
                   <button
                     onClick={() => handleConnectPage(page)}
