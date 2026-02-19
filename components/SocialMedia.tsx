@@ -676,6 +676,36 @@ const SocialMedia: React.FC = () => {
 
       setConnectedAccounts(data || []);
 
+      // Ensure TikTok accounts have username/display_name stored — best-effort refresh
+      try {
+        const tiktokAccountsMissing = (data || []).filter((acc: any) => acc.platform === 'tiktok' && (!acc.username && !acc.display_name) && acc.access_token);
+        if (tiktokAccountsMissing.length > 0) {
+          for (const acc of tiktokAccountsMissing) {
+            try {
+              const profileResp: any = await getTikTokProfile(acc.access_token);
+              const maybeUser = profileResp?.data?.user || profileResp?.data || profileResp;
+              const username = maybeUser?.username || maybeUser?.unique_id || maybeUser?.nickname;
+              const displayName = maybeUser?.display_name || maybeUser?.nickname || maybeUser?.displayName || username;
+              if (username || displayName) {
+                await supabase.from('social_accounts').update({ username: username || null, display_name: displayName || null }).eq('id', acc.id);
+              }
+            } catch (err) {
+              console.warn('Failed to refresh TikTok profile for account', acc.id, err);
+            }
+          }
+
+          // Refresh connected accounts after any updates
+          const { data: refreshed } = await supabase
+            .from('social_accounts')
+            .select('*')
+            .eq('workspace_id', workspaces[0].id)
+            .eq('is_active', true);
+          setConnectedAccounts(refreshed || []);
+        }
+      } catch (err) {
+        console.warn('TikTok username refresh flow error:', err);
+      }
+
       // If there's no explicit instagram account stored but a connected Facebook page has an instagram_business_account, fetch Instagram details
       try {
         const fbPage = (data || []).find((acc: any) => acc.platform === 'facebook' && acc.platform_data && (acc.platform_data.instagram_business_account || acc.platform_data.instagram_business_account_id));
