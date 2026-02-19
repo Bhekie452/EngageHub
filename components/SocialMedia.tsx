@@ -525,7 +525,7 @@ const SocialMedia: React.FC = () => {
       // Exchange code for token
       const tokenData = await exchangeTikTokCodeForToken(code);
       // Get TikTok profile
-      const profileData = await getTikTokProfile(tokenData.accessToken);
+      const profileData = await getTikTokProfile(tokenData.accessToken, tokenData.open_id || tokenData.userId || tokenData.openId);
 
       if (!profileData.data) {
         alert('Failed to fetch TikTok profile. Please try again.');
@@ -597,10 +597,17 @@ const SocialMedia: React.FC = () => {
       console.log('🔄 Exchanging code for token IMMEDIATELY...');
       const startTime = Date.now();
       
+      // include workspaceId and userId so the server can persist the TikTok account and initial profile
+      const { data: workspaces } = await supabase.from('workspaces').select('id').eq('owner_id', user!.id).limit(1);
+      const workspaceId = workspaces?.[0]?.id;
+      const payload: any = { code, redirectUri, codeVerifier };
+      if (workspaceId) payload.workspaceId = workspaceId;
+      if (user?.id) payload.userId = user.id;
+
       const response = await fetch('/api/oauth?provider=tiktok&action=token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code, redirectUri, codeVerifier })
+        body: JSON.stringify(payload)
       });
 
       const endTime = Date.now();
@@ -675,6 +682,37 @@ const SocialMedia: React.FC = () => {
       }
 
       setConnectedAccounts(data || []);
+
+      // Ensure TikTok accounts have username/display_name stored — best-effort refresh
+      try {
+        const tiktokAccountsMissing = (data || []).filter((acc: any) => acc.platform === 'tiktok' && (!acc.username && !acc.display_name) && acc.access_token);
+        if (tiktokAccountsMissing.length > 0) {
+          for (const acc of tiktokAccountsMissing) {
+            try {
+              const profileResp: any = await getTikTokProfile(acc.access_token, acc.account_id || acc.open_id || acc.accountId);
+              // Support normalized response from server: { success: true, profile: { ... }, raw }
+              const maybeUser = profileResp?.profile || profileResp?.data?.user || profileResp?.data || profileResp;
+              const username = maybeUser?.username || maybeUser?.unique_id || maybeUser?.nickname;
+              const displayName = maybeUser?.display_name || maybeUser?.nickname || maybeUser?.displayName || username;
+              if (username || displayName) {
+                await supabase.from('social_accounts').update({ username: username || null, display_name: displayName || null }).eq('id', acc.id);
+              }
+            } catch (err) {
+              console.warn('Failed to refresh TikTok profile for account', acc.id, err);
+            }
+          }
+
+          // Refresh connected accounts after any updates
+          const { data: refreshed } = await supabase
+            .from('social_accounts')
+            .select('*')
+            .eq('workspace_id', workspaces[0].id)
+            .eq('is_active', true);
+          setConnectedAccounts(refreshed || []);
+        }
+      } catch (err) {
+        console.warn('TikTok username refresh flow error:', err);
+      }
 
       // If there's no explicit instagram account stored but a connected Facebook page has an instagram_business_account, fetch Instagram details
       try {

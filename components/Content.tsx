@@ -221,7 +221,7 @@ const Content: React.FC = () => {
 
       const { data, error } = await supabase
         .from('social_accounts')
-        .select('platform, is_active')
+        .select('platform, is_active, platform_data')
         .eq('workspace_id', workspaceId)
         .eq('is_active', true);
 
@@ -230,7 +230,20 @@ const Content: React.FC = () => {
       const linked: Record<string, boolean> = {};
       data?.forEach(acc => {
         const platformId = (acc.platform || '').toLowerCase().trim();
+        // mark explicit platforms
         linked[platformId] = true;
+
+        // if a Facebook page has an instagram_business_account, treat Instagram as connected for content flows
+        try {
+          if (platformId === 'facebook' && acc.platform_data) {
+            const pd = acc.platform_data;
+            if (pd.instagram_business_account || pd.instagram_business_account_id || (pd.instagram_business_account && pd.instagram_business_account.id)) {
+              linked['instagram'] = true;
+            }
+          }
+        } catch (e) {
+          // ignore malformed platform_data
+        }
       });
 
       setSocialAccounts({
