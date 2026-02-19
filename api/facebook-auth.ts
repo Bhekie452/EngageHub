@@ -116,13 +116,36 @@ async function handleFacebookToken(req: VercelRequest, res: VercelResponse) {
     const pagesData = await pagesResponse.json();
 
     // Map pages to include pageId for frontend compatibility
-    const mappedPages = (pagesData.data || []).map((page: any) => ({
+    let mappedPages = (pagesData.data || []).map((page: any) => ({
       pageId: page.id || page.page_id,
       pageName: page.name, // Add pageName for frontend compatibility
       name: page.name,
       accessToken: page.access_token,
       instagramBusinessAccount: page.instagram_business_account
     }));
+
+    // For pages that include an instagram_business_account, attempt to fetch the Instagram username
+    // so the frontend can display which Instagram profile is linked. This is best-effort and won't
+    // fail the whole flow if a lookup fails.
+    for (const p of mappedPages) {
+      try {
+        const ig = p.instagramBusinessAccount;
+        const igId = ig?.id || ig?.instagram_business_account_id || null;
+        if (igId && p.accessToken) {
+          const igResp = await fetch(`https://graph.facebook.com/v19.0/${encodeURIComponent(igId)}?fields=id,username,profile_picture_url&access_token=${encodeURIComponent(p.accessToken)}`);
+          const igData = await igResp.json();
+          if (igData && !igData.error) {
+            p.instagramBusinessAccountId = igId;
+            p.instagramBusinessAccountUsername = igData.username;
+            p.instagramUsername = igData.username;
+            p.instagramProfilePicture = igData.profile_picture_url || null;
+          }
+        }
+      } catch (e) {
+        // ignore per-page errors
+        console.warn('[handleFacebookSimple] Failed to fetch IG username for page', p.pageId, e);
+      }
+    }
 
     const profileResponse = await fetch(
       `https://graph.facebook.com/v19.0/me?` +

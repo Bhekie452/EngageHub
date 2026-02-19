@@ -202,9 +202,9 @@ export default function FacebookCallback() {
             />
             <div>
               <div style={{ fontWeight: 'bold' }}>{page.pageName}</div>
-              {page.hasInstagram && (
+              {(page.hasInstagram || page.instagramBusinessAccount || page.instagramBusinessAccountUsername || page.instagramUsername) && (
                 <div style={{ fontSize: '12px', color: '#666' }}>
-                  📷 Instagram Business Account Connected
+                  📷 Instagram Business Account Connected{page.instagramBusinessAccountUsername || page.instagramUsername ? ` — @${page.instagramBusinessAccountUsername || page.instagramUsername}` : ''}
                 </div>
               )}
               <div style={{ fontSize: '12px', color: '#666' }}>
