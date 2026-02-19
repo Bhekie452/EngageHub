@@ -84,6 +84,7 @@ export const connectTikTok = async () => {
         try {
             // TikTok OAuth 2.0 scopes - request video publishing permissions
             const scope = 'user.info.basic,video.publish';
+            console.log('[TikTok OAuth] Requesting scopes:', scope);
             const oauthState = 'tiktok_oauth';
             // Use dynamic redirect URI based on current domain (works with custom domains)
             const redirectUri = getRedirectURI();
