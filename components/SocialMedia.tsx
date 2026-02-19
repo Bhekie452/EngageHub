@@ -683,8 +683,7 @@ const SocialMedia: React.FC = () => {
       const { data, error } = await supabase
         .from('social_accounts')
         .select('*')
-        .eq('workspace_id', workspaces[0].id)
-        .eq('is_active', true);
+        .eq('workspace_id', workspaces[0].id);
 
       if (error) {
         console.error('Error fetching connected accounts:', error);
@@ -703,11 +702,12 @@ const SocialMedia: React.FC = () => {
         }
       }
 
+      const activeAccounts = (data || []).filter((acc: any) => acc.is_active);
       setConnectedAccounts(data || []);
 
       // Ensure TikTok accounts have username/display_name stored — best-effort refresh
       try {
-        const tiktokAccountsMissing = (data || []).filter((acc: any) => acc.platform === 'tiktok' && (!acc.username && !acc.display_name) && acc.access_token);
+        const tiktokAccountsMissing = activeAccounts.filter((acc: any) => acc.platform === 'tiktok' && (!acc.username && !acc.display_name) && acc.access_token);
         if (tiktokAccountsMissing.length > 0) {
           for (const acc of tiktokAccountsMissing) {
             try {
@@ -728,8 +728,7 @@ const SocialMedia: React.FC = () => {
           const { data: refreshed } = await supabase
             .from('social_accounts')
             .select('*')
-            .eq('workspace_id', workspaces[0].id)
-            .eq('is_active', true);
+            .eq('workspace_id', workspaces[0].id);
           setConnectedAccounts(refreshed || []);
         }
       } catch (err) {
@@ -1438,17 +1437,20 @@ const SocialMedia: React.FC = () => {
               { name: 'TikTok', handle: '@engagehub_official', platform: 'tiktok', icon: <Music className="text-black" /> },
               { name: 'YouTube', handle: 'Engagehub Tutorials', platform: 'youtube', icon: <Youtube className="text-red-600" /> },
             ].map((account, idx) => {
-              const connectedAccount = connectedAccounts.find(ca => ca.platform === account.platform && ca.is_active);
+              const activeAccounts = connectedAccounts.filter(ca => ca.is_active);
+              const connectedAccount = activeAccounts.find(ca => ca.platform === account.platform);
               // Facebook account (may host an Instagram business account)
-              const facebookAccount = connectedAccounts.find(ca => ca.platform === 'facebook' && ca.is_active);
+              const facebookAccount = activeAccounts.find(ca => ca.platform === 'facebook');
               // Instagram account stored in DB (preferred)
-              const instagramAccount = connectedAccounts.find(ca => ca.platform === 'instagram' && ca.is_active);
+              const instagramAccount = activeAccounts.find(ca => ca.platform === 'instagram');
+              const inactiveInstagram = connectedAccounts.find(ca => ca.platform === 'instagram' && !ca.is_active);
               // Instagram details fetched from a Facebook page (derived, not necessarily stored)
               const instagramFromFB = instagramFromFacebook;
 
               const isConnected = account.platform === 'instagram'
                 ? !!instagramAccount || !!instagramFromFB
                 : !!connectedAccount;
+              const needsInstagramReconnect = account.platform === 'instagram' && !instagramAccount && !!inactiveInstagram;
 
               // Determine which account data to display in the card. Prefer a stored Instagram record,
               // then prefer the derived Instagram (from Facebook page), then fall back to the connected account.
@@ -1511,7 +1513,16 @@ const SocialMedia: React.FC = () => {
                       )}
                     </div>
 
-                    {!isConnected && account.platform !== 'youtube' && (
+                    {needsInstagramReconnect && account.platform !== 'youtube' && (
+                      <button
+                        onClick={() => handleConnectInstagram()}
+                        className="flex items-center gap-1.5 text-[10px] font-black text-white bg-blue-600 hover:bg-blue-700 hover:scale-105 active:scale-95 px-4 py-2.5 rounded-xl uppercase tracking-wider shadow-lg shadow-blue-200/50 transition-all ml-auto"
+                      >
+                        Reconnect
+                      </button>
+                    )}
+
+                    {!isConnected && account.platform !== 'youtube' && !needsInstagramReconnect && (
                       <button
                         onClick={() => {
                           if (account.platform === 'facebook') handleConnectFacebook();
