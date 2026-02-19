@@ -390,15 +390,18 @@ async function handleTikTokProfile(req: VercelRequest, res: VercelResponse) {
     if (!accessToken) return res.status(400).json({ error: 'accessToken required' });
 
     // Try TikTok Open API v2 user info endpoint using Bearer token.
-    // Prefer providing open_id if caller supplied it (more reliable).
+    // TikTok API v2 requires 'fields' parameter
     const base = `https://open.tiktokapis.com/v2/user/info`;
+    const fields = 'open_id,union_id,avatar_url,display_name';
     const urlsToTry: string[] = [];
+    // Format 1: With required fields parameter
+    urlsToTry.push(`${base}/?fields=${fields}`);
+    // Format 2: With fields and explicit open_id if available
     if (openId) {
-      urlsToTry.push(`${base}/?open_id=${encodeURIComponent(openId)}`);
-      urlsToTry.push(`${base}?open_id=${encodeURIComponent(openId)}`);
+      urlsToTry.push(`${base}/?fields=${fields}&open_id=${encodeURIComponent(openId)}`);
     }
+    // Fallback formats
     urlsToTry.push(`${base}/`);
-    urlsToTry.push(base);
 
     let profileData: any = null;
     for (const url of urlsToTry) {
