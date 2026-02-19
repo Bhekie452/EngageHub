@@ -215,8 +215,64 @@ const handlePublishPost = async (req: VercelRequest, res: VercelResponse) => {
             successPlatforms.push('instagram');
           }
         }
+        else if (plat === 'tiktok') {
+          // TikTok video publishing via Content Posting API
+          if (!token) {
+            throw new Error('No TikTok token available');
+          }
+          
+          // TikTok requires video URL for direct publishing
+          const videoUrl = mediaUrls?.find((url) => /\.(mp4|webm|mov)$/i.test(url) || url.includes('video'));
+          if (!videoUrl) {
+            throw new Error('TikTok requires a video file. Please upload a video to publish to TikTok.');
+          }
+          
+          console.log('[publish-post] Publishing to TikTok with video:', videoUrl);
+          
+          // TikTok Content Posting API v2
+          const tiktokPublishUrl = 'https://open.tiktokapis.com/v2/post/publish/video/init/';
+          const tiktokPayload = {
+            post_info: {
+              title: content?.substring(0, 150) || 'Video from EngageHub',
+              privacy_level: 'SELF_ONLY', // Start with private, user can change on TikTok
+              disable_duet: false,
+              disable_comment: false,
+              disable_stitch: false,
+              video_cover_timestamp_ms: 1000
+            },
+            source_info: {
+              source: 'PULL_FROM_URL',
+              video_url: videoUrl
+            }
+          };
+          
+          const tiktokRes = await fetch(tiktokPublishUrl, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(tiktokPayload)
+          });
+          
+          const tiktokData = await tiktokRes.json();
+          console.log('[publish-post] TikTok publish response:', tiktokData);
+          
+          if (tiktokData.error || tiktokData.data?.error) {
+            const errorMsg = tiktokData.error?.message || tiktokData.data?.error?.message || 'TikTok publish failed';
+            throw new Error(errorMsg);
+          }
+          
+          const publishId = tiktokData.data?.publish_id;
+          if (!publishId) {
+            throw new Error('TikTok did not return a publish ID. Your video may still be processing. Note: TikTok only allows video posts, not images or text.');
+          }
+          
+          results.tiktok = { status: 'published', postId: publishId };
+          successPlatforms.push('tiktok');
+        }
         else {
-          // Other platforms mock for now
+          // Other platforms (Twitter, LinkedIn, etc.) - mock for now
           results[plat] = { status: 'published', postId: `${plat}-mock-id` };
           successPlatforms.push(plat);
         }
