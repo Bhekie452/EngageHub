@@ -504,29 +504,35 @@ export default function FacebookConnection() {
           <div className="space-y-2">
             {availablePages
               .filter(page => !page.isConnected)
-              .map(page => (
-                <div key={page.pageId} className="flex items-center justify-between p-2 pl-3 rounded-xl border border-gray-100 bg-white hover:border-blue-200 transition-all">
-                  <div className="flex items-center gap-3 overflow-hidden">
-                    <div className="flex flex-col">
-                      <span className="text-sm font-semibold text-gray-600 truncate">{page.pageName}</span>
-                      {/* Show Instagram linkage indicator if the page payload includes Instagram business account info */}
-                      {(page.instagram_business_account || page.instagramBusinessAccountId || page.instagram_business_account_id || page.hasInstagram) && (
-                        <div className="flex items-center gap-2 mt-1">
-                          <Instagram size={12} className="text-pink-500" />
-                          <span className="text-[11px] text-pink-600 font-bold uppercase">Linked to Instagram</span>
-                        </div>
-                      )}
+              .map(page => {
+                // try common locations for an instagram username returned by the pages API
+                const igUsername = page.instagram_business_account?.username || page.instagram?.username || page.instagram_username || page.instagramBusinessAccountUsername || page.instagramAccount?.username;
+                const isIgLinked = Boolean(page.instagram_business_account || page.instagramBusinessAccountId || page.instagram_business_account_id || page.hasInstagram);
+                return (
+                  <div key={page.pageId} className="flex items-center justify-between p-2 pl-3 rounded-xl border border-gray-100 bg-white hover:border-blue-200 transition-all">
+                    <div className="flex items-center gap-3 overflow-hidden">
+                      <div className="flex flex-col">
+                        <span className="text-sm font-semibold text-gray-600 truncate">{page.pageName}</span>
+                        {/* Show Instagram linkage indicator if the page payload includes Instagram business account info */}
+                        {isIgLinked && (
+                          <div className="flex items-center gap-2 mt-1">
+                            <Instagram size={12} className="text-pink-500" />
+                            <span className="text-[11px] text-pink-600 font-bold uppercase">Linked to Instagram</span>
+                            {igUsername && <span className="text-[11px] text-gray-500 ml-2">@{igUsername}</span>}
+                          </div>
+                        )}
+                      </div>
                     </div>
+                    <button
+                      onClick={() => handleConnectPage(page)}
+                      disabled={processingId === page.pageId}
+                      className="px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white transition-all disabled:opacity-50"
+                    >
+                      {processingId === page.pageId ? '...' : 'Connect'}
+                    </button>
                   </div>
-                  <button
-                    onClick={() => handleConnectPage(page)}
-                    disabled={processingId === page.pageId}
-                    className="px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white transition-all disabled:opacity-50"
-                  >
-                    {processingId === page.pageId ? '...' : 'Connect'}
-                  </button>
-                </div>
-              ))}
+                );
+              })}
           </div>
         </div>
       ) : connectedPages.length === 0 && (
