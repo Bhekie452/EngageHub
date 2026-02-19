@@ -212,6 +212,12 @@ const SocialMedia: React.FC = () => {
 
       if (pages?.length) {
         const page = pages[0];
+        const pageMeta = pages.map((p: any) => ({
+          pageId: p.id,
+          pageName: p.name,
+          pageAccessToken: p.access_token,
+          instagramBusinessAccountId: p.instagram_business_account?.id || null,
+        }));
         const { error } = await supabase.from('social_accounts').upsert({
           workspace_id: workspaces[0].id,
           connected_by: user!.id,
@@ -220,6 +226,10 @@ const SocialMedia: React.FC = () => {
           display_name: page.name,
           account_type: 'page',
           access_token: page.access_token,
+          platform_data: {
+            pages: pageMeta,
+            instagram_business_account: page.instagram_business_account?.id || null,
+          },
           is_active: true,
           connection_status: 'connected',
         }, { onConflict: 'workspace_id,platform,account_id' });
@@ -270,6 +280,12 @@ const SocialMedia: React.FC = () => {
 
       if (pages?.length) {
         const page = pages[0];
+        const pageMeta = pages.map((p: any) => ({
+          pageId: p.id,
+          pageName: p.name,
+          pageAccessToken: p.access_token,
+          instagramBusinessAccountId: p.instagram_business_account?.id || null,
+        }));
         const { error } = await supabase.from('social_accounts').upsert({
           workspace_id: workspaces[0].id,
           connected_by: user!.id,
@@ -278,6 +294,10 @@ const SocialMedia: React.FC = () => {
           display_name: page.name,
           account_type: 'page',
           access_token: page.access_token,
+          platform_data: {
+            pages: pageMeta,
+            instagram_business_account: page.instagram_business_account?.id || null,
+          },
           is_active: true,
           connection_status: 'connected',
         }, { onConflict: 'workspace_id,platform,account_id' });
@@ -527,13 +547,15 @@ const SocialMedia: React.FC = () => {
       // Get TikTok profile
       const profileData = await getTikTokProfile(tokenData.accessToken, tokenData.open_id || tokenData.userId || tokenData.openId);
 
-      if (!profileData.data) {
+      // Normalize possible profile shapes returned by the backend
+      const maybeProfile = profileData?.profile || profileData?.data?.user || profileData?.data || profileData;
+      if (!maybeProfile) {
         alert('Failed to fetch TikTok profile. Please try again.');
         setIsLoading(false);
         return;
       }
 
-      const profile = profileData.data.user;
+      const profile: any = maybeProfile;
       const { data: workspaces } = await supabase.from('workspaces').select('id').eq('owner_id', user!.id).limit(1);
       if (!workspaces?.length) throw new Error('No workspace found');
 
@@ -754,6 +776,32 @@ const SocialMedia: React.FC = () => {
     }
     const pagesWithInstagram = pages.filter((p: any) => p.instagram_business_account);
     if (pagesWithInstagram.length === 0) return false;
+
+    // Ensure Facebook page metadata is stored for later publishing
+    const pageMeta = pages.map((p: any) => ({
+      pageId: p.id,
+      pageName: p.name,
+      pageAccessToken: p.access_token,
+      instagramBusinessAccountId: p.instagram_business_account?.id || null,
+    }));
+    const firstPage = pages[0];
+    if (firstPage) {
+      await supabase.from('social_accounts').upsert({
+        workspace_id: workspaces[0].id,
+        connected_by: user!.id,
+        platform: 'facebook',
+        account_id: firstPage.id,
+        display_name: firstPage.name,
+        account_type: 'page',
+        access_token: firstPage.access_token,
+        platform_data: {
+          pages: pageMeta,
+          instagram_business_account: firstPage.instagram_business_account?.id || null,
+        },
+        is_active: true,
+        connection_status: 'connected',
+      }, { onConflict: 'workspace_id,platform,account_id' });
+    }
 
     const instagramAccounts: any[] = [];
     for (const page of pagesWithInstagram) {

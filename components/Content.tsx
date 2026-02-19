@@ -1058,6 +1058,21 @@ const Content: React.FC = () => {
           if (!publicUrls.includes(linkUrl)) publicUrls.push(linkUrl);
         }
         try {
+          // If Instagram is selected but disconnected, prompt reconnect instead of failing publish
+          const wantsInstagram = platformsToPublish.some((p) => (p || '').toLowerCase() === 'instagram');
+          if (wantsInstagram) {
+            const { data: igRows } = await supabase
+              .from('social_accounts')
+              .select('id, is_active')
+              .eq('workspace_id', workspaceId)
+              .eq('platform', 'instagram')
+              .limit(1);
+            if (igRows?.length && igRows[0]?.is_active === false) {
+              toast.error('Instagram is disconnected. Reconnect Instagram in Social Media > Accounts, then try again.');
+              return;
+            }
+          }
+
           // Fetch tokens client-side (user session allows RLS) so the API can publish when server has no service-role key
           const { data: accountRows } = await supabase
             .from('social_accounts')

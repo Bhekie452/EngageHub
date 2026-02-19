@@ -102,9 +102,9 @@ const handlePublishPost = async (req: VercelRequest, res: VercelResponse) => {
         } 
         else if (plat === 'facebook' || plat === 'instagram') {
           // Check if we have tokens from request or environment
-          const token = accountTokens?.[plat]?.access_token || process.env.FACEBOOK_LONG_TERM_TOKEN;
-          const accountId = accountTokens?.[plat]?.account_id;
-          
+          let token = accountTokens?.[plat]?.access_token || process.env.FACEBOOK_LONG_TERM_TOKEN;
+          let accountId = accountTokens?.[plat]?.account_id;
+
           if (!token) {
             throw new Error(`No ${plat} token available`);
           }
@@ -131,6 +131,41 @@ const handlePublishPost = async (req: VercelRequest, res: VercelResponse) => {
             successPlatforms.push('facebook');
           } else {
             // Instagram logic (simplified redirect/proxy)
+            // If accountId missing, try to derive it from a linked Facebook Page (common case when Instagram is connected via Facebook)
+            if (!accountId) {
+              try {
+                const fbPageId = accountTokens?.facebook?.account_id || accountTokens?.page?.account_id;
+                if (fbPageId) {
+                  const pageLookup = await fetch(`https://graph.facebook.com/v21.0/${fbPageId}?fields=instagram_business_account&access_token=${token}`);
+                  const pageData = await pageLookup.json().catch(() => ({}));
+                  if (pageData && pageData.instagram_business_account && pageData.instagram_business_account.id) {
+                    accountId = pageData.instagram_business_account.id;
+                    console.log('[publish-post] Derived Instagram Business Account ID from Facebook Page:', accountId);
+                  }
+                }
+              } catch (deriveErr) {
+                console.warn('Could not derive Instagram Business Account ID from Facebook Page:', deriveErr?.message || deriveErr);
+              }
+            }
+
+            if (!accountId) {
+              try {
+                const accountsRes = await fetch(`https://graph.facebook.com/v21.0/me/accounts?fields=id,name,access_token,instagram_business_account&access_token=${token}`);
+                const accountsData = await accountsRes.json().catch(() => ({}));
+                const pages = accountsData?.data || [];
+                const pageWithIg = pages.find((p: any) => p?.instagram_business_account?.id);
+                if (pageWithIg?.instagram_business_account?.id) {
+                  accountId = pageWithIg.instagram_business_account.id;
+                  if (pageWithIg.access_token) {
+                    token = pageWithIg.access_token;
+                  }
+                  console.log('[publish-post] Derived Instagram Business Account ID from /me/accounts:', accountId);
+                }
+              } catch (deriveErr) {
+                console.warn('Could not derive Instagram Business Account ID from /me/accounts:', deriveErr?.message || deriveErr);
+              }
+            }
+
             if (!accountId) throw new Error('Instagram requires a Business Account ID');
             
             // Check if media URLs are provided
