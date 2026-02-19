@@ -264,8 +264,7 @@ async function handleTikTokToken(req: VercelRequest, res: VercelResponse) {
             const r = await fetch(url, {
               method: 'GET',
               headers: { 
-                'Authorization': `Bearer ${access_token}`, 
-                'Content-Type': 'application/json'
+                'Authorization': `Bearer ${access_token}`
               }
             });
             const txt = await r.text();
