@@ -207,7 +207,9 @@ const handlePublishPost = async (req: VercelRequest, res: VercelResponse) => {
             });
             
             const publishData = await publishRes.json();
+            console.log('📸 Instagram publish response from utils.ts:', publishData);
             if (publishData.error) throw new Error(publishData.error.message);
+            if (!publishData.id) throw new Error('Media ID is not available. Instagram media was published but no post ID was returned.');
             
             results.instagram = { status: 'published', postId: publishData.id };
             successPlatforms.push('instagram');
