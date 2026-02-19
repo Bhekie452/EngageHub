@@ -818,19 +818,43 @@ const SocialMedia: React.FC = () => {
     }
     if (instagramAccounts.length === 0) return false;
 
+    console.log('[tryConnectInstagramWithToken] workspace_id:', workspaces[0].id, 'user_id:', user!.id, 'instagram_accounts:', instagramAccounts.length);
+
     for (const acc of instagramAccounts) {
-      await supabase.from('social_accounts').upsert({
-        workspace_id: workspaces[0].id,
-        connected_by: user!.id,
-        platform: 'instagram',
-        account_id: acc.id,
-        display_name: acc.username || `Instagram (${acc.page_name})`,
-        username: acc.username,
-        account_type: 'business',
-        access_token: acc.page_access_token,
-        is_active: true,
-        connection_status: 'connected',
-      }, { onConflict: 'workspace_id,platform,account_id' });
+      try {
+        const { data, error } = await supabase.from('social_accounts').upsert({
+          workspace_id: workspaces[0].id,
+          connected_by: user!.id,
+          platform: 'instagram',
+          account_id: acc.id,
+          display_name: acc.username || `Instagram (${acc.page_name})`,
+          username: acc.username,
+          account_type: 'business',
+          access_token: acc.page_access_token,
+          is_active: true,
+          connection_status: 'connected',
+        }, { onConflict: 'workspace_id,platform,account_id' });
+
+        if (error) {
+          console.error('[tryConnectInstagramWithToken] upsert FAILED for account_id:', acc.id, 'error:', error);
+          // Fallback: mark most recent IG row active
+          const { data: recent } = await supabase.from('social_accounts')
+            .select('id')
+            .eq('workspace_id', workspaces[0].id)
+            .eq('platform', 'instagram')
+            .order('updated_at', { ascending: false })
+            .limit(1)
+            .single();
+          if (recent?.id) {
+            console.log('[tryConnectInstagramWithToken] fallback: marking row', recent.id, 'active');
+            await supabase.from('social_accounts').update({ is_active: true }).eq('id', recent.id);
+          }
+        } else {
+          console.log('[tryConnectInstagramWithToken] upsert SUCCESS for account_id:', acc.id);
+        }
+      } catch (err) {
+        console.error('[tryConnectInstagramWithToken] exception during upsert for account_id:', acc.id, err);
+      }
     }
     fetchConnectedAccounts();
     return true;
@@ -977,19 +1001,43 @@ const SocialMedia: React.FC = () => {
       const { data: workspaces } = await supabase.from('workspaces').select('id').eq('owner_id', user!.id).limit(1);
       if (!workspaces?.length) throw new Error('No workspace found');
 
+      console.log('[handleInstagramCallback] workspace_id:', workspaces[0].id, 'user_id:', user!.id, 'instagram_accounts:', instagramAccounts.length);
+
       for (const instagramAccount of instagramAccounts) {
-        await supabase.from('social_accounts').upsert({
-          workspace_id: workspaces[0].id,
-          connected_by: user!.id,
-          platform: 'instagram',
-          account_id: instagramAccount.id,
-          display_name: instagramAccount.username || `Instagram (${instagramAccount.page_name})`,
-          username: instagramAccount.username,
-          account_type: 'business',
-          access_token: instagramAccount.page_access_token,
-          is_active: true,
-          connection_status: 'connected',
-        }, { onConflict: 'workspace_id,platform,account_id' });
+        try {
+          const { data, error } = await supabase.from('social_accounts').upsert({
+            workspace_id: workspaces[0].id,
+            connected_by: user!.id,
+            platform: 'instagram',
+            account_id: instagramAccount.id,
+            display_name: instagramAccount.username || `Instagram (${instagramAccount.page_name})`,
+            username: instagramAccount.username,
+            account_type: 'business',
+            access_token: instagramAccount.page_access_token,
+            is_active: true,
+            connection_status: 'connected',
+          }, { onConflict: 'workspace_id,platform,account_id' });
+
+          if (error) {
+            console.error('[handleInstagramCallback] upsert FAILED for account_id:', instagramAccount.id, 'error:', error);
+            // Fallback: mark most recent IG row active
+            const { data: recent } = await supabase.from('social_accounts')
+              .select('id')
+              .eq('workspace_id', workspaces[0].id)
+              .eq('platform', 'instagram')
+              .order('updated_at', { ascending: false })
+              .limit(1)
+              .single();
+            if (recent?.id) {
+              console.log('[handleInstagramCallback] fallback: marking row', recent.id, 'active');
+              await supabase.from('social_accounts').update({ is_active: true }).eq('id', recent.id);
+            }
+          } else {
+            console.log('[handleInstagramCallback] upsert SUCCESS for account_id:', instagramAccount.id);
+          }
+        } catch (err) {
+          console.error('[handleInstagramCallback] exception during upsert for account_id:', instagramAccount.id, err);
+        }
       }
 
       alert(`✅ Connected to Instagram: ${instagramAccounts.map((acc: any) => acc.username || acc.page_name).join(', ')}!`);
