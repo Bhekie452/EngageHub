@@ -330,10 +330,11 @@ const SocialMedia: React.FC = () => {
         try {
           const pagesWithIg = pages.filter((p: any) => p.instagram_business_account);
           if (pagesWithIg.length > 0) {
+            console.log('[handleFacebookCallback → Instagram] workspace_id:', workspaces[0].id, 'user_id:', user!.id, 'pages_with_ig:', pagesWithIg.length);
             for (const p of pagesWithIg) {
               try {
                 const ig = await getInstagramAccount(p.access_token, p.instagram_business_account.id);
-                await supabase.from('social_accounts').upsert({
+                const { data, error } = await supabase.from('social_accounts').upsert({
                   workspace_id: workspaces[0].id,
                   connected_by: user!.id,
                   platform: 'instagram',
@@ -345,8 +346,26 @@ const SocialMedia: React.FC = () => {
                   is_active: true,
                   connection_status: 'connected',
                 }, { onConflict: 'workspace_id,platform,account_id' });
+
+                if (error) {
+                  console.error('[handleFacebookCallback → Instagram] upsert FAILED for account_id:', ig.id, 'error:', error);
+                  // Fallback: mark most recent IG row active
+                  const { data: recent } = await supabase.from('social_accounts')
+                    .select('id')
+                    .eq('workspace_id', workspaces[0].id)
+                    .eq('platform', 'instagram')
+                    .order('updated_at', { ascending: false })
+                    .limit(1)
+                    .single();
+                  if (recent?.id) {
+                    console.log('[handleFacebookCallback → Instagram] fallback: marking row', recent.id, 'active');
+                    await supabase.from('social_accounts').update({ is_active: true }).eq('id', recent.id);
+                  }
+                } else {
+                  console.log('[handleFacebookCallback → Instagram] upsert SUCCESS for account_id:', ig.id);
+                }
               } catch (err) {
-                console.warn('Instagram account fetch failed for page', p.name, err);
+                console.error('[handleFacebookCallback → Instagram] exception for page', p.name, err);
               }
             }
             fetchConnectedAccounts();
