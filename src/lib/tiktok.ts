@@ -82,8 +82,8 @@ export const connectTikTok = async () => {
         }
 
         try {
-            // TikTok OAuth 2.0 scopes - try single scope first to isolate issue
-            const scope = 'user.info.basic';
+            // TikTok OAuth 2.0 scopes - request video publishing permissions
+            const scope = 'user.info.basic,video.publish';
             const oauthState = 'tiktok_oauth';
             // Use dynamic redirect URI based on current domain (works with custom domains)
             const redirectUri = getRedirectURI();
@@ -118,7 +118,7 @@ export const connectTikTok = async () => {
 /**
  * Exchange authorization code for access token
  */
-export const exchangeCodeForToken = async (code: string): Promise<{ accessToken: string; refreshToken?: string; expiresIn?: number; userId?: string }> => {
+export const exchangeCodeForToken = async (code: string): Promise<{ accessToken: string; refreshToken?: string; expiresIn?: number; userId?: string; open_id?: string; openId?: string }> => {
     try {
         const storedRedirectUri = sessionStorage.getItem('tiktok_oauth_redirect_uri');
         const redirectUri = storedRedirectUri || getRedirectURI();
