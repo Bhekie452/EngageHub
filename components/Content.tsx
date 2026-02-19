@@ -653,10 +653,14 @@ const Content: React.FC = () => {
     const path = `${folder}/${user.id}/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
     const { error } = await supabase.storage.from(BUCKET_POST_MEDIA).upload(path, file, { upsert: false });
     if (error) {
-      console.warn('Storage upload failed:', error);
+      console.error('Storage upload failed:', error);
+      toast.error(`Failed to upload ${folder === 'images' ? 'image' : 'video'} to storage: ${error.message}. Using temporary preview instead. Instagram posting may not work.`);
       return null;
     }
     const { data } = supabase.storage.from(BUCKET_POST_MEDIA).getPublicUrl(path);
+    if (data?.publicUrl) {
+      toast.success(`${folder === 'images' ? 'Image' : 'Video'} uploaded successfully!`);
+    }
     return data?.publicUrl || null;
   };
 
@@ -1056,6 +1060,14 @@ const Content: React.FC = () => {
         const publicUrls = allMedia.filter((u) => typeof u === 'string' && (u.startsWith('http://') || u.startsWith('https://')));
         if (platformsToPublish.some((plat) => (plat || '').toLowerCase() === 'youtube') && linkUrl && (linkUrl.startsWith('http://') || linkUrl.startsWith('https://'))) {
           if (!publicUrls.includes(linkUrl)) publicUrls.push(linkUrl);
+        }
+        
+        // Check if Instagram/YouTube are selected but no public media URLs available
+        const needsMedia = platformsToPublish.some((p) => ['instagram', 'youtube'].includes((p || '').toLowerCase()));
+        if (needsMedia && allMedia.length > 0 && publicUrls.length === 0) {
+          toast.error('Instagram and YouTube require publicly accessible media URLs. Your files failed to upload to storage. Please check your Supabase Storage configuration and try again.');
+          setIsSubmitting(false);
+          return;
         }
         try {
           // If Instagram is selected but disconnected, prompt reconnect instead of failing publish
