@@ -1,17 +1,11 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
+import { handleCors } from './_cors';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  const { action } = req.query;
-  
-  // Enable CORS
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  if (handleCors(req, res)) return;
 
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
+  const { action } = req.query;
 
   try {
     if (action === 'auth') {
@@ -268,6 +262,78 @@ async function handleConnectPage(req: VercelRequest, res: VercelResponse) {
     }
 
     console.log('[handleConnectPage] Page connected successfully:', data);
+
+    // If page has Instagram Business Account, also save/reactivate Instagram
+    if (igAccountId && accessToken) {
+      console.log('[handleConnectPage] Page has Instagram Business Account:', igAccountId);
+      try {
+        // Fetch Instagram account details
+        const igResponse = await fetch(
+          `https://graph.facebook.com/v21.0/${encodeURIComponent(igAccountId)}?` +
+          `fields=id,username,profile_picture_url&` +
+          `access_token=${encodeURIComponent(accessToken)}`
+        );
+        const igData = await igResponse.json();
+        
+        if (igData && !igData.error) {
+          console.log('[handleConnectPage → Instagram] Fetched IG profile:', igData.username);
+          
+          const { data: igResult, error: igError } = await supabase
+            .from('social_accounts')
+            .upsert(
+              {
+                workspace_id: workspaceId,
+                connected_by: ownerId,
+                platform: 'instagram',
+                account_type: 'business',
+                account_id: igData.id,
+                username: igData.username,
+                display_name: `@${igData.username}`,
+                access_token: accessToken,
+                platform_data: {
+                  profile_picture_url: igData.profile_picture_url || null,
+                  connected_facebook_page_id: pageId,
+                  connected_facebook_page_name: pageName,
+                  instagram_business_account_id: igAccountId
+                },
+                is_active: true,
+                connection_status: 'connected',
+                last_sync_at: new Date().toISOString(),
+              },
+              { onConflict: 'workspace_id,platform,account_id' }
+            )
+            .select()
+            .single();
+
+          if (igError) {
+            console.error('[handleConnectPage → Instagram] upsert FAILED for account_id:', igData.id, 'error:', igError);
+            // Fallback: mark most recent Instagram row active
+            const { data: recent } = await supabase
+              .from('social_accounts')
+              .select('id')
+              .eq('workspace_id', workspaceId)
+              .eq('platform', 'instagram')
+              .order('updated_at', { ascending: false })
+              .limit(1)
+              .single();
+            
+            if (recent?.id) {
+              console.log('[handleConnectPage → Instagram] fallback: marking row', recent.id, 'active');
+              await supabase
+                .from('social_accounts')
+                .update({ is_active: true, last_sync_at: new Date().toISOString() })
+                .eq('id', recent.id);
+            }
+          } else {
+            console.log('[handleConnectPage → Instagram] upsert SUCCESS for account_id:', igData.id);
+          }
+        } else {
+          console.warn('[handleConnectPage → Instagram] Failed to fetch IG profile:', igData?.error);
+        }
+      } catch (igErr) {
+        console.error('[handleConnectPage → Instagram] exception:', igErr);
+      }
+    }
 
     return res.status(200).json({
       success: true,
