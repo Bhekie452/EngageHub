@@ -923,40 +923,40 @@ const Content: React.FC = () => {
 
       // Refresh posts list
       fetchPosts();
-      alert('Post deleted successfully!');
+      toast.success('Post deleted successfully!');
     } catch (err: any) {
       console.error('Error deleting post:', err);
-      alert('Failed to delete post: ' + (err.message || 'Unknown error'));
+      toast.error('Failed to delete post: ' + (err.message || 'Unknown error'));
     }
   };
 
   const handlePostSubmit = async () => {
     if (!postContent.trim() && uploadedImages.length === 0 && uploadedVideos.length === 0) {
-      alert('Please add some content to your post!');
+      toast.error('Please add some content to your post!');
       return;
     }
 
     if (selectedPlatforms.length === 0) {
-      alert('Please select at least one platform!');
+      toast.error('Please select at least one platform!');
       return;
     }
 
     if (scheduleMode === 'later') {
       if (!scheduleDate?.trim()) {
-        alert('Please select a date for the scheduled post.');
+        toast.error('Please select a date for the scheduled post.');
         return;
       }
       if (!scheduleTime?.trim()) {
-        alert('Please select a time for the scheduled post.');
+        toast.error('Please select a time for the scheduled post.');
         return;
       }
       const scheduledAt = new Date(`${scheduleDate} ${scheduleTime}`);
       if (Number.isNaN(scheduledAt.getTime()) || scheduledAt <= new Date()) {
-        alert('Please select a future date and time.');
+        toast.error('Please select a future date and time.');
         return;
       }
       if (isRecur && (!recurUntil?.trim() || new Date(recurUntil) < scheduledAt)) {
-        alert('Recur end date must be on or after the scheduled date.');
+        toast.error('Recur end date must be on or after the scheduled date.');
         return;
       }
     }
@@ -1166,13 +1166,13 @@ const Content: React.FC = () => {
             }),
           });
           if (r.status === 413) {
-            alert('Request too large. Use a public video URL (upload to Storage and paste the link) instead of attaching the file directly.');
+            toast.error('Request too large. Use a public video URL (upload to Storage and paste the link) instead of attaching the file directly.');
             return;
           }
           const payload = await r.json().catch(() => ({}));
           if (!r.ok) {
             const msg = payload?.error || payload?.message || `Publish failed (${r.status}).`;
-            alert(`Post saved but could not publish: ${msg}`);
+            toast.error(`Post saved but could not publish: ${msg}`);
             return;
           }
           const platformPostIds = payload.platformPostIds || {};
@@ -1201,17 +1201,18 @@ const Content: React.FC = () => {
               : onlyYoutube
                 ? ' YouTube video upload is not yet supported.'
                 : ' Check your connected accounts.';
-            alert(`Post saved. Failed to publish to: ${names.join(', ')}.${hint}`);
+            toast.error(`Post saved. Failed to publish to: ${names.join(', ')}.${hint}`);
+          } else {
+            let successMsg = `Post ${editingPost ? 'updated' : scheduleMode === 'now' ? 'published' : 'scheduled'} successfully! 🎉`;
+            if (skippedLarge > 0) successMsg += ` Large media (e.g. video) was not saved to the database; upload to Storage for publishing.`;
+            toast.success(successMsg);
           }
         } catch (e) {
           console.warn('Publish API call failed:', e);
-          alert('Post saved. Could not reach publish service; try again later.');
+          toast.error('Post saved. Could not reach publish service; try again later.');
         }
       }
 
-      let successMsg = `Post ${editingPost ? 'updated' : scheduleMode === 'now' ? 'published' : 'scheduled'} successfully! 🎉`;
-      if (skippedLarge > 0) successMsg += ` Large media (e.g. video) was not saved to the database; upload to Storage for publishing.`;
-      alert(successMsg);
       await fetchPosts();
 
       // Reset form
@@ -1237,7 +1238,7 @@ const Content: React.FC = () => {
       const msg = error?.message || '';
       const isNetwork = /failed to fetch|network|520|cors/i.test(msg);
       const hint = isNetwork ? ' Check your connection or try a smaller video (large files can time out).' : '';
-      alert(`Failed to create post: ${msg}${hint}`);
+      toast.error(`Failed to create post: ${msg}${hint}`);
     } finally {
       setIsSubmitting(false);
     }
@@ -1245,7 +1246,7 @@ const Content: React.FC = () => {
 
   const handleSaveTemplate = () => {
     if (!postContent.trim()) {
-      alert('Please add some content to save as a template!');
+      toast.error('Please add some content to save as a template!');
       return;
     }
 
@@ -1257,7 +1258,7 @@ const Content: React.FC = () => {
     };
 
     console.log('Saving template:', template);
-    alert('Template saved successfully! 📄\n\nYou can find it in the Templates tab.');
+    toast.success('Template saved successfully! 📄 You can find it in the Templates tab.');
   };
 
   const tabs: { id: ContentTab; label: string; icon: React.ReactNode }[] = [
