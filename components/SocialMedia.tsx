@@ -1395,9 +1395,23 @@ const SocialMedia: React.FC = () => {
                       <h4 className={`text-md font-black truncate leading-tight ${isConnected ? 'text-gray-900' : 'text-gray-700'}`}>
                         {isConnected && (displayAccount?.display_name || displayAccount?.username || account.name) ? (displayAccount?.display_name || displayAccount?.username) : account.name}
                       </h4>
-                      <p className="text-xs text-gray-500 font-semibold mt-1 truncate uppercase tracking-wider">
-                        {isConnected ? 'Connected' : account.handle}
-                      </p>
+                      {account.platform === 'instagram' ? (
+                        <div className="mt-1">
+                          <p className="text-xs text-gray-500 font-semibold truncate uppercase tracking-wider">
+                            {isConnected ? 'Connected' : account.handle}
+                          </p>
+                          {/* If Instagram is derived from a Facebook page, show which Instagram profile it's linked to */}
+                          {isConnected && !connectedAccount && instagramFromFacebook && (
+                            <p className="text-xs text-pink-600 font-semibold mt-1 truncate">
+                              Linked to Instagram: @{instagramFromFacebook.username || instagramFromFacebook.name || instagramFromFacebook.id}
+                            </p>
+                          )}
+                        </div>
+                      ) : (
+                        <p className="text-xs text-gray-500 font-semibold mt-1 truncate uppercase tracking-wider">
+                          {isConnected ? 'Connected' : account.handle}
+                        </p>
+                      )}
                     </div>
                   </div>
                   <div className="flex items-center justify-between mt-auto">
