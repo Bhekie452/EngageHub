@@ -294,7 +294,53 @@ async function handleTikTokToken(req: VercelRequest, res: VercelResponse) {
 
 // TikTok Profile (placeholder)
 async function handleTikTokProfile(req: VercelRequest, res: VercelResponse) {
-  return res.status(501).json({ error: 'Not implemented' });
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  try {
+    const { accessToken } = req.body;
+    if (!accessToken) return res.status(400).json({ error: 'accessToken required' });
+
+    // Try TikTok Open API v2 user info endpoint using Bearer token
+    const urlsToTry = [
+      `https://open.tiktokapis.com/v2/user/info/`,
+      `https://open.tiktokapis.com/v2/user/info`,
+    ];
+
+    let profileData: any = null;
+    for (const url of urlsToTry) {
+      try {
+        const resp = await fetch(url, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Accept': 'application/json'
+          }
+        });
+        const text = await resp.text();
+        // attempt to parse
+        let json: any = null;
+        try { json = JSON.parse(text); } catch { json = null; }
+        if (resp.ok && json) {
+          profileData = json;
+          break;
+        }
+        // if not ok, continue to next
+      } catch (e) {
+        console.warn('[handleTikTokProfile] fetch attempt failed for', url, e);
+      }
+    }
+
+    if (!profileData) {
+      return res.status(502).json({ error: 'Failed to fetch TikTok profile', details: 'No profile response from TikTok' });
+    }
+
+    return res.status(200).json(profileData);
+  } catch (err: any) {
+    console.error('[handleTikTokProfile] Error:', err);
+    return res.status(500).json({ error: 'Failed to fetch TikTok profile', details: err.message });
+  }
 }
 
 // Facebook Token (placeholder)
