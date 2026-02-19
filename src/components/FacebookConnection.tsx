@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { Facebook, Instagram, LogOut } from 'lucide-react';
-import { initiateFacebookOAuth } from '../lib/facebook';
+import { initiateFacebookOAuth, loginWithFacebook, getFacebookProfile, getFacebookAccessToken } from '../lib/facebook';
 
 interface FacebookConnection {
   id: string;
@@ -141,6 +141,48 @@ export default function FacebookConnection() {
 
       setConnections(dbConnections || []);
 
+      // If there's no profile in DB but we have a stored FB token, attempt to auto-reconnect the profile once
+      const hasProfile = (dbConnections || []).some((c: any) => c.account_type === 'profile');
+      const reconnectAttempted = sessionStorage.getItem('facebook_profile_reconnect_attempted');
+      if (!hasProfile && !reconnectAttempted) {
+        try {
+          const token = getFacebookAccessToken ? getFacebookAccessToken() : (localStorage.getItem('facebook_access_token') || null);
+          if (token) {
+            // mark attempted to avoid loops
+            sessionStorage.setItem('facebook_profile_reconnect_attempted', '1');
+            const fbProfile = await getFacebookProfile(token);
+            if (fbProfile && fbProfile.id) {
+              // determine connected_by (try to get current user)
+              let connectedBy = null;
+              try {
+                const { data: authData } = await supabase.auth.getUser();
+                connectedBy = authData?.user?.id || null;
+              } catch {
+                connectedBy = null;
+              }
+
+              await supabase.from('social_accounts').upsert({
+                workspace_id: workspaceId,
+                connected_by: connectedBy,
+                platform: 'facebook',
+                account_id: `profile_${fbProfile.id}`,
+                display_name: fbProfile.name,
+                account_type: 'profile',
+                access_token: token,
+                is_active: true,
+                connection_status: 'connected',
+              }, { onConflict: 'workspace_id,platform,account_id' });
+
+              // Reload data to reflect new profile
+              await loadData();
+              return;
+            }
+          }
+        } catch (err) {
+          console.warn('Auto-reconnect profile failed:', err);
+        }
+      }
+
       // 2. If profile is connected, merge available pages
       if (pagesData.success && pagesData.pages) {
         // Merge with connection status
@@ -194,9 +236,15 @@ export default function FacebookConnection() {
   };
 
   const handleConnectFacebook = () => {
-    // Use the centralized OAuth initiator from the library
-    // This ensures state matches what the callback handler expects ('facebook_oauth')
-    initiateFacebookOAuth();
+    // Start the full Facebook OAuth redirect flow
+    // prefer `loginWithFacebook` which actually redirects
+    try {
+      loginWithFacebook();
+    } catch (err) {
+      console.error('Failed to start Facebook OAuth:', err);
+      // Fallback to the debug initiator
+      initiateFacebookOAuth();
+    }
   };
 
   const handleConnectPage = async (page: FacebookPage) => {
@@ -290,8 +338,54 @@ export default function FacebookConnection() {
   // Separate profile connection
   const profileConnection = connections.find(conn => conn.account_type === 'profile');
   const connectedPages = connections.filter(conn => conn.account_type === 'page');
-
   if (!profileConnection) {
+    // If there is no profile but there are connected pages, show them as connected
+    if (connectedPages.length > 0) {
+      return (
+        <div className="p-6 rounded-2xl border flex flex-col gap-4 group transition-all duration-300 shadow-sm bg-white border-blue-100 ring-1 ring-blue-50/50 hover:shadow-lg hover:shadow-blue-100/50">
+          <div className="flex items-start justify-between">
+            <div className="flex items-start gap-4">
+              <div className="w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 shadow-sm transition-transform group-hover:scale-105 duration-300 bg-white border border-gray-50">
+                <Facebook size={28} className="text-blue-600" />
+              </div>
+              <div className="overflow-hidden">
+                <h4 className="text-md font-black truncate leading-tight text-gray-900">Facebook</h4>
+                <p className="text-xs text-gray-400 font-semibold mt-1 truncate uppercase tracking-wider">Connected</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            {connectedPages.map((page) => (
+              <div key={page.id} className="flex items-center justify-between p-3 rounded-xl bg-gray-50 border border-gray-100 group/page hover:border-blue-200 hover:bg-blue-50/30 transition-all">
+                <div className="flex items-center gap-3 overflow-hidden">
+                  <div className="w-8 h-8 rounded-lg bg-white border border-gray-100 flex items-center justify-center shrink-0 text-blue-600 shadow-xs">
+                    <Facebook size={16} />
+                  </div>
+                  <div className="overflow-hidden">
+                    <p className="text-sm font-bold text-gray-700 truncate line-clamp-1">{page.display_name}</p>
+                    {page.platform_data?.instagram_business_account && (
+                      <div className="flex items-center gap-1 mt-0.5" title="Instagram Linked">
+                        <Instagram size={10} className="text-pink-500" />
+                        <span className="text-[9px] font-bold text-pink-500 uppercase tracking-tight">Linked</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <button
+                  onClick={() => handleDisconnectPage({ pageId: page.account_id!, pageName: page.display_name } as any)}
+                  className="p-1.5 text-gray-300 hover:text-red-500 transition-colors bg-transparent opacity-0 group-hover/page:opacity-100"
+                  title="Disconnect Page"
+                >
+                  <LogOut size={12} />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className="p-6 rounded-2xl border flex flex-col justify-between group transition-all duration-300 shadow-sm min-h-[160px] bg-gray-50/50 border-gray-100 filter grayscale-[0.2] hover:bg-white">
         <div className="flex items-start gap-4 mb-4">
@@ -299,27 +393,18 @@ export default function FacebookConnection() {
             <Facebook size={28} className="text-gray-400" />
           </div>
           <div className="overflow-hidden">
-            <h4 className="text-md font-black truncate leading-tight text-gray-500">
-              Facebook
-            </h4>
-            <p className="text-xs text-gray-400 font-semibold mt-1 truncate uppercase tracking-wider">
-              {profileConnection?.connection_status === 'connected' ? 'Connected' : 'Not Connected'}
-            </p>
+            <h4 className="text-md font-black truncate leading-tight text-gray-500">Facebook</h4>
+            <p className="text-xs text-gray-400 font-semibold mt-1 truncate uppercase tracking-wider">Not Connected</p>
           </div>
         </div>
         <div className="flex items-center justify-between mt-auto">
           <div className="flex-1">
             <button
               onClick={handleConnectFacebook}
-              disabled={loading || profileConnection?.connection_status === 'connected'}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors w-full ${
-                profileConnection?.connection_status === 'connected' 
-                  ? 'bg-green-600 text-white hover:bg-green-700' 
-                  : 'bg-blue-600 text-white hover:bg-blue-700'
-              } disabled:bg-gray-300 disabled:text-gray-500 disabled:cursor-wait`}
+              disabled={loading}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors w-full bg-blue-600 text-white hover:bg-blue-700 disabled:bg-gray-300 disabled:text-gray-500 disabled:cursor-wait`}
             >
-              {loading ? 'Connecting...' : 
-               profileConnection?.connection_status === 'connected' ? 'Connected' : 'Connect'}
+              {loading ? 'Connecting...' : 'Connect'}
             </button>
           </div>
         </div>
@@ -366,31 +451,44 @@ export default function FacebookConnection() {
 
         {connectedPages.length > 0 ? (
           <div className="grid grid-cols-1 gap-2">
-            {connectedPages.map((page) => (
-              <div key={page.id} className="flex items-center justify-between p-3 rounded-xl bg-gray-50 border border-gray-100 group/page hover:border-blue-200 hover:bg-blue-50/30 transition-all">
-                <div className="flex items-center gap-3 overflow-hidden">
-                  <div className="w-8 h-8 rounded-lg bg-white border border-gray-100 flex items-center justify-center shrink-0 text-blue-600 shadow-xs">
-                    <Facebook size={16} />
+            {connectedPages.map((page) => {
+              // Determine Instagram linkage: check platform_data keys and whether an instagram social_account exists
+              const igBusinessId = page.platform_data?.instagram_business_account || page.platform_data?.instagram_business_account_id || page.instagram_business_account;
+              const instagramAccount = connections.find(c => c.platform === 'instagram' && (c.account_id === igBusinessId || c.account_id === String(igBusinessId)));
+              const isIgLinked = Boolean(igBusinessId);
+              return (
+                <div key={page.id} className="flex items-center justify-between p-3 rounded-xl bg-gray-50 border border-gray-100 group/page hover:border-blue-200 hover:bg-blue-50/30 transition-all">
+                  <div className="flex items-center gap-3 overflow-hidden">
+                    <div className="w-8 h-8 rounded-lg bg-white border border-gray-100 flex items-center justify-center shrink-0 text-blue-600 shadow-xs">
+                      <Facebook size={16} />
+                    </div>
+                    <div className="overflow-hidden">
+                      <p className="text-sm font-bold text-gray-700 truncate line-clamp-1">{page.display_name}</p>
+                      {isIgLinked ? (
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <div className="flex items-center gap-1" title={instagramAccount ? `Instagram: ${instagramAccount.username || instagramAccount.display_name}` : 'Instagram linked to this Page'}>
+                            <Instagram size={12} className="text-pink-500" />
+                            <span className="text-[11px] font-bold text-pink-500 uppercase tracking-tight">Instagram Linked</span>
+                          </div>
+                          {instagramAccount && (
+                            <span className="text-[11px] text-gray-500">{instagramAccount.username || instagramAccount.display_name}</span>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="text-[10px] text-gray-400 mt-0.5 uppercase">No Instagram linked</div>
+                      )}
+                    </div>
                   </div>
-                  <div className="overflow-hidden">
-                    <p className="text-sm font-bold text-gray-700 truncate line-clamp-1">{page.display_name}</p>
-                    {page.platform_data?.instagram_business_account_id && (
-                      <div className="flex items-center gap-1 mt-0.5" title="Instagram Linked">
-                        <Instagram size={10} className="text-pink-500" />
-                        <span className="text-[9px] font-bold text-pink-500 uppercase tracking-tight">Linked</span>
-                      </div>
-                    )}
-                  </div>
+                  <button
+                    onClick={() => handleDisconnectPage({ pageId: page.account_id!, pageName: page.display_name } as any)}
+                    className="p-1.5 text-gray-300 hover:text-red-500 transition-colors bg-transparent opacity-0 group-hover/page:opacity-100"
+                    title="Disconnect Page"
+                  >
+                    <LogOut size={12} />
+                  </button>
                 </div>
-                <button
-                  onClick={() => handleDisconnectPage({ pageId: page.account_id!, pageName: page.display_name } as any)}
-                  className="p-1.5 text-gray-300 hover:text-red-500 transition-colors bg-transparent opacity-0 group-hover/page:opacity-100"
-                  title="Disconnect Page"
-                >
-                  <LogOut size={12} />
-                </button>
-              </div>
-            ))}
+              );
+            })}
           </div>
         ) : (
           <div className="py-4 text-center rounded-xl border border-dashed border-gray-200">

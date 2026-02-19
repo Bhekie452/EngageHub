@@ -43,6 +43,7 @@ const SocialMedia: React.FC = () => {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<SocialTab>('accounts');
   const [connectedAccounts, setConnectedAccounts] = useState<any[]>([]);
+  const [instagramFromFacebook, setInstagramFromFacebook] = useState<any | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isOAuthRedirect, setIsOAuthRedirect] = useState(false);
 
@@ -674,6 +675,28 @@ const SocialMedia: React.FC = () => {
       }
 
       setConnectedAccounts(data || []);
+
+      // If there's no explicit instagram account stored but a connected Facebook page has an instagram_business_account, fetch Instagram details
+      try {
+        const fbPage = (data || []).find((acc: any) => acc.platform === 'facebook' && acc.platform_data && (acc.platform_data.instagram_business_account || acc.platform_data.instagram_business_account_id));
+        const igStored = (data || []).find((acc: any) => acc.platform === 'instagram');
+        if (fbPage && !igStored) {
+          const igId = fbPage.platform_data?.instagram_business_account || fbPage.platform_data?.instagram_business_account_id || fbPage.instagram_business_account;
+          const pageAccessToken = fbPage.access_token || fbPage.page_access_token || fbPage.platform_data?.access_token;
+          if (igId && pageAccessToken) {
+            try {
+              const ig = await getInstagramAccount(pageAccessToken, igId);
+              if (ig) setInstagramFromFacebook(ig);
+            } catch (err) {
+              console.warn('Failed to fetch Instagram from Facebook page:', err);
+            }
+          }
+        } else {
+          setInstagramFromFacebook(null);
+        }
+      } catch (err) {
+        console.warn('Instagram fetch flow error:', err);
+      }
     } catch (err) {
       console.error('Error fetching accounts:', err);
     } finally {
@@ -1323,7 +1346,6 @@ const SocialMedia: React.FC = () => {
             <FacebookConnection />
 
             {[
-              { name: 'Facebook', handle: '@EngagehubTestingPage', platform: 'facebook', icon: <Facebook className="text-blue-600" /> },
               { name: 'Instagram', handle: '@engagehub_creations', platform: 'instagram', icon: <Instagram className="text-pink-600" /> },
               { name: 'LinkedIn Profile', handle: 'John Doe', platform: 'linkedin', icon: <Linkedin className="text-blue-700" /> },
               { name: 'X (Twitter)', handle: '@engagehub', platform: 'twitter', icon: <X className="text-black" /> },
