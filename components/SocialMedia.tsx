@@ -1352,19 +1352,37 @@ const SocialMedia: React.FC = () => {
               { name: 'TikTok', handle: '@engagehub_official', platform: 'tiktok', icon: <Music className="text-black" /> },
               { name: 'YouTube', handle: 'Engagehub Tutorials', platform: 'youtube', icon: <Youtube className="text-red-600" /> },
             ].map((account, idx) => {
-              const connectedAccount = connectedAccounts.find(ca => ca.platform === account.platform);
-              // For Instagram, also check if Facebook has an Instagram business account linked
-              const facebookAccount = connectedAccounts.find(ca => ca.platform === 'facebook');
-              const hasInstagramViaFacebook = facebookAccount?.platform_data?.instagram_business_account;
-              // For Instagram, check if there's a separate Instagram account
-              const instagramAccount = connectedAccounts.find(ca => ca.platform === 'instagram');
-              const isConnected = account.platform === 'instagram' 
-                ? !!instagramAccount || !!hasInstagramViaFacebook
+              const connectedAccount = connectedAccounts.find(ca => ca.platform === account.platform && ca.is_active);
+              // Facebook account (may host an Instagram business account)
+              const facebookAccount = connectedAccounts.find(ca => ca.platform === 'facebook' && ca.is_active);
+              // Instagram account stored in DB (preferred)
+              const instagramAccount = connectedAccounts.find(ca => ca.platform === 'instagram' && ca.is_active);
+              // Instagram details fetched from a Facebook page (derived, not necessarily stored)
+              const instagramFromFB = instagramFromFacebook;
+
+              const isConnected = account.platform === 'instagram'
+                ? !!instagramAccount || !!instagramFromFB
                 : !!connectedAccount;
-              // For Instagram, use the Instagram account data; for others, use connected account
-              let displayAccount = connectedAccount;
-              if (account.platform === 'instagram' && (instagramAccount || hasInstagramViaFacebook)) {
-                displayAccount = instagramAccount || { display_name: facebookAccount?.username || 'Instagram', username: facebookAccount?.username };
+
+              // Determine which account data to display in the card. Prefer a stored Instagram record,
+              // then prefer the derived Instagram (from Facebook page), then fall back to the connected account.
+              let displayAccount: any = connectedAccount;
+              if (account.platform === 'instagram') {
+                if (instagramAccount) {
+                  displayAccount = instagramAccount;
+                } else if (instagramFromFB) {
+                  displayAccount = {
+                    // Map common fields so UI shows a proper Instagram username/display name
+                    display_name: instagramFromFB.username || instagramFromFB.name || `Instagram (${instagramFromFB.id})`,
+                    username: instagramFromFB.username || instagramFromFB.name,
+                    avatar_url: instagramFromFB.profile_picture_url || instagramFromFB.profile_picture || instagramFromFB.avatar_url,
+                    // no local DB id available when derived from Facebook page
+                    id: undefined,
+                  };
+                } else if (facebookAccount) {
+                  // As a last resort (shouldn't be used for display), show the FB page name
+                  displayAccount = { display_name: facebookAccount.display_name || facebookAccount.name, username: facebookAccount.username };
+                }
               }
 
               return (
@@ -1377,9 +1395,23 @@ const SocialMedia: React.FC = () => {
                       <h4 className={`text-md font-black truncate leading-tight ${isConnected ? 'text-gray-900' : 'text-gray-700'}`}>
                         {isConnected && (displayAccount?.display_name || displayAccount?.username || account.name) ? (displayAccount?.display_name || displayAccount?.username) : account.name}
                       </h4>
-                      <p className="text-xs text-gray-500 font-semibold mt-1 truncate uppercase tracking-wider">
-                        {isConnected ? 'Connected' : account.handle}
-                      </p>
+                      {account.platform === 'instagram' ? (
+                        <div className="mt-1">
+                          <p className="text-xs text-gray-500 font-semibold truncate uppercase tracking-wider">
+                            {isConnected ? 'Connected' : account.handle}
+                          </p>
+                          {/* If Instagram is derived from a Facebook page, show which Instagram profile it's linked to */}
+                          {isConnected && !connectedAccount && instagramFromFacebook && (
+                            <p className="text-xs text-pink-600 font-semibold mt-1 truncate">
+                              Linked to Instagram: @{instagramFromFacebook.username || instagramFromFacebook.name || instagramFromFacebook.id}
+                            </p>
+                          )}
+                        </div>
+                      ) : (
+                        <p className="text-xs text-gray-500 font-semibold mt-1 truncate uppercase tracking-wider">
+                          {isConnected ? 'Connected' : account.handle}
+                        </p>
+                      )}
                     </div>
                   </div>
                   <div className="flex items-center justify-between mt-auto">
@@ -1410,7 +1442,7 @@ const SocialMedia: React.FC = () => {
                       </button>
                     )}
 
-                    {isConnected && account.platform !== 'youtube' && (
+                    {isConnected && account.platform !== 'youtube' && connectedAccount?.id && (
                       <button
                         onClick={() => handleDisconnect(connectedAccount.id)}
                         className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
