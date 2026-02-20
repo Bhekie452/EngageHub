@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { WebsiteNav } from './WebsiteNav';
 import { LandingHero } from './LandingHero';
+import { LandingDashboardPreview } from './LandingDashboardPreview';
 import { LandingFeatures } from './LandingFeatures';
 import { LandingTestimonials } from './LandingTestimonials';
 import { LandingPricing } from './LandingPricing';
@@ -27,6 +28,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onSignIn
             {/* Main content with top padding for fixed nav */}
             <div className="pt-20">
                 <LandingHero onGetStarted={onGetStarted} onOpenChatbot={() => setChatbotOpen(true)} />
+                <LandingDashboardPreview />
                 <div id="features">
                     <LandingFeatures />
                 </div>
