@@ -1537,9 +1537,7 @@ const SocialMedia: React.FC = () => {
               // For YouTube, also check all accounts (not just active) since is_active may be false on existing connections
               // but exclude accounts the user has explicitly disconnected this session
               const connectedAccount = activeAccounts.find(ca => ca.platform === account.platform)
-                ?? (account.platform === 'youtube'
-                  ? connectedAccounts.find(ca => ca.platform === 'youtube' && !sessionStorage.getItem(`yt_disconnected_${ca.id}`))
-                  : undefined);
+                ?? connectedAccounts.find(ca => ca.platform === account.platform && ca.connection_status === 'connected' && !sessionStorage.getItem(`yt_disconnected_${ca.id}`));
               // Facebook account (may host an Instagram business account)
               const facebookAccount = activeAccounts.find(ca => ca.platform === 'facebook');
               // Instagram account stored in DB (preferred)
@@ -1603,6 +1601,10 @@ const SocialMedia: React.FC = () => {
                           <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
                           Live
                         </span>
+                      )}
+                      {/* If the dashboard thinks it's connected but profile text is missing, show a tiny hint */}
+                      {isConnected && account.platform === 'youtube' && !displayAccount?.display_name && (
+                        <span className="text-[8px] text-gray-400 mt-1 block italic">Profile details pending sync</span>
                       )}
                     </div>
 
