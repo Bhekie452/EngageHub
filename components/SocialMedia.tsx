@@ -1584,23 +1584,11 @@ const SocialMedia: React.FC = () => {
                       <h4 className={`text-md font-black truncate leading-tight ${isConnected ? 'text-gray-900' : 'text-gray-700'}`}>
                         {isConnected && (displayAccount?.display_name || displayAccount?.username || account.name) ? (displayAccount?.display_name || displayAccount?.username) : account.name}
                       </h4>
-                      {account.platform === 'instagram' ? (
-                        <div className="mt-1">
-                          <p className="text-xs text-gray-500 font-semibold truncate uppercase tracking-wider">
-                            {isConnected ? 'Connected' : account.handle}
-                          </p>
-                        </div>
-                      ) : account.platform === 'tiktok' || account.platform === 'youtube' ? (
-                        <div className="mt-1">
-                          <p className="text-xs text-gray-500 font-semibold truncate uppercase tracking-wider">
-                            {isConnected ? (displayAccount?.username || displayAccount?.display_name || 'Connected') : account.handle}
-                          </p>
-                        </div>
-                      ) : (
-                        <p className="text-xs text-gray-500 font-semibold mt-1 truncate uppercase tracking-wider">
-                          {isConnected ? 'Connected' : account.handle}
+                      <div className="mt-1">
+                        <p className="text-xs text-gray-500 font-semibold truncate uppercase tracking-wider">
+                          {isConnected ? (displayAccount?.username || displayAccount?.display_name || 'Connected') : account.handle}
                         </p>
-                      )}
+                      </div>
                     </div>
                   </div>
                   <div className="flex items-center justify-between mt-auto">
