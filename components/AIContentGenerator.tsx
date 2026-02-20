@@ -9,6 +9,9 @@ import {
   AlertCircle,
   Zap,
   ArrowRight,
+  Flame,
+  Diamond,
+  TrendingUp,
 } from 'lucide-react';
 import { supabase } from '../src/lib/supabase';
 import { useToast } from '../src/components/common/Toast';
@@ -26,6 +29,7 @@ interface GeneratedContent {
   title: string;
   content: string;
   copied: boolean;
+  isRefining?: boolean;
 }
 
 export const AIContentGenerator: React.FC<AIContentGeneratorProps> = ({
@@ -43,6 +47,7 @@ export const AIContentGenerator: React.FC<AIContentGeneratorProps> = ({
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedVariations, setGeneratedVariations] = useState<GeneratedContent[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [refiningVariationIndex, setRefiningVariationIndex] = useState<number | null>(null);
   const toast = useToast();
 
   const contentTypes = ['Post', 'Caption', 'Ad Copy', 'Description', 'Story'];
@@ -137,6 +142,54 @@ export const AIContentGenerator: React.FC<AIContentGeneratorProps> = ({
   const handleRegenerate = () => {
     setGeneratedVariations([]);
     handleGenerate();
+  };
+
+  const handleRefineVariation = async (
+    index: number,
+    refinementType: 'shorter' | 'persuasive' | 'luxury' | 'sales'
+  ) => {
+    const variation = generatedVariations[index];
+    setRefiningVariationIndex(index);
+
+    const refinementPrompts = {
+      shorter: 'Make this version significantly shorter while keeping the core message and impact. Aim for 50% shorter.',
+      persuasive: 'Rewrite this to be more persuasive and compelling. Add urgency and curiosity. Make it impossible to ignore.',
+      luxury: 'Rewrite this with a premium, luxury tone. Make it feel exclusive, sophisticated, and high-end.',
+      sales: 'Rewrite this to be more sales-focused and conversion-oriented. Include a stronger call-to-action and create desire.',
+    };
+
+    try {
+      const { data, error: invocationError } = await supabase.functions.invoke(
+        'ai-content-refiner',
+        {
+          body: {
+            platform: primaryPlatform,
+            currentContent: variation.content,
+            refinementType,
+            refinementPrompt: refinementPrompts[refinementType],
+          },
+        }
+      );
+
+      if (invocationError) throw invocationError;
+
+      const refinedContent = data?.result || variation.content;
+
+      // Update the specific variation
+      const updated = [...generatedVariations];
+      updated[index] = {
+        ...updated[index],
+        content: refinedContent,
+        copied: false,
+      };
+      setGeneratedVariations(updated);
+      toast?.success(`Content refined: ${refinementType}`);
+    } catch (err) {
+      console.error('Error refining content:', err);
+      toast?.error('Failed to refine content');
+    } finally {
+      setRefiningVariationIndex(null);
+    }
   };
 
   if (!isOpen) return null;
@@ -308,6 +361,65 @@ export const AIContentGenerator: React.FC<AIContentGeneratorProps> = ({
                   <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap line-clamp-5">
                     {variation.content}
                   </p>
+
+                  {/* Refinement Buttons */}
+                  <div className="flex flex-wrap gap-2 pt-2">
+                    <button
+                      onClick={() => handleRefineVariation(index, 'shorter')}
+                      disabled={refiningVariationIndex === index}
+                      className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold bg-white border border-gray-200 hover:border-gray-300 text-gray-600 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                      title="Make this version shorter"
+                    >
+                      {refiningVariationIndex === index ? (
+                        <Loader size={12} className="animate-spin" />
+                      ) : (
+                        <RefreshCw size={12} />
+                      )}
+                      <span>Shorter</span>
+                    </button>
+
+                    <button
+                      onClick={() => handleRefineVariation(index, 'persuasive')}
+                      disabled={refiningVariationIndex === index}
+                      className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold bg-white border border-gray-200 hover:border-gray-300 text-gray-600 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                      title="Make this more persuasive"
+                    >
+                      {refiningVariationIndex === index ? (
+                        <Loader size={12} className="animate-spin" />
+                      ) : (
+                        <Flame size={12} />
+                      )}
+                      <span>Persuasive</span>
+                    </button>
+
+                    <button
+                      onClick={() => handleRefineVariation(index, 'luxury')}
+                      disabled={refiningVariationIndex === index}
+                      className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold bg-white border border-gray-200 hover:border-gray-300 text-gray-600 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                      title="Make this more luxury/premium"
+                    >
+                      {refiningVariationIndex === index ? (
+                        <Loader size={12} className="animate-spin" />
+                      ) : (
+                        <Diamond size={12} />
+                      )}
+                      <span>Luxury</span>
+                    </button>
+
+                    <button
+                      onClick={() => handleRefineVariation(index, 'sales')}
+                      disabled={refiningVariationIndex === index}
+                      className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold bg-white border border-gray-200 hover:border-gray-300 text-gray-600 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                      title="Make this more sales-focused"
+                    >
+                      {refiningVariationIndex === index ? (
+                        <Loader size={12} className="animate-spin" />
+                      ) : (
+                        <TrendingUp size={12} />
+                      )}
+                      <span>Sales</span>
+                    </button>
+                  </div>
 
                   {/* Action Buttons */}
                   <div className="flex items-center gap-2 pt-2">
