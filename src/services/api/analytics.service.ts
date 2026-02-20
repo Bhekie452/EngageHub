@@ -263,8 +263,29 @@ export const analyticsService = {
           });
           ytData = result.data;
           ytErr = result.error;
-        } else {
-          console.warn('User not authenticated - skipping YouTube API call, using cached data');
+        }
+
+        // FALLBACK: If Edge Function fails (e.g. 401/400) or user not authenticated, try local /api/app proxy
+        if (!ytData?.data) {
+          try {
+            const resp = await fetch(`/api/app?action=engagement&method=aggregates&workspaceId=${workspace_id}&platformPostId=${videoId}&platform=youtube`);
+            const proxyResult = await resp.json();
+            if (proxyResult.success && proxyResult.aggregates) {
+              ytData = {
+                data: {
+                  statistics: {
+                    viewCount: proxyResult.aggregates.total_views,
+                    likeCount: proxyResult.aggregates.total_likes,
+                    commentCount: proxyResult.aggregates.total_comments
+                  }
+                }
+              };
+              ytConnected = true; // Mark as connected if we got data from proxy
+              ytErr = null;
+            }
+          } catch (proxyErr) {
+            console.warn('Local proxy fallback failed:', proxyErr);
+          }
         }
 
         if (!ytErr && ytData?.data) {
@@ -379,6 +400,17 @@ export const analyticsService = {
               avatar: c.snippet.topLevelComment.snippet.authorProfileImageUrl,
               userUrl: c.snippet.topLevelComment.snippet.authorChannelUrl
             })));
+          } else {
+            // FALLBACK: Try local /api/app proxy for comments
+            try {
+              const resp = await fetch(`/api/app?action=engagement&method=list&workspaceId=${workspace_id}&platformPostId=${videoId}&platform=youtube`);
+              const proxyResult = await resp.json();
+              if (proxyResult.success && proxyResult.actions) {
+                youtubeActivity.push(...proxyResult.actions.filter((a: any) => a.type === 'comment'));
+              }
+            } catch (proxyErr) {
+              console.warn('Local proxy comments fallback failed:', proxyErr);
+            }
           }
         }
 

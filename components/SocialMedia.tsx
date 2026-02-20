@@ -1490,21 +1490,47 @@ const SocialMedia: React.FC = () => {
 
 
   async function handleDisconnect(accountId: string) {
-    if (!confirm('Are you sure you want to disconnect this account?')) return;
+    console.log('[SocialMedia] Attempting to disconnect account:', accountId);
+    if (!window.confirm('Are you sure you want to disconnect this account?')) {
+      console.log('[SocialMedia] Disconnect cancelled by user');
+      return;
+    }
+
     try {
+      setIsLoading(true);
       // Flag as intentionally disconnected in sessionStorage so the auto-activate
-      // block doesn't immediately re-enable it (DB constraint won't allow 'disconnected' as a status value)
+      // block doesn't immediately re-enable it
       sessionStorage.setItem(`yt_disconnected_${accountId}`, '1');
+      console.log('[SocialMedia] Set sessionStorage flag for:', accountId);
 
       const { error } = await supabase
         .from('social_accounts')
-        .update({ is_active: false })
+        .update({
+          is_active: false,
+          updated_at: new Date().toISOString()
+        })
         .eq('id', accountId);
 
-      if (error) throw error;
-      fetchConnectedAccounts();
+      if (error) {
+        console.error('[SocialMedia] Supabase disconnect error:', error);
+        alert('Failed to disconnect: ' + error.message);
+        throw error;
+      }
+
+      console.log('[SocialMedia] Disconnect successful in DB, refreshing accounts...');
+      await fetchConnectedAccounts();
+
+      // Clean up other potential state
+      if (accountId === instagramFromFacebook?.id) {
+        setInstagramFromFacebook(null);
+      }
+
+      alert('Account disconnected successfully');
     } catch (err) {
-      console.error('Disconnect error:', err);
+      console.error('[SocialMedia] Disconnect catch block:', err);
+      alert('An error occurred during disconnection.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -1635,11 +1661,14 @@ const SocialMedia: React.FC = () => {
 
                     {isConnected && connectedAccount?.id && (
                       <button
-                        onClick={() => handleDisconnect(connectedAccount.id)}
-                        className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDisconnect(connectedAccount.id);
+                        }}
+                        className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all border border-transparent hover:border-red-100 shadow-sm ml-auto"
                         title="Disconnect account"
                       >
-                        <LogOut size={16} />
+                        <LogOut size={18} />
                       </button>
                     )}
                   </div>
