@@ -34,22 +34,24 @@ serve(async (req) => {
 
     // Fetch YouTube account from database
     const { data: youtubeAccount, error: fetchError } = await supabase
-      .from('youtube_accounts')
-      .select('access_token, refresh_token, token_expires_at, channel_id')
+      .from('social_accounts')
+      .select('access_token, refresh_token, token_expires_at, account_id, platform')
       .eq('workspace_id', workspaceId)
+      .eq('platform', 'youtube')
       .single();
 
     if (fetchError || !youtubeAccount) {
       return new Response(
         JSON.stringify({ 
-          error: 'YouTube account not found. Please connect your YouTube account first.',
-          details: fetchError 
+          error: 'YouTube account not connected for this workspace. Please connect YouTube first.',
+          details: fetchError?.message || 'No YouTube connection found'
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
       )
     }
 
     let accessToken = youtubeAccount.access_token
+    const channelId = youtubeAccount.account_id; // Changed from youtubeAccount.channel_id
 
     // Check if token is expired and refresh if needed
     const now = new Date()
@@ -77,12 +79,13 @@ serve(async (req) => {
         
         // Update database with new token
         const { error: updateError } = await supabase
-          .from('youtube_accounts')
+          .from('social_accounts')
           .update({
             access_token: tokens.access_token,
             token_expires_at: new Date(Date.now() + tokens.expires_in * 1000).toISOString()
           })
           .eq('workspace_id', workspaceId)
+          .eq('platform', 'youtube')
 
         if (updateError) {
           console.error('Failed to update token:', updateError)
@@ -108,8 +111,9 @@ serve(async (req) => {
       case 'debug-check':
         // Debug: Check all YouTube accounts in database
         const { data: allAccounts, error: allError } = await supabase
-          .from('youtube_accounts')
-          .select('workspace_id, created_at')
+          .from('social_accounts')
+          .select('workspace_id, platform, created_at')
+          .eq('platform', 'youtube')
           .limit(10);
         
         return new Response(
