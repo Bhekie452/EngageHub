@@ -757,7 +757,7 @@ const SocialMedia: React.FC = () => {
       // Auto-activate YouTube accounts that were saved with is_active=false
       try {
         const inactiveYouTube = (data || []).filter(
-          (acc: any) => acc.platform === 'youtube' && !acc.is_active && acc.account_id
+          (acc: any) => acc.platform === 'youtube' && !acc.is_active && acc.account_id && acc.connection_status !== 'disconnected'
         );
         if (inactiveYouTube.length > 0) {
           for (const acc of inactiveYouTube) {
@@ -1493,7 +1493,7 @@ const SocialMedia: React.FC = () => {
     try {
       const { error } = await supabase
         .from('social_accounts')
-        .update({ is_active: false })
+        .update({ is_active: false, connection_status: 'disconnected' })
         .eq('id', accountId);
 
       if (error) throw error;
@@ -1530,8 +1530,9 @@ const SocialMedia: React.FC = () => {
             ].map((account, idx) => {
               const activeAccounts = connectedAccounts.filter(ca => ca.is_active);
               // For YouTube, also check all accounts (not just active) since is_active may be false on existing connections
+              // but exclude explicitly disconnected accounts so the disconnect button works
               const connectedAccount = activeAccounts.find(ca => ca.platform === account.platform)
-                ?? (account.platform === 'youtube' ? connectedAccounts.find(ca => ca.platform === 'youtube') : undefined);
+                ?? (account.platform === 'youtube' ? connectedAccounts.find(ca => ca.platform === 'youtube' && ca.connection_status !== 'disconnected') : undefined);
               // Facebook account (may host an Instagram business account)
               const facebookAccount = activeAccounts.find(ca => ca.platform === 'facebook');
               // Instagram account stored in DB (preferred)
