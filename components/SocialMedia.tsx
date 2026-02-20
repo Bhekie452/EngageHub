@@ -162,16 +162,16 @@ const SocialMedia: React.FC = () => {
       } else if (code && state === 'tiktok_oauth') {
         // Handle TikTok callback - use same guard as TikTokOAuthHandler to prevent duplicates
         console.log('🚀 TikTok OAuth callback detected - processing IMMEDIATELY');
-        
+
         // Use SAME key as TikTokOAuthHandler to prevent duplicate processing
         if (sessionStorage.getItem('tiktok_callback_processed') || sessionStorage.getItem('tiktok_callback_processing')) {
           console.log('OAuth callback already processed by TikTokOAuthHandler, skipping');
           return;
         }
-        
+
         // Mark as processed immediately (use same key as TikTokOAuthHandler)
         sessionStorage.setItem('tiktok_callback_processing', 'true');
-        
+
         handleTikTokCallbackImmediate(code);
         return; // Stop all other processing
       }
@@ -532,7 +532,7 @@ const SocialMedia: React.FC = () => {
     sessionStorage.removeItem('oauth_callback_processed');
     sessionStorage.removeItem('tiktok_oauth_code_verifier');
     sessionStorage.removeItem('tiktok_oauth_redirect_uri');
-    
+
     // Use new OAuth handler
     const tiktokHandler = new TikTokOAuthHandler({
       clientKey: 'sbawvd31u17vw8ajd3',
@@ -613,10 +613,10 @@ const SocialMedia: React.FC = () => {
   // Immediate TikTok callback handler to avoid code expiration
   async function handleTikTokCallbackImmediate(code: string) {
     console.log('🚀 IMMEDIATE TikTok callback - processing code immediately');
-    
+
     // Block UI to prevent any interference
     alert('🔄 Processing TikTok connection... Please wait.');
-    
+
     try {
       // Get PKCE data immediately
       const codeVerifier = sessionStorage.getItem('tiktok_oauth_code_verifier');
@@ -637,7 +637,7 @@ const SocialMedia: React.FC = () => {
       // Exchange code IMMEDIATELY with no delays
       console.log('🔄 Exchanging code for token IMMEDIATELY...');
       const startTime = Date.now();
-      
+
       // include workspaceId and userId so the server can persist the TikTok account and initial profile
       const { data: workspaces } = await supabase.from('workspaces').select('id').eq('owner_id', user!.id).limit(1);
       const workspaceId = workspaces?.[0]?.id;
@@ -659,7 +659,7 @@ const SocialMedia: React.FC = () => {
 
       if (response.ok && data.success) {
         alert('🎉 TikTok connected successfully!');
-        
+
         // Store tokens
         localStorage.setItem('tiktok_connected', 'true');
         localStorage.setItem('tiktok_tokens', JSON.stringify(data));
@@ -667,22 +667,22 @@ const SocialMedia: React.FC = () => {
 
         // Clear URL parameters after processing
         window.history.replaceState({}, '', '/social-media');
-        
+
         // Clear callback guard after successful processing (use same key as TikTokOAuthHandler)
         sessionStorage.removeItem('tiktok_callback_processing');
         sessionStorage.setItem('tiktok_callback_processed', 'true');
-        
+
         // Refresh accounts
         fetchConnectedAccounts();
-        
+
       } else {
         console.error('❌ Token exchange failed:', data);
         alert(`❌ TikTok connection failed: ${data.error || 'Unknown error'}\n\nDetails: ${data.details || 'No details'}`);
-        
+
         if (data.details?.includes('expired')) {
           alert('⏰ Authorization code expired. Please try connecting again IMMEDIATELY after returning to TikTok.');
         }
-        
+
         // Clear callback guard on error (use same key as TikTokOAuthHandler)
         sessionStorage.removeItem('tiktok_callback_processing');
       }
@@ -1505,7 +1505,9 @@ const SocialMedia: React.FC = () => {
               { name: 'YouTube', handle: 'Engagehub Tutorials', platform: 'youtube', icon: <Youtube className="text-red-600" /> },
             ].map((account, idx) => {
               const activeAccounts = connectedAccounts.filter(ca => ca.is_active);
-              const connectedAccount = activeAccounts.find(ca => ca.platform === account.platform);
+              // For YouTube, also check all accounts (not just active) since is_active may be false on existing connections
+              const connectedAccount = activeAccounts.find(ca => ca.platform === account.platform)
+                ?? (account.platform === 'youtube' ? connectedAccounts.find(ca => ca.platform === 'youtube') : undefined);
               // Facebook account (may host an Instagram business account)
               const facebookAccount = activeAccounts.find(ca => ca.platform === 'facebook');
               // Instagram account stored in DB (preferred)
@@ -1556,7 +1558,7 @@ const SocialMedia: React.FC = () => {
                             {isConnected ? 'Connected' : account.handle}
                           </p>
                         </div>
-                      ) : account.platform === 'tiktok' ? (
+                      ) : account.platform === 'tiktok' || account.platform === 'youtube' ? (
                         <div className="mt-1">
                           <p className="text-xs text-gray-500 font-semibold truncate uppercase tracking-wider">
                             {isConnected ? (displayAccount?.username || displayAccount?.display_name || 'Connected') : account.handle}
@@ -1571,8 +1573,8 @@ const SocialMedia: React.FC = () => {
                   </div>
                   <div className="flex items-center justify-between mt-auto">
                     <div className="flex-1">
-                      {account.platform === 'youtube' && <YouTubeContextualConnect compact context="general" />}
-                      {isConnected && account.platform !== 'youtube' && (
+                      {account.platform === 'youtube' && !isConnected && <YouTubeContextualConnect compact context="general" />}
+                      {isConnected && (
                         <span className="flex items-center gap-1.5 text-[10px] font-black text-green-600 bg-green-50 px-2.5 py-1 rounded-full uppercase tracking-wider border border-green-100 shadow-sm w-fit">
                           <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
                           Live
@@ -1580,7 +1582,7 @@ const SocialMedia: React.FC = () => {
                       )}
                     </div>
 
-                    {needsInstagramReconnect && account.platform !== 'youtube' && (
+                    {needsInstagramReconnect && (
                       <button
                         onClick={() => handleConnectInstagram()}
                         className="flex items-center gap-1.5 text-[10px] font-black text-white bg-blue-600 hover:bg-blue-700 hover:scale-105 active:scale-95 px-4 py-2.5 rounded-xl uppercase tracking-wider shadow-lg shadow-blue-200/50 transition-all ml-auto"
@@ -1595,7 +1597,6 @@ const SocialMedia: React.FC = () => {
                           if (account.platform === 'facebook') handleConnectFacebook();
                           else if (account.platform === 'instagram') handleConnectInstagram();
                           else if (account.platform === 'linkedin') handleConnectLinkedIn();
-                          else if (account.platform === 'youtube') handleConnectYouTube();
                           else if (account.platform === 'twitter') handleConnectTwitter();
                           else if (account.platform === 'tiktok') handleConnectTikTok();
                           else alert(`${account.name} integration coming soon!`);
@@ -1606,7 +1607,7 @@ const SocialMedia: React.FC = () => {
                       </button>
                     )}
 
-                    {isConnected && account.platform !== 'youtube' && connectedAccount?.id && (
+                    {isConnected && connectedAccount?.id && (
                       <button
                         onClick={() => handleDisconnect(connectedAccount.id)}
                         className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"

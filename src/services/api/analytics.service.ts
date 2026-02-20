@@ -120,17 +120,17 @@ async function getWorkspaceIdForCurrentUser(): Promise<string> {
  */
 function extractYouTubeVideoId(url: string | null | undefined): string | null {
   if (!url) return null;
-  
+
   // Handle shorts: https://www.youtube.com/shorts/VIDEO_ID
   if (url.includes('/shorts/')) {
     return url.split('/shorts/')[1]?.split('?')[0]?.split('&')[0] || null;
   }
-  
+
   // Handle regular watch: https://www.youtube.com/watch?v=VIDEO_ID
   if (url.includes('v=')) {
     return url.split('v=')[1]?.split('&')[0] || null;
   }
-  
+
   // Handle short link: https://youtu.be/VIDEO_ID
   if (url.includes('youtu.be/')) {
     return url.split('youtu.be/')[1]?.split('?')[0]?.split('&')[0] || null;
@@ -138,7 +138,7 @@ function extractYouTubeVideoId(url: string | null | undefined): string | null {
 
   // Fallback: see if it's just the ID itself
   if (url.length === 11 && !url.includes('/')) return url;
-  
+
   return url.split('/').pop()?.split('?')[0] || null;
 }
 
@@ -195,13 +195,13 @@ export const analyticsService = {
       .select('workspace_id, link_url')
       .eq('id', postId)
       .single();
-    
+
     // Fallback to current user workspace if post lookup fails (shouldn't happen for valid posts)
     let workspace_id = postData?.workspace_id;
     if (!workspace_id) {
-       workspace_id = await getWorkspaceIdForCurrentUser();
+      workspace_id = await getWorkspaceIdForCurrentUser();
     }
-    
+
     // Use stored link_url if externalUrl wasn't passed
     const finalExternalUrl = externalUrl || postData?.link_url;
 
@@ -238,97 +238,101 @@ export const analyticsService = {
       device_types: []
     };
     let metricsSource: 'youtube' | 'engagehub' = 'engagehub';
+    let ytConnected = false; // Track whether YouTube is actually linked
 
     // Sum local metrics with platform metrics (e.g. YouTube)
     try {
       if ((platform || '').toLowerCase() === 'youtube') {
-         const videoId = extractYouTubeVideoId(finalExternalUrl);
-         
-         // Check if user is authenticated before calling edge function
-         const { data: { session } } = await supabase.auth.getSession();
-         
-         let ytData = null;
-         let ytErr = null;
-         
-         if (session?.access_token) {
-           // Call the Edge Function to get real-time stats (and sync to DB side-effect)
-           const result = await supabase.functions.invoke('youtube-api', {
-             body: {
-               endpoint: 'video-details',
-               workspaceId: workspace_id,
-               videoId: videoId,
-               postId: postId // Pass postId to trigger DB update
-             }
-           });
-           ytData = result.data;
-           ytErr = result.error;
-         } else {
-           console.warn('User not authenticated - skipping YouTube API call, using cached data');
-         }
+        const videoId = extractYouTubeVideoId(finalExternalUrl);
 
-         if (!ytErr && ytData?.data) {
-             const stats = ytData.data.statistics;
-             if (stats) {
-                 // SUMMATION: Adding platform metrics to local EngageHub metrics
-                 metrics.views += Number(stats.viewCount) || 0;
-                 metrics.likes += Number(stats.likeCount) || 0;
-                 metrics.comments += Number(stats.commentCount) || 0;
-                 metricsSource = 'youtube';
-             }
-         } else {
-             // Fallback to reading from local cache in DB if Edge Function fails
-             if (ytErr) {
-               console.warn('YouTube API edge function error:', ytErr);
-             }
-            const { data: ymData, error: ymErr } = await supabase
-              .from('post_analytics')
-              .select('video_views, likes, comments')
-              .eq('post_id', postId)
-              .eq('platform', 'youtube')
-              .maybeSingle();
+        // Check if user is authenticated before calling edge function
+        const { data: { session } } = await supabase.auth.getSession();
 
-            if (!ymErr && ymData) {
-              metrics.views += typeof ymData.video_views === 'number' ? ymData.video_views : 0;
-              metrics.likes += typeof ymData.likes === 'number' ? ymData.likes : 0;
-              metrics.comments += typeof ymData.comments === 'number' ? ymData.comments : 0;
-              metricsSource = 'youtube';
+        let ytData = null;
+        let ytErr = null;
+
+        if (session?.access_token) {
+          // Call the Edge Function to get real-time stats (and sync to DB side-effect)
+          const result = await supabase.functions.invoke('youtube-api', {
+            body: {
+              endpoint: 'video-details',
+              workspaceId: workspace_id,
+              videoId: videoId,
+              postId: postId // Pass postId to trigger DB update
             }
-         }
+          });
+          ytData = result.data;
+          ytErr = result.error;
+        } else {
+          console.warn('User not authenticated - skipping YouTube API call, using cached data');
+        }
 
-         // ALSO fetch channel/subscriber count for YouTube
-         const { data: ytChannelData, error: ytChannelErr } = await supabase.functions.invoke('youtube-api', {
-           body: {
-             endpoint: 'channel',
-             workspaceId: workspace_id
-           }
-         });
-         if (!ytChannelErr && ytChannelData?.data?.statistics?.subscriberCount) {
-           metrics.subscribers = Number(ytChannelData.data.statistics.subscriberCount);
-         }
+        if (!ytErr && ytData?.data) {
+          ytConnected = true;
+          const stats = ytData.data.statistics;
+          if (stats) {
+            // SUMMATION: Adding platform metrics to local EngageHub metrics
+            metrics.views += Number(stats.viewCount) || 0;
+            metrics.likes += Number(stats.likeCount) || 0;
+            metrics.comments += Number(stats.commentCount) || 0;
+            metricsSource = 'youtube';
+          }
+        } else {
+          // Fallback to reading from local cache in DB if Edge Function fails
+          if (ytErr) {
+            console.warn('YouTube API edge function error (video-details):', ytErr);
+          }
+          const { data: ymData, error: ymErr } = await supabase
+            .from('post_analytics')
+            .select('video_views, likes, comments')
+            .eq('post_id', postId)
+            .eq('platform', 'youtube')
+            .maybeSingle();
 
-         // Add REACH mock data for demo if not available from real API
-         const postIdHash = postId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-         metrics.impressions = metrics.impressions || (metrics.views < 10 ? 10 : Math.floor(metrics.views * 1.5)) + (postIdHash % 5);
-         metrics.ctr = metrics.ctr || Number(((metrics.views / (metrics.impressions || 1)) * 100).toFixed(1));
-         metrics.unique_viewers = metrics.unique_viewers || Math.floor(metrics.views * 0.8) + 1;
-         metrics.avg_view_duration = metrics.avg_view_duration || '1:02';
-         metrics.watch_time = metrics.watch_time || Number((metrics.views * 0.02).toFixed(2));
-         metrics.traffic_sources = [
-           { label: 'Channel pages', value: 35.0 },
-           { label: 'Other YouTube features', value: 30.0 },
-           { label: 'Direct or unknown', value: 15.0 },
-           { label: 'Suggested videos', value: 15.0 },
-           { label: 'Browse features', value: 5.0 }
-         ];
+          if (!ymErr && ymData) {
+            metrics.views += typeof ymData.video_views === 'number' ? ymData.video_views : 0;
+            metrics.likes += typeof ymData.likes === 'number' ? ymData.likes : 0;
+            metrics.comments += typeof ymData.comments === 'number' ? ymData.comments : 0;
+            metricsSource = 'youtube';
+          }
+        }
 
-         // Add ENGAGEMENT mock data
-         metrics.dislikes = metrics.dislikes || Math.floor(metrics.likes * 0.05);
-         metrics.likes_ratio = metrics.likes_ratio || 98.2;
-         metrics.channel_likes_ratio = 95.4;
-         metrics.end_screen_clicks = metrics.end_screen_clicks || 1.2;
-         metrics.device_types = metrics.device_types || [
-           { label: 'Computer', value: 100.0 }
-         ];
+        // Only fetch channel/subscriber count if YouTube is actually connected
+        if (ytConnected) {
+          const { data: ytChannelData, error: ytChannelErr } = await supabase.functions.invoke('youtube-api', {
+            body: {
+              endpoint: 'channel',
+              workspaceId: workspace_id
+            }
+          });
+          if (!ytChannelErr && ytChannelData?.data?.statistics?.subscriberCount) {
+            metrics.subscribers = Number(ytChannelData.data.statistics.subscriberCount);
+          }
+        }
+
+        // Add REACH mock data for demo if not available from real API
+        const postIdHash = postId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+        metrics.impressions = metrics.impressions || (metrics.views < 10 ? 10 : Math.floor(metrics.views * 1.5)) + (postIdHash % 5);
+        metrics.ctr = metrics.ctr || Number(((metrics.views / (metrics.impressions || 1)) * 100).toFixed(1));
+        metrics.unique_viewers = metrics.unique_viewers || Math.floor(metrics.views * 0.8) + 1;
+        metrics.avg_view_duration = metrics.avg_view_duration || '1:02';
+        metrics.watch_time = metrics.watch_time || Number((metrics.views * 0.02).toFixed(2));
+        metrics.traffic_sources = [
+          { label: 'Channel pages', value: 35.0 },
+          { label: 'Other YouTube features', value: 30.0 },
+          { label: 'Direct or unknown', value: 15.0 },
+          { label: 'Suggested videos', value: 15.0 },
+          { label: 'Browse features', value: 5.0 }
+        ];
+
+        // Add ENGAGEMENT mock data
+        metrics.dislikes = metrics.dislikes || Math.floor(metrics.likes * 0.05);
+        metrics.likes_ratio = metrics.likes_ratio || 98.2;
+        metrics.channel_likes_ratio = 95.4;
+        metrics.end_screen_clicks = metrics.end_screen_clicks || 1.2;
+        metrics.device_types = metrics.device_types || [
+          { label: 'Computer', value: 100.0 }
+        ];
       }
     } catch (e) {
       console.error('Error fetching YouTube metrics:', e);
@@ -339,67 +343,68 @@ export const analyticsService = {
     const mappedLocal = rows
       .filter((r: any) => ['post_like', 'post_comment', 'post_share', 'post_view'].includes(r.event_type))
       .map((r: any) => ({
-          type: r.event_type === 'post_comment' ? 'comment' : r.event_type === 'post_share' ? 'share' : r.event_type === 'post_like' ? 'like' : 'view',
-          user: (r?.metadata && (r.metadata.actor || r.metadata.user)) || (r.user_id ? `EngageHub User (${String(r.user_id).slice(0, 8)})` : 'EngageHub User'),
-          text: r?.metadata?.text || r?.metadata?.commentText || r?.metadata?.comment || undefined,
-          occurred_at: r.occurred_at,
-          platform: 'engagehub' as const, // Local app actions are always 'engagehub'
-          time: timeAgo(r.occurred_at)
+        type: r.event_type === 'post_comment' ? 'comment' : r.event_type === 'post_share' ? 'share' : r.event_type === 'post_like' ? 'like' : 'view',
+        user: (r?.metadata && (r.metadata.actor || r.metadata.user)) || (r.user_id ? `EngageHub User (${String(r.user_id).slice(0, 8)})` : 'EngageHub User'),
+        text: r?.metadata?.text || r?.metadata?.commentText || r?.metadata?.comment || undefined,
+        occurred_at: r.occurred_at,
+        platform: 'engagehub' as const, // Local app actions are always 'engagehub'
+        time: timeAgo(r.occurred_at)
       }));
 
     // Merge real YouTube video comments if available
     let youtubeActivity: any[] = [];
     try {
-      if ((platform || '').toLowerCase() === 'youtube' && workspace_id) {
-         // 1. Fetch Comments
-         let videoId = extractYouTubeVideoId(finalExternalUrl);
-         if (videoId) {
-             const { data: ytComments } = await supabase.functions.invoke('youtube-api', {
-                 body: {
-                     endpoint: 'video-comments',
-                     workspaceId: workspace_id,
-                     videoId: videoId,
-                     maxResults: 20
-                 }
-             });
-             
-             if (ytComments?.data) {
-                 youtubeActivity.push(...ytComments.data.map((c: any) => ({
-                     type: 'comment',
-                     user: c.snippet.topLevelComment.snippet.authorDisplayName,
-                     text: c.snippet.topLevelComment.snippet.textDisplay,
-                     occurred_at: c.snippet.topLevelComment.snippet.publishedAt,
-                     platform: 'youtube' as const,
-                     time: timeAgo(c.snippet.topLevelComment.snippet.publishedAt),
-                     avatar: c.snippet.topLevelComment.snippet.authorProfileImageUrl,
-                     userUrl: c.snippet.topLevelComment.snippet.authorChannelUrl
-                 })));
-             }
-         }
+      // Only fetch live YouTube activity if the account is actually connected
+      if (ytConnected && (platform || '').toLowerCase() === 'youtube' && workspace_id) {
+        // 1. Fetch Comments
+        let videoId = extractYouTubeVideoId(finalExternalUrl);
+        if (videoId) {
+          const { data: ytComments } = await supabase.functions.invoke('youtube-api', {
+            body: {
+              endpoint: 'video-comments',
+              workspaceId: workspace_id,
+              videoId: videoId,
+              maxResults: 20
+            }
+          });
 
-         // 2. Fetch Recent Subscribers (Real Names!)
-         const { data: ytSubs } = await supabase.functions.invoke('youtube-api', {
-           body: {
-             endpoint: 'subscriber-list',
-             workspaceId: workspace_id,
-             maxResults: 20
-           }
-         });
-         
-         if (ytSubs?.data) {
-           youtubeActivity.push(...ytSubs.data.map((s: any) => ({
-             type: 'subscriber', 
-             user: s.subscriberSnippet.title,
-             occurred_at: s.subscriberSnippet.publishedAt || new Date().toISOString(),
-             platform: 'youtube' as const,
-             time: timeAgo(s.subscriberSnippet.publishedAt || new Date().toISOString()),
-             avatar: s.subscriberSnippet.thumbnails?.default?.url || s.subscriberSnippet.thumbnails?.medium?.url,
-             userUrl: `https://youtube.com/channel/${s.subscriberSnippet.channelId}`
-           })));
-         }
+          if (ytComments?.data) {
+            youtubeActivity.push(...ytComments.data.map((c: any) => ({
+              type: 'comment',
+              user: c.snippet.topLevelComment.snippet.authorDisplayName,
+              text: c.snippet.topLevelComment.snippet.textDisplay,
+              occurred_at: c.snippet.topLevelComment.snippet.publishedAt,
+              platform: 'youtube' as const,
+              time: timeAgo(c.snippet.topLevelComment.snippet.publishedAt),
+              avatar: c.snippet.topLevelComment.snippet.authorProfileImageUrl,
+              userUrl: c.snippet.topLevelComment.snippet.authorChannelUrl
+            })));
+          }
+        }
+
+        // 2. Fetch Recent Subscribers (Real Names!)
+        const { data: ytSubs } = await supabase.functions.invoke('youtube-api', {
+          body: {
+            endpoint: 'subscriber-list',
+            workspaceId: workspace_id,
+            maxResults: 20
+          }
+        });
+
+        if (ytSubs?.data) {
+          youtubeActivity.push(...ytSubs.data.map((s: any) => ({
+            type: 'subscriber',
+            user: s.subscriberSnippet.title,
+            occurred_at: s.subscriberSnippet.publishedAt || new Date().toISOString(),
+            platform: 'youtube' as const,
+            time: timeAgo(s.subscriberSnippet.publishedAt || new Date().toISOString()),
+            avatar: s.subscriberSnippet.thumbnails?.default?.url || s.subscriberSnippet.thumbnails?.medium?.url,
+            userUrl: `https://youtube.com/channel/${s.subscriberSnippet.channelId}`
+          })));
+        }
       }
     } catch (e) {
-       console.error('Error fetching YouTube details for activity feed:', e);
+      console.error('Error fetching YouTube details for activity feed:', e);
     }
 
     // Combine, Sort
@@ -433,7 +438,7 @@ export const analyticsService = {
     }
 
     const finalActivity = [...baseActivity, ...virtualItems]
-       .sort((a, b) => new Date(b.occurred_at).getTime() - new Date(a.occurred_at).getTime());
+      .sort((a, b) => new Date(b.occurred_at).getTime() - new Date(a.occurred_at).getTime());
 
     return { metrics, recentActivity: finalActivity, metricsSource };
   },
@@ -493,22 +498,22 @@ export const analyticsService = {
 
     // Sync to YouTube if platform is youtube
     try {
-        if (platform === 'youtube' || (metadata && metadata.linkUrl) || postData?.link_url) {
-            const videoId = extractYouTubeVideoId(metadata?.videoId || metadata?.linkUrl || postData?.link_url);
+      if (platform === 'youtube' || (metadata && metadata.linkUrl) || postData?.link_url) {
+        const videoId = extractYouTubeVideoId(metadata?.videoId || metadata?.linkUrl || postData?.link_url);
 
-            if (videoId) {
-                console.log(`Syncing like to YouTube for video: ${videoId}`);
-                await supabase.functions.invoke('youtube-api', {
-                    body: {
-                        endpoint: 'like-video',
-                        workspaceId: workspace_id,
-                        videoId: videoId
-                    }
-                });
+        if (videoId) {
+          console.log(`Syncing like to YouTube for video: ${videoId}`);
+          await supabase.functions.invoke('youtube-api', {
+            body: {
+              endpoint: 'like-video',
+              workspaceId: workspace_id,
+              videoId: videoId
             }
+          });
         }
+      }
     } catch (e) {
-        console.error('Failed to sync like to YouTube:', e);
+      console.error('Failed to sync like to YouTube:', e);
     }
 
     return true;
@@ -540,22 +545,22 @@ export const analyticsService = {
 
     // Sync to YouTube if platform is youtube
     try {
-        if (platform === 'youtube' || (metadata && metadata.linkUrl) || postData?.link_url) {
-            const videoId = extractYouTubeVideoId(metadata?.videoId || metadata?.linkUrl || postData?.link_url);
+      if (platform === 'youtube' || (metadata && metadata.linkUrl) || postData?.link_url) {
+        const videoId = extractYouTubeVideoId(metadata?.videoId || metadata?.linkUrl || postData?.link_url);
 
-            if (videoId) {
-                console.log(`Syncing comment to YouTube for video: ${videoId}`);
-                await supabase.functions.invoke('youtube-comment', {
-                    body: {
-                        workspaceId: workspace_id,
-                        videoId: videoId,
-                        text: text
-                    }
-                });
+        if (videoId) {
+          console.log(`Syncing comment to YouTube for video: ${videoId}`);
+          await supabase.functions.invoke('youtube-comment', {
+            body: {
+              workspaceId: workspace_id,
+              videoId: videoId,
+              text: text
             }
+          });
         }
+      }
     } catch (e) {
-        console.error('Failed to sync comment to YouTube:', e);
+      console.error('Failed to sync comment to YouTube:', e);
     }
 
     return true;
@@ -616,15 +621,15 @@ export const analyticsService = {
 
     // 4. Get real YouTube subscriber count if available
     try {
-       const { data: ytChannel } = await supabase.functions.invoke('youtube-api', {
-         body: { endpoint: 'channel', workspaceId: workspace_id }
-       });
-       if (ytChannel?.data?.statistics?.subscriberCount) {
-         platformStats.youtube.followers = Number(ytChannel.data.statistics.subscriberCount);
-       }
+      const { data: ytChannel, error: ytChannelErr } = await supabase.functions.invoke('youtube-api', {
+        body: { endpoint: 'channel', workspaceId: workspace_id }
+      });
+      if (!ytChannelErr && ytChannel?.data?.statistics?.subscriberCount) {
+        platformStats.youtube.followers = Number(ytChannel.data.statistics.subscriberCount);
+      }
+      // If no YouTube account connected, leave followers at 0 (no mock fallback)
     } catch (e) {
-      // Mock for demo if no connection
-      platformStats.youtube.followers = 1240;
+      // Silently ignore if YouTube not connected
     }
 
     // Mock other platform followers for high-fidelity feel
