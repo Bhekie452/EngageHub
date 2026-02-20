@@ -1,0 +1,52 @@
+# Exclude debug and test scripts from deployment
+*.cjs
+*.sql
+!api/**
+
+# Exclude specific debug files
+check-*.js
+test-*.js
+test-*.html
+debug-*.js
+fix-*.js
+verify-*.js
+trace-*.js
+setup-*.js
+pull-*.js
+sync-*.js
+show-*.js
+simple-*.js
+update-*.js
+find-*.js
+get-real-*.js
+generate-*.js
+immediate-*.js
+direct-*.js
+erp-*.js
+repair-*.js
+
+# Exclude markdown documentation (not needed in production)
+*.md
+!README.md
+
+# Exclude build outputs and logs
+build_log.txt
+tsc_output.txt
+server-output.txt
+nul
+
+# Exclude example files
+*.example
+*-EXAMPLE.*
+*-FINAL.*
+
+# Exclude test HTML files
+test-*.html
+*-test.html
+
+# Exclude database setup files (these should be run manually)
+*.sql
+
+# Exclude metadata
+metadata.json
+project_structure.txt
