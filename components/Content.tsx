@@ -343,6 +343,7 @@ const Content: React.FC = () => {
   };
 
   const [postContent, setPostContent] = useState('');
+  const [postContentUpdatedAt, setPostContentUpdatedAt] = useState<number>(0);
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([]);
   const [scheduleMode, setScheduleMode] = useState<'now' | 'later'>('now');
   const [isRecur, setIsRecur] = useState(false);
@@ -2028,17 +2029,30 @@ const Content: React.FC = () => {
                 {/* Right Side: Preview */}
                 <div className="lg:col-span-5 bg-[#f8f9fb] p-6 flex flex-col items-center">
                   <div className="w-full bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden flex flex-col h-full max-w-[340px]">
-                    <div className="p-4 border-b border-gray-100 flex items-center justify-between">
-                      {editingPost ? (
-                        <div className="flex items-center gap-2 px-2 py-0.5 bg-blue-600 text-white rounded text-[10px] font-bold">
-                          <BarChart3 size={12} /> Post Metrics
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-2 px-2 py-0.5 bg-blue-600 text-white rounded text-[10px] font-bold">
-                          <Share2 size={12} /> Post Preview
-                        </div>
-                      )}
-                    </div>
+                            <div className="p-4 border-b border-gray-100 flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-2 px-2 py-0.5 bg-indigo-600 text-white rounded text-[10px] font-bold">
+                                  <span className="relative flex h-2 w-2">
+                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-300 opacity-75" />
+                                    <span className="relative inline-flex rounded-full h-2 w-2 bg-indigo-200" />
+                                  </span>
+                                  <Share2 size={12} /> Live Preview
+                                </div>
+                              </div>
+                              {postContent && (
+                                <button
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(postContent);
+                                    toast?.success('Preview copied to clipboard!');
+                                  }}
+                                  className="flex items-center gap-1 px-2 py-1 text-[10px] font-semibold text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded transition-all"
+                                  title="Copy preview content"
+                                >
+                                  <Copy size={12} />
+                                  Copy
+                                </button>
+                              )}
+                            </div>
                     <div className="p-4 bg-white flex-1 overflow-y-auto space-y-4">
                       {editingPost ? (
                         <>
@@ -2179,12 +2193,32 @@ const Content: React.FC = () => {
                             </div>
                           )}
 
-                          {/* Post Content */}
+                          {/* Post Content with Update Animation */}
                           {postContent ? (
                             <div className="mb-4">
-                              <p className="text-sm text-gray-800 leading-relaxed whitespace-pre-wrap">
-                                {postContent}
-                              </p>
+                              <div className="flex items-center justify-between mb-2">
+                                <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Preview</p>
+                                <span className="text-[10px] text-gray-400 flex items-center gap-1">
+                                  <span className="relative flex h-1.5 w-1.5">
+                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75" />
+                                    <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-indigo-500" />
+                                  </span>
+                                  Auto-updating
+                                </span>
+                              </div>
+                              <div className="p-3 bg-gradient-to-br from-indigo-50/50 to-white border border-indigo-200/50 rounded-lg animate-in fade-in duration-300">
+                                <p className="text-sm text-gray-800 leading-relaxed whitespace-pre-wrap">
+                                  {postContent}
+                                </p>
+                              </div>
+                              {/* Preview Stats */}
+                              <div className="flex items-center gap-3 mt-2 pt-2 border-t border-gray-100 text-[10px] text-gray-500">
+                                <span>📊 {postContent.length} chars</span>
+                                <span>•</span>
+                                <span>📝 {postContent.split(/\s+/).filter(w => w).length} words</span>
+                                <span>•</span>
+                                <span>😊 {(postContent.match(/[\u{1F300}-\u{1F9FF}]/gu) || []).length} emojis</span>
+                              </div>
                             </div>
                           ) : (
                             <div className="mb-4 p-3 bg-gray-50 border border-gray-200 rounded-lg">
@@ -2431,7 +2465,10 @@ const Content: React.FC = () => {
           <AIContentGenerator
             isOpen={aiGeneratorOpen}
             onClose={() => setAiGeneratorOpen(false)}
-            onInsert={(content) => setPostContent(content)}
+            onInsert={(content) => {
+              setPostContent(content);
+              setPostContentUpdatedAt(Date.now());
+            }}
             selectedPlatforms={selectedPlatforms}
             currentContent={postContent}
           />
