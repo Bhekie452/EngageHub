@@ -374,6 +374,11 @@ const Content: React.FC = () => {
     }[];
     metricsSource?: 'youtube' | 'engagehub';
   } | null>(null);
+  const [connectedAccountDetail, setConnectedAccountDetail] = useState<{
+    display_name?: string;
+    username?: string;
+    avatar_url?: string;
+  } | null>(null);
   const [youtubeConnected, setYoutubeConnected] = useState(false);
   // Load current workspaceId once on mount handled by loadContentData or this backup
   useEffect(() => {
@@ -429,6 +434,24 @@ const Content: React.FC = () => {
       .finally(() => {
         if (!cancelled) setEngagementLoading(false);
       });
+
+    // Fetch connected account details for the platform
+    if (!cancelled && viewingMetrics && currentWorkspaceId) {
+      setConnectedAccountDetail(null);
+      supabase
+        .from('social_accounts')
+        .select('display_name, username, avatar_url')
+        .eq('workspace_id', currentWorkspaceId)
+        .eq('platform', viewingMetrics.platform)
+        .eq('is_active', true)
+        .limit(1)
+        .then(({ data }) => {
+          if (!cancelled && data && data.length > 0) {
+            setConnectedAccountDetail(data[0]);
+          }
+        });
+    }
+
     return () => {
       cancelled = true;
     };
@@ -1066,7 +1089,7 @@ const Content: React.FC = () => {
         if (platformsToPublish.some((plat) => (plat || '').toLowerCase() === 'youtube') && linkUrl && (linkUrl.startsWith('http://') || linkUrl.startsWith('https://'))) {
           if (!publicUrls.includes(linkUrl)) publicUrls.push(linkUrl);
         }
-        
+
         // Check if Instagram/YouTube are selected but no public media URLs available
         const needsMedia = platformsToPublish.some((p) => ['instagram', 'youtube'].includes((p || '').toLowerCase()));
         if (needsMedia && allMedia.length > 0 && publicUrls.length === 0) {
@@ -2820,21 +2843,48 @@ const Content: React.FC = () => {
           <div className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden shadow-2xl border border-gray-100 dark:border-slate-800 flex flex-col">
             {/* Header */}
             <div className="p-6 border-b border-gray-100 dark:border-slate-800 flex items-center justify-between">
-              <div>
-                <h2 className="text-xl font-black text-gray-900 dark:text-white flex items-center gap-2">
-                  {viewingMetrics.platform === 'facebook' && <Facebook className="text-[#1877F2]" size={24} />}
-                  {viewingMetrics.platform === 'instagram' && <Instagram className="text-[#E4405F]" size={24} />}
-                  {viewingMetrics.platform === 'twitter' && <Twitter className="text-[#1DA1F2]" size={24} />}
-                  {viewingMetrics.platform === 'linkedin' && <Linkedin className="text-[#0A66C2]" size={24} />}
-                  {viewingMetrics.platform === 'youtube' && <Youtube className="text-[#FF0000]" size={24} />}
-                  {viewingMetrics.platform === 'whatsapp' && <MessageCircle className="text-[#25D366]" size={24} />}
-                  <span className="capitalize">{viewingMetrics.platform} Post Metrics</span>
-                </h2>
-                <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">
-                  Engagement analytics for this post on {viewingMetrics.platform}
-                </p>
+              <div className="flex items-center gap-4 flex-1 min-w-0">
+                <div className="flex-1 min-w-0">
+                  <h2 className="text-xl font-black text-gray-900 dark:text-white flex items-center gap-2 truncate">
+                    {viewingMetrics.platform === 'facebook' && <Facebook className="text-[#1877F2]" size={24} />}
+                    {viewingMetrics.platform === 'instagram' && <Instagram className="text-[#E4405F]" size={24} />}
+                    {viewingMetrics.platform === 'twitter' && <Twitter className="text-[#1DA1F2]" size={24} />}
+                    {viewingMetrics.platform === 'linkedin' && <Linkedin className="text-[#0A66C2]" size={24} />}
+                    {viewingMetrics.platform === 'youtube' && <Youtube className="text-[#FF0000]" size={24} />}
+                    {viewingMetrics.platform === 'tiktok' && <Music className="text-[#000000]" size={24} />}
+                    {viewingMetrics.platform === 'whatsapp' && <MessageCircle className="text-[#25D366]" size={24} />}
+                    <span className="capitalize">{viewingMetrics.platform} Post Metrics</span>
+                  </h2>
+                  <p className="text-sm text-gray-500 dark:text-slate-400 mt-1 truncate">
+                    Engagement analytics for this post on {viewingMetrics.platform}
+                  </p>
+                </div>
+
+                {connectedAccountDetail && (
+                  <div className="flex items-center gap-3 px-4 py-2 bg-gray-50 dark:bg-slate-800 rounded-xl border border-gray-100 dark:border-slate-700 animate-in fade-in slide-in-from-right-2 duration-300 shrink-0">
+                    <div className="text-right hidden sm:block">
+                      <p className="text-xs font-black text-gray-900 dark:text-white truncate max-w-[150px]">
+                        {connectedAccountDetail.display_name || connectedAccountDetail.username}
+                      </p>
+                      {connectedAccountDetail.username && (
+                        <p className="text-[10px] text-gray-500 font-bold truncate max-w-[150px]">
+                          @{connectedAccountDetail.username}
+                        </p>
+                      )}
+                    </div>
+                    {connectedAccountDetail.avatar_url ? (
+                      <div className="w-10 h-10 rounded-full border-2 border-white dark:border-slate-700 shadow-sm overflow-hidden shrink-0 bg-white">
+                        <img src={connectedAccountDetail.avatar_url} alt="Profile" className="w-full h-full object-cover" />
+                      </div>
+                    ) : (
+                      <div className="w-10 h-10 rounded-full bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center text-blue-600 dark:text-blue-400 border border-blue-100 dark:border-blue-800 shrink-0">
+                        <AtSign size={18} />
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
-              <button onClick={() => setViewingMetrics(null)} className="p-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg transition-colors">
+              <button onClick={() => setViewingMetrics(null)} className="p-2 ml-4 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg transition-colors shrink-0">
                 <X size={20} className="text-gray-500" />
               </button>
             </div>
@@ -3301,13 +3351,13 @@ const Content: React.FC = () => {
                     <MessageCircle size={18} className="text-blue-600" />
                     <h3 className="text-sm font-bold text-gray-900 dark:text-white uppercase">Engagement & Comments</h3>
                   </div>
-                  
+
                   {/* Show engagement for each platform */}
                   {viewingPost.platforms.map((platform: string, idx: number) => {
                     // Note: platform_post_id should come from post_publications table
                     // For now using post.id as fallback - you may want to fetch from post_publications
                     const platformPostId = viewingPost.platform_post_id || viewingPost.id;
-                    
+
                     return (
                       <div key={`${platform}-${idx}`} className="bg-gray-50 dark:bg-slate-800 rounded-xl p-4 space-y-4">
                         <div className="flex items-center gap-2 mb-3">
@@ -3319,24 +3369,24 @@ const Content: React.FC = () => {
                             {platform} Engagement
                           </span>
                         </div>
-                        
+
                         {/* Engagement Metrics */}
-                        <EngagementMetrics 
+                        <EngagementMetrics
                           workspaceId={currentWorkspaceId || ''}
                           platformPostId={platformPostId}
                           platform={platform.toLowerCase() as any}
                         />
-                        
+
                         {/* Engagement Actions (Like/Share buttons) */}
-                        <EngagementActions 
+                        <EngagementActions
                           workspaceId={currentWorkspaceId || ''}
                           userId={user?.id || ''}
                           platformPostId={platformPostId}
                           platform={platform.toLowerCase() as any}
                         />
-                        
+
                         {/* Comments Section */}
-                        <CommentsSection 
+                        <CommentsSection
                           workspaceId={currentWorkspaceId || ''}
                           userId={user?.id || ''}
                           userName={user?.email?.split('@')[0] || 'User'}

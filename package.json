@@ -12,7 +12,7 @@
     "preview": "vite preview",
     "youtube-retry": "node scripts/run-youtube-retry.js",
     "sync:youtube-metrics": "node scripts/sync-youtube-metrics.js",
-    "dev-all": "node scripts/dev-all.js"
+    "dev-all": "node scripts/dev-all.cjs"
   },
   "dependencies": {
     "@google/genai": "^1.34.0",

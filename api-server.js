@@ -22,14 +22,14 @@ async function handlePublishPost(req, res) {
     }
 
     const hasYouTube = platforms.some((p) => p.toLowerCase() === 'youtube');
-    
+
     if (hasYouTube) {
       console.log('[publish-post] Publishing to YouTube');
-      
+
       try {
         // Use real YouTube upload via Supabase Edge Function
         const workspaceIdToUse = workspaceId || 'c9a454c5-a5f3-42dd-9fbd-cedd4c1c49a9';
-        
+
         // Call Supabase Edge Function directly
         const response = await fetch('https://zourlqrkoyugzymxkbgn.functions.supabase.co/youtube-api', {
           method: 'POST',
@@ -54,7 +54,7 @@ async function handlePublishPost(req, res) {
         }
 
         const result = await response.json();
-        
+
         return res.status(200).json({
           success: true,
           message: 'Post published successfully',
@@ -68,10 +68,10 @@ async function handlePublishPost(req, res) {
         });
       } catch (youtubeError) {
         console.error('YouTube upload failed:', youtubeError);
-        return res.status(200).json({ 
+        return res.status(200).json({
           success: false,
-          error: 'youtube_upload_failed', 
-          message: 'Failed to upload to YouTube: ' + youtubeError.message 
+          error: 'youtube_upload_failed',
+          message: 'Failed to upload to YouTube: ' + youtubeError.message
         });
       }
     }
@@ -129,7 +129,7 @@ app.get('/api/utils/:endpoint', (req, res) => {
   }
 });
 
-const PORT = 3001;
+const PORT = 3002;
 app.listen(PORT, () => {
   console.log(`🚀 Local API server running on http://localhost:${PORT}`);
   console.log('📡 Available endpoints:');

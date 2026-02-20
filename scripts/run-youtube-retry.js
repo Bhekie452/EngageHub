@@ -3,17 +3,39 @@
 // SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
 // Optionally: RETRY_MAX_ATTEMPTS, RETRY_INTERVAL_SECONDS
 
-const fetch = require('node-fetch');
 const { createClient } = require('@supabase/supabase-js');
 
+const fs = require('fs');
+const path = require('path');
+
+function loadEnvFile() {
+  const envPath = path.resolve(process.cwd(), '.env.local');
+  if (!fs.existsSync(envPath)) return;
+  const txt = fs.readFileSync(envPath, 'utf8');
+  for (const rawLine of txt.split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith('#')) continue;
+    const cleaned = line.startsWith('export ') ? line.replace(/^export\s+/, '') : line;
+    const idx = cleaned.indexOf('=');
+    if (idx === -1) continue;
+    const key = cleaned.slice(0, idx).trim();
+    let val = cleaned.slice(idx + 1).trim();
+    if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+      val = val.slice(1, -1);
+    }
+    process.env[key] = val;
+  }
+}
+
 (async () => {
-  const SUPABASE_URL = process.env.SUPABASE_URL;
-  const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  loadEnvFile();
+  const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+  const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY;
   const MAX_ATTEMPTS = Number(process.env.RETRY_MAX_ATTEMPTS || '5');
   const RETRY_INTERVAL_SECONDS = Number(process.env.RETRY_INTERVAL_SECONDS || String(60 * 5));
 
   if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
-    console.error('Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY env vars');
+    console.error('Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY (or VITE_ counterparts) env vars');
     process.exit(1);
   }
 
