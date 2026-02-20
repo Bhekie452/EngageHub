@@ -1,5 +1,5 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
-import { cors } from './_cors.js';
+import { handleCors } from './_cors.js';
 
 /**
  * Engagement API - Handles bidirectional engagement sync
@@ -12,7 +12,7 @@ import { cors } from './_cors.js';
  */
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  await cors(req, res);
+  if (handleCors(req, res)) return;
 
   const { method } = req;
   const { action } = req.query;
