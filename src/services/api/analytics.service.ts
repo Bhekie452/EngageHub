@@ -244,15 +244,27 @@ export const analyticsService = {
       if ((platform || '').toLowerCase() === 'youtube') {
          const videoId = extractYouTubeVideoId(finalExternalUrl);
          
-         // Call the Edge Function to get real-time stats (and sync to DB side-effect)
-         const { data: ytData, error: ytErr } = await supabase.functions.invoke('youtube-api', {
-           body: {
-             endpoint: 'video-details',
-             workspaceId: workspace_id,
-             videoId: videoId,
-             postId: postId // Pass postId to trigger DB update
-           }
-         });
+         // Check if user is authenticated before calling edge function
+         const { data: { session } } = await supabase.auth.getSession();
+         
+         let ytData = null;
+         let ytErr = null;
+         
+         if (session?.access_token) {
+           // Call the Edge Function to get real-time stats (and sync to DB side-effect)
+           const result = await supabase.functions.invoke('youtube-api', {
+             body: {
+               endpoint: 'video-details',
+               workspaceId: workspace_id,
+               videoId: videoId,
+               postId: postId // Pass postId to trigger DB update
+             }
+           });
+           ytData = result.data;
+           ytErr = result.error;
+         } else {
+           console.warn('User not authenticated - skipping YouTube API call, using cached data');
+         }
 
          if (!ytErr && ytData?.data) {
              const stats = ytData.data.statistics;
@@ -265,6 +277,9 @@ export const analyticsService = {
              }
          } else {
              // Fallback to reading from local cache in DB if Edge Function fails
+             if (ytErr) {
+               console.warn('YouTube API edge function error:', ytErr);
+             }
             const { data: ymData, error: ymErr } = await supabase
               .from('post_analytics')
               .select('video_views, likes, comments')
