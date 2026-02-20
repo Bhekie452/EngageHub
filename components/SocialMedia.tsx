@@ -757,7 +757,8 @@ const SocialMedia: React.FC = () => {
       // Auto-activate YouTube accounts that were saved with is_active=false
       try {
         const inactiveYouTube = (data || []).filter(
-          (acc: any) => acc.platform === 'youtube' && !acc.is_active && acc.account_id && acc.connection_status !== 'disconnected'
+          (acc: any) => acc.platform === 'youtube' && !acc.is_active && acc.account_id
+            && !sessionStorage.getItem(`yt_disconnected_${acc.id}`)
         );
         if (inactiveYouTube.length > 0) {
           for (const acc of inactiveYouTube) {
@@ -1491,9 +1492,13 @@ const SocialMedia: React.FC = () => {
   async function handleDisconnect(accountId: string) {
     if (!confirm('Are you sure you want to disconnect this account?')) return;
     try {
+      // Flag as intentionally disconnected in sessionStorage so the auto-activate
+      // block doesn't immediately re-enable it (DB constraint won't allow 'disconnected' as a status value)
+      sessionStorage.setItem(`yt_disconnected_${accountId}`, '1');
+
       const { error } = await supabase
         .from('social_accounts')
-        .update({ is_active: false, connection_status: 'disconnected' })
+        .update({ is_active: false })
         .eq('id', accountId);
 
       if (error) throw error;
@@ -1530,9 +1535,11 @@ const SocialMedia: React.FC = () => {
             ].map((account, idx) => {
               const activeAccounts = connectedAccounts.filter(ca => ca.is_active);
               // For YouTube, also check all accounts (not just active) since is_active may be false on existing connections
-              // but exclude explicitly disconnected accounts so the disconnect button works
+              // but exclude accounts the user has explicitly disconnected this session
               const connectedAccount = activeAccounts.find(ca => ca.platform === account.platform)
-                ?? (account.platform === 'youtube' ? connectedAccounts.find(ca => ca.platform === 'youtube' && ca.connection_status !== 'disconnected') : undefined);
+                ?? (account.platform === 'youtube'
+                  ? connectedAccounts.find(ca => ca.platform === 'youtube' && !sessionStorage.getItem(`yt_disconnected_${ca.id}`))
+                  : undefined);
               // Facebook account (may host an Instagram business account)
               const facebookAccount = activeAccounts.find(ca => ca.platform === 'facebook');
               // Instagram account stored in DB (preferred)
