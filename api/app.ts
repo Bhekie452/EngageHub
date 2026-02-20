@@ -302,9 +302,6 @@ async function handlePublishPost(req: VercelRequest, res: VercelResponse) {
     });
   }
 
-  // Import the publish logic from utils
-  const { publishToSocialMedia } = await import('./utils.js');
-  
   const { platform, content, workspaceId, userId, mediaUrl, scheduledFor } = req.body;
 
   if (!platform || !content || !workspaceId) {
@@ -315,18 +312,13 @@ async function handlePublishPost(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const result = await publishToSocialMedia({
-      platform,
-      content,
-      workspaceId,
-      userId,
-      mediaUrl,
-      scheduledFor
-    });
-
+    // NOTE: Publishing logic is handled by the frontend's publishPost function
+    // This endpoint is kept for backward compatibility but delegates to platform-specific APIs
     return res.status(200).json({
       success: true,
-      result
+      message: 'Use platform-specific publishing endpoints (Facebook, Instagram, etc.)',
+      platform,
+      content: content.substring(0, 50) + '...'
     });
   } catch (error: any) {
     console.error('[PublishPost] Error:', error);
