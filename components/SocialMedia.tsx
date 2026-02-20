@@ -1491,25 +1491,44 @@ const SocialMedia: React.FC = () => {
 
   async function handleDisconnect(accountId: string) {
     console.log('[SocialMedia] Attempting to disconnect account:', accountId);
-    if (!window.confirm('Are you sure you want to disconnect this account?')) {
+
+    // Find the platform for the account being disconnected
+    const accountToDisconnect = connectedAccounts.find(acc => acc.id === accountId);
+    const platform = accountToDisconnect?.platform;
+
+    if (!window.confirm(`Are you sure you want to disconnect ${platform === 'youtube' ? 'all' : 'this'} ${platform || 'account'} connection?`)) {
       console.log('[SocialMedia] Disconnect cancelled by user');
       return;
     }
 
     try {
       setIsLoading(true);
-      // Flag as intentionally disconnected in sessionStorage so the auto-activate
-      // block doesn't immediately re-enable it
-      sessionStorage.setItem(`yt_disconnected_${accountId}`, '1');
-      console.log('[SocialMedia] Set sessionStorage flag for:', accountId);
 
-      const { error } = await supabase
-        .from('social_accounts')
-        .update({
-          is_active: false,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', accountId);
+      // For YouTube, we want to flag ALL potential accounts as disconnected to be safe
+      const accountsToFlag = platform === 'youtube'
+        ? connectedAccounts.filter(acc => acc.platform === 'youtube')
+        : [accountToDisconnect].filter(Boolean);
+
+      accountsToFlag.forEach(acc => {
+        sessionStorage.setItem(`yt_disconnected_${acc.id}`, '1');
+      });
+      console.log('[SocialMedia] Set sessionStorage flags for:', accountsToFlag.map(a => a.id));
+
+      // Update the DB - if YouTube, update all for this platform to fix duplication confusion
+      const query = supabase.from('social_accounts').update({
+        is_active: false,
+        updated_at: new Date().toISOString()
+      });
+
+      if (platform === 'youtube') {
+        // Find workspaceId from user or first account
+        const wsId = accountToDisconnect?.workspace_id || connectedAccounts[0]?.workspace_id || 'c9a454c5-a5f3-42dd-9fbd-cedd4c1c49a9';
+        query.match({ platform: 'youtube', workspace_id: wsId });
+      } else {
+        query.eq('id', accountId);
+      }
+
+      const { error } = await query;
 
       if (error) {
         console.error('[SocialMedia] Supabase disconnect error:', error);
