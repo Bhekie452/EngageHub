@@ -754,6 +754,30 @@ const SocialMedia: React.FC = () => {
         console.warn('TikTok username refresh flow error:', err);
       }
 
+      // Auto-activate YouTube accounts that were saved with is_active=false
+      try {
+        const inactiveYouTube = (data || []).filter(
+          (acc: any) => acc.platform === 'youtube' && !acc.is_active && acc.account_id
+        );
+        if (inactiveYouTube.length > 0) {
+          for (const acc of inactiveYouTube) {
+            await supabase
+              .from('social_accounts')
+              .update({ is_active: true })
+              .eq('id', acc.id);
+            console.log('Auto-activated YouTube account:', acc.id);
+          }
+          // Re-fetch so the card sees the updated is_active=true
+          const { data: refreshed } = await supabase
+            .from('social_accounts')
+            .select('*')
+            .eq('workspace_id', workspaces[0].id);
+          setConnectedAccounts(refreshed || []);
+        }
+      } catch (err) {
+        console.warn('YouTube auto-activate flow error:', err);
+      }
+
       // If there's no explicit instagram account stored but a connected Facebook page has an instagram_business_account, fetch Instagram details
       try {
         const fbPage = (data || []).find((acc: any) => acc.platform === 'facebook' && acc.platform_data && (acc.platform_data.instagram_business_account || acc.platform_data.instagram_business_account_id));
