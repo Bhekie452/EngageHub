@@ -104,7 +104,7 @@ export const contentApi = {
    * Publish a post
    */
   async publishPost(postData: any) {
-    return apiRequest('/api/publish-post', {
+    return apiRequest('/api/app?action=publish', {
       method: 'POST',
       body: JSON.stringify(postData),
     });

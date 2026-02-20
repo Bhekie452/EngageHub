@@ -104,7 +104,7 @@ const CommentsSection: React.FC<CommentsSectionProps> = ({
     setLoading(true);
     try {
       const response = await fetch(
-        `/api/engagement?action=list&workspaceId=${workspaceId}&platformPostId=${platformPostId}&platform=${platform}&actionType=comment`
+        `/api/app?action=engagement&method=list&workspaceId=${workspaceId}&platformPostId=${platformPostId}&platform=${platform}&actionType=comment`
       );
       const data = await response.json();
       if (data.success) {
@@ -128,7 +128,7 @@ const CommentsSection: React.FC<CommentsSectionProps> = ({
 
     setSubmitting(true);
     try {
-      const response = await fetch('/api/engagement?action=create', {
+      const response = await fetch('/api/app?action=engagement&method=create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -174,7 +174,7 @@ const CommentsSection: React.FC<CommentsSectionProps> = ({
     setComments((prev) => prev.filter((c) => c.id !== comment.id));
 
     try {
-      const response = await fetch('/api/engagement', {
+      const response = await fetch('/api/app?action=engagement', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

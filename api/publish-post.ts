@@ -1,5 +1,18 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
-import { handleCors } from './_cors.js';
+
+/**
+ * Publish Post API Proxy - Forwards to consolidated /api/app
+ */
+
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+  // Forward to consolidated handler
+  const { default: appHandler } = await import('./app.js');
+  
+  // Inject action=publish parameter
+  req.query = { ...req.query, action: 'publish' };
+  
+  return appHandler(req, res);
+}
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (handleCors(req, res)) return;

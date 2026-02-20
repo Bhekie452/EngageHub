@@ -77,7 +77,7 @@ const EngagementActions: React.FC<EngagementActionsProps> = ({
   const fetchAggregates = async () => {
     try {
       const response = await fetch(
-        `/api/engagement?action=aggregates&workspaceId=${workspaceId}&platformPostId=${platformPostId}&platform=${platform}`
+        `/api/app?action=engagement&method=aggregates&workspaceId=${workspaceId}&platformPostId=${platformPostId}&platform=${platform}`
       );
       const data = await response.json();
       if (data.success) {
@@ -92,7 +92,7 @@ const EngagementActions: React.FC<EngagementActionsProps> = ({
   const fetchUserActions = async () => {
     try {
       const response = await fetch(
-        `/api/engagement?action=list&workspaceId=${workspaceId}&platformPostId=${platformPostId}&platform=${platform}`
+        `/api/app?action=engagement&method=list&workspaceId=${workspaceId}&platformPostId=${platformPostId}&platform=${platform}`
       );
       const data = await response.json();
       if (data.success) {
@@ -139,7 +139,7 @@ const EngagementActions: React.FC<EngagementActionsProps> = ({
       if (hasAction) {
         // Unlike/undo action - need to find the engagement_id first
         const listResponse = await fetch(
-          `/api/engagement?action=list&workspaceId=${workspaceId}&platformPostId=${platformPostId}&platform=${platform}&actionType=${actionType}`
+          `/api/app?action=engagement&method=list&workspaceId=${workspaceId}&platformPostId=${platformPostId}&platform=${platform}&actionType=${actionType}`
         );
         const listData = await listResponse.json();
         const userAction = listData.actions.find(
@@ -147,7 +147,7 @@ const EngagementActions: React.FC<EngagementActionsProps> = ({
         );
 
         if (userAction) {
-          const response = await fetch('/api/engagement', {
+          const response = await fetch('/api/app?action=engagement', {
             method: 'DELETE',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -162,7 +162,7 @@ const EngagementActions: React.FC<EngagementActionsProps> = ({
         }
       } else {
         // Create new action
-        const response = await fetch('/api/engagement?action=create', {
+        const response = await fetch('/api/app?action=engagement&method=create', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

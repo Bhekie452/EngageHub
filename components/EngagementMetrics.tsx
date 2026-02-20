@@ -44,7 +44,7 @@ const EngagementMetrics: React.FC<EngagementMetricsProps> = ({
     setError(null);
     try {
       const response = await fetch(
-        `/api/engagement?action=aggregates&workspaceId=${workspaceId}&platformPostId=${platformPostId}&platform=${platform}`
+        `/api/app?action=engagement&method=aggregates&workspaceId=${workspaceId}&platformPostId=${platformPostId}&platform=${platform}`
       );
       const data = await response.json();
       if (data.success) {

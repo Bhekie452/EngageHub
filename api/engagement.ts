@@ -1,21 +1,18 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
-import { handleCors } from './_cors.js';
 
 /**
- * Engagement API - Handles bidirectional engagement sync
- * 
- * Endpoints:
- * - POST /api/engagement - Create engagement action (like, comment, share)
- * - GET /api/engagement - Get engagement for a post
- * - GET /api/engagement/aggregates - Get aggregated counts
- * - DELETE /api/engagement/:id - Remove engagement (unlike, delete comment)
+ * Engagement API Proxy - Forwards to consolidated /api/app
+ * Maintains backward compatibility with existing frontend code
  */
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  if (handleCors(req, res)) return;
-
-  const { method } = req;
-  const { action } = req.query;
+  // Forward to consolidated handler
+  const { default: appHandler } = await import('./app.js');
+  
+  // Inject action=engagement parameter
+  req.query = { ...req.query, action: 'engagement' };
+  
+  return appHandler(req, res);
 
   try {
     switch (method) {

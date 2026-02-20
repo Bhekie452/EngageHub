@@ -3,6 +3,11 @@
 *.sql
 !api/**
 
+# Exclude old (now consolidated) API endpoints - replaced by app.ts
+api/engagement.ts
+api/publish-post.ts
+api/tiktok-connection-test.ts
+
 # Exclude specific debug files
 check-*.js
 test-*.js
