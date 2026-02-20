@@ -1577,8 +1577,12 @@ const SocialMedia: React.FC = () => {
               return (
                 <div key={idx} className={`p-6 rounded-2xl border flex flex-col justify-between group transition-all duration-300 shadow-sm min-h-[160px] ${isConnected ? 'bg-white border-blue-100 ring-1 ring-blue-50/50 hover:shadow-lg hover:shadow-blue-100/50' : 'bg-white border-gray-100 hover:border-blue-200 hover:shadow-md'}`}>
                   <div className="flex items-start gap-4 mb-4">
-                    <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 shadow-sm transition-transform group-hover:scale-105 duration-300 ${isConnected ? 'bg-white border border-gray-50' : 'bg-gray-50'}`}>
-                      {React.cloneElement(account.icon as React.ReactElement, { size: 28, className: isConnected ? (account.icon as React.ReactElement).props.className : 'text-gray-600' })}
+                    <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 shadow-sm transition-transform group-hover:scale-105 duration-300 ${isConnected ? 'bg-white border border-gray-50 overflow-hidden' : 'bg-gray-50'}`}>
+                      {isConnected && displayAccount?.avatar_url ? (
+                        <img src={displayAccount.avatar_url} alt={displayAccount.display_name} className="w-full h-full object-cover" />
+                      ) : (
+                        React.cloneElement(account.icon as React.ReactElement, { size: 28, className: isConnected ? (account.icon as React.ReactElement).props.className : 'text-gray-600' })
+                      )}
                     </div>
                     <div className="overflow-hidden">
                       <h4 className={`text-md font-black truncate leading-tight ${isConnected ? 'text-gray-900' : 'text-gray-700'}`}>

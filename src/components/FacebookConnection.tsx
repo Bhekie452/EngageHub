@@ -97,10 +97,14 @@ export default function FacebookConnection() {
       {/* Header */}
       <div className="flex items-start gap-4 mb-4">
         <div
-          className={`w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 shadow-sm transition-transform group-hover:scale-105 duration-300 ${isConnected ? 'bg-white border border-gray-50' : 'bg-gray-50'
+          className={`w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 shadow-sm transition-transform group-hover:scale-105 duration-300 ${isConnected ? 'bg-white border border-gray-50 overflow-hidden' : 'bg-gray-50'
             }`}
         >
-          <Facebook size={28} className={isConnected ? 'text-blue-600' : 'text-gray-600'} />
+          {isConnected && connection?.avatar_url ? (
+            <img src={connection.avatar_url} alt={displayName} className="w-full h-full object-cover" />
+          ) : (
+            <Facebook size={28} className={isConnected ? 'text-blue-600' : 'text-gray-600'} />
+          )}
         </div>
         <div className="overflow-hidden">
           <h4 className={`text-md font-black truncate leading-tight ${isConnected ? 'text-gray-900' : 'text-gray-700'}`}>
