@@ -90,8 +90,8 @@ export default function FacebookConnection() {
   return (
     <div
       className={`p-6 rounded-2xl border flex flex-col justify-between group transition-all duration-300 shadow-sm min-h-[160px] ${isConnected
-          ? 'bg-white border-blue-100 ring-1 ring-blue-50/50 hover:shadow-lg hover:shadow-blue-100/50'
-          : 'bg-white border-gray-100 hover:border-blue-200 hover:shadow-md'
+        ? 'bg-white border-blue-100 ring-1 ring-blue-50/50 hover:shadow-lg hover:shadow-blue-100/50'
+        : 'bg-white border-gray-100 hover:border-blue-200 hover:shadow-md'
         }`}
     >
       {/* Header */}
@@ -128,7 +128,7 @@ export default function FacebookConnection() {
             onClick={handleConnect}
             className="flex items-center gap-1.5 text-[10px] font-black text-white bg-blue-600 hover:bg-blue-700 hover:scale-105 active:scale-95 px-5 py-2.5 rounded-xl uppercase tracking-wider shadow-lg shadow-blue-200/50 transition-all ml-auto"
           >
-            Connect
+            CONNECT
           </button>
         )}
 

@@ -1635,7 +1635,7 @@ const SocialMedia: React.FC = () => {
                         }}
                         className="flex items-center gap-1.5 text-[10px] font-black text-white bg-blue-600 hover:bg-blue-700 hover:scale-105 active:scale-95 px-5 py-2.5 rounded-xl uppercase tracking-wider shadow-lg shadow-blue-200/50 transition-all ml-auto"
                       >
-                        Connect
+                        CONNECT
                       </button>
                     )}
 
