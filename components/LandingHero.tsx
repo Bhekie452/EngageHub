@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { ArrowRight, Play, CheckCircle, Zap, ChevronLeft, ChevronRight, BarChart3 } from 'lucide-react';
+import React from 'react';
+import { ArrowRight, Zap, Bot, MessageSquare } from 'lucide-react';
 
 // Social media icons as SVG components
 const InstagramIcon = ({ className }: { className?: string }) => (
@@ -38,215 +38,186 @@ const LinkedInIcon = ({ className }: { className?: string }) => (
   </svg>
 );
 
-// Platform data with colors
-const platforms = [
-  { name: 'Instagram', icon: InstagramIcon, color: 'from-pink-500 via-purple-500 to-blue-500', bgColor: 'bg-pink-500', textColor: 'text-white' },
-  { name: 'TikTok', icon: TikTokIcon, color: 'from-cyan-400 via-pink-400 to-black', bgColor: 'bg-cyan-400', textColor: 'text-white' },
-  { name: 'YouTube', icon: YouTubeIcon, color: 'from-red-500 to-red-600', bgColor: 'bg-red-500', textColor: 'text-white' },
-  { name: 'Facebook', icon: FacebookIcon, color: 'from-blue-500 to-blue-700', bgColor: 'bg-blue-500', textColor: 'text-white' },
-  { name: 'X', icon: XIcon, color: 'from-gray-700 to-black', bgColor: 'bg-gray-800', textColor: 'text-white' },
-  { name: 'LinkedIn', icon: LinkedInIcon, color: 'from-blue-600 to-blue-800', bgColor: 'bg-blue-600', textColor: 'text-white' },
-];
+// Platform data for social icons (used in orbital visual)
 
 interface LandingHeroProps {
     onGetStarted: () => void;
+    onOpenChatbot?: () => void;
 }
 
-export const LandingHero: React.FC<LandingHeroProps> = ({ onGetStarted }) => {
-    const [currentSlide, setCurrentSlide] = useState(0);
-    
-    useEffect(() => {
-        const timer = setInterval(() => {
-            setCurrentSlide((prev) => (prev + 1) % 3);
-        }, 5000);
-        return () => clearInterval(timer);
-    }, []);
-
+export const LandingHero: React.FC<LandingHeroProps> = ({ onGetStarted, onOpenChatbot }) => {
     return (
-        <section className="relative min-h-screen flex items-center justify-center overflow-hidden bg-[#0a0e1a]">
-            {/* Animated background elements */}
+        <section className="relative min-h-screen flex flex-col overflow-hidden bg-gradient-to-br from-slate-50 via-blue-50/50 to-indigo-50">
+            {/* Subtle background elements */}
             <div className="absolute inset-0 overflow-hidden">
-                {/* Grid pattern */}
-                <div className="absolute inset-0 bg-[linear-gradient(rgba(59,130,246,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(139,92,246,0.03)_1px,transparent_1px)] bg-[size:50px_50px]"></div>
-                
-                {/* Animated gradient orbs */}
-                <div className="absolute top-0 left-1/4 w-[600px] h-[600px] bg-gradient-to-br from-blue-600/20 via-indigo-500/15 to-transparent rounded-full blur-3xl animate-pulse"></div>
-                <div className="absolute bottom-0 right-1/4 w-[500px] h-[500px] bg-gradient-to-tl from-purple-600/20 via-pink-500/10 to-transparent rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }}></div>
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-gradient-to-r from-blue-700/10 via-indigo-600/10 to-purple-700/10 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '2s' }}></div>
-                
-                {/* Additional glow accents */}
-                <div className="absolute top-1/4 right-1/3 w-32 h-32 bg-cyan-500/20 rounded-full blur-2xl animate-pulse" style={{ animationDelay: '0.5s' }}></div>
-                <div className="absolute bottom-1/3 left-1/4 w-24 h-24 bg-pink-500/15 rounded-full blur-xl animate-pulse" style={{ animationDelay: '1.5s' }}></div>
+                <div className="absolute inset-0 bg-[linear-gradient(rgba(59,130,246,0.04)_1px,transparent_1px),linear-gradient(90deg,rgba(139,92,246,0.04)_1px,transparent_1px)] bg-[size:60px_60px]"></div>
+                <div className="absolute top-0 left-1/4 w-[600px] h-[600px] bg-gradient-to-br from-blue-200/30 via-indigo-200/20 to-transparent rounded-full blur-3xl"></div>
+                <div className="absolute bottom-0 right-1/4 w-[500px] h-[500px] bg-gradient-to-tl from-purple-200/25 via-pink-100/15 to-transparent rounded-full blur-3xl"></div>
+                <div className="absolute top-1/3 right-1/3 w-32 h-32 bg-cyan-200/20 rounded-full blur-2xl"></div>
             </div>
 
-            <div className="relative z-10 max-w-7xl mx-auto px-6 py-20 grid md:grid-cols-2 gap-12 items-center">
-                {/* Left content - KEPT EXACTLY SAME */}
-                <div className="text-center md:text-left space-y-8">
-                    {/* Badge */}
-                    <div className="inline-flex items-center gap-2 px-4 py-2 bg-slate-800/80 backdrop-blur-sm rounded-full border border-slate-700 shadow-lg">
-                        <Zap className="w-4 h-4 text-amber-400" />
-                        <span className="text-sm font-semibold text-slate-200">AI-Powered Growth Engine</span>
+            {/* Main hero content */}
+            <div className="relative z-10 flex-1 flex items-center">
+                <div className="max-w-7xl mx-auto px-6 py-16 grid md:grid-cols-2 gap-12 items-center">
+                    {/* Left content */}
+                    <div className="text-center md:text-left space-y-8">
+                        {/* Badge */}
+                        <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/80 backdrop-blur-sm rounded-full border border-blue-200 shadow-sm">
+                            <Zap className="w-4 h-4 text-amber-500" />
+                            <span className="text-sm font-semibold text-gray-700">AI-Powered Social Media Automation</span>
+                        </div>
+
+                        {/* Main heading */}
+                        <h1 className="text-5xl md:text-6xl lg:text-7xl font-black text-gray-900 leading-tight">
+                            Automate Your
+                            <span className="block mt-2 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 bg-clip-text text-transparent">
+                                Social Media Marketing
+                            </span>
+                        </h1>
+
+                        {/* Subheading */}
+                        <p className="text-xl md:text-2xl text-gray-500 leading-relaxed max-w-2xl">
+                            Connect every platform. Generate AI content. Engage customers automatically. 
+                            One dashboard to grow your brand on autopilot.
+                        </p>
+
+                        {/* CTA buttons */}
+                        <div className="flex flex-col sm:flex-row gap-4 justify-center md:justify-start">
+                            <button
+                                onClick={onGetStarted}
+                                className="group px-8 py-4 bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold rounded-xl shadow-lg shadow-blue-500/25 hover:shadow-xl hover:shadow-blue-500/30 hover:scale-105 transition-all duration-300 flex items-center justify-center gap-2"
+                            >
+                                Start Free Trial
+                                <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                            </button>
+
+                            <button 
+                                onClick={onOpenChatbot}
+                                className="group px-8 py-4 bg-white/80 backdrop-blur-sm text-gray-700 font-semibold rounded-xl border border-gray-200 hover:border-indigo-300 hover:bg-indigo-50/50 transition-all duration-300 flex items-center justify-center gap-2 shadow-sm"
+                            >
+                                <Bot className="w-5 h-5 text-indigo-600" />
+                                Talk to AI Sales Agent
+                            </button>
+                        </div>
+
+                        <p className="text-sm text-gray-400 mt-2">
+                            14-day free trial &middot; No credit card required &middot; Cancel anytime
+                        </p>
                     </div>
 
-                    {/* Main heading */}
-                    <h1 className="text-5xl md:text-6xl lg:text-7xl font-black text-white leading-tight">
-                        All Your Social Media.
-                        <span className="block mt-2 bg-gradient-to-r from-blue-400 via-indigo-400 to-teal-400 bg-clip-text text-transparent">
-                            One Powerful Platform.
-                        </span>
-                    </h1>
+                    {/* RIGHT SIDE - 3D Orbital Social Media Visual */}
+                    <div className="relative">
+                        <div className="relative w-full aspect-square max-w-lg mx-auto">
+                            {/* Central core glow */}
+                            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-32 h-32 bg-gradient-to-r from-blue-400 via-purple-400 to-cyan-400 rounded-full blur-2xl opacity-40 animate-pulse"></div>
+                            
+                            {/* Central hub - dashboard preview */}
+                            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-72 h-56 bg-white/90 backdrop-blur-md border border-gray-200 shadow-2xl flex items-center justify-center z-20 overflow-hidden rounded-2xl">
+                                <img 
+                                    src="/social1.avif" 
+                                    alt="EngageHub Dashboard" 
+                                    className="w-full h-full object-contain"
+                                />
+                            </div>
 
-                    {/* Subheading */}
-                    <p className="text-xl md:text-2xl text-slate-400 leading-relaxed max-w-2xl">
-                        Schedule, analyze, and engage across all your social accounts from a single dashboard. Join 10,000+ businesses growing their audience.
-                    </p>
+                            {/* Orbital rings */}
+                            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[300px] h-[300px] border border-blue-300/30 rounded-full animate-spin" style={{ animationDuration: '20s' }}></div>
+                            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[380px] h-[380px] border border-purple-300/20 rounded-full animate-spin" style={{ animationDuration: '25s', animationDirection: 'reverse' }}></div>
+                            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[450px] h-[450px] border border-indigo-200/15 rounded-full animate-spin" style={{ animationDuration: '30s' }}></div>
 
-                    {/* CTA buttons */}
-                    <div className="flex flex-col sm:flex-row gap-4 justify-center md:justify-start">
-                        <button
-                            onClick={onGetStarted}
-                            className="group px-8 py-4 bg-gradient-to-r from-blue-500 to-indigo-500 text-white font-bold rounded-xl shadow-lg shadow-blue-500/25 hover:shadow-xl hover:shadow-blue-500/30 hover:scale-105 transition-all duration-300 flex items-center justify-center gap-2"
-                        >
-                            Start Free Trial
-                            <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-                        </button>
+                            {/* Instagram - Top */}
+                            <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-2 animate-float">
+                                <div className="relative group">
+                                    <div className="absolute -inset-2 bg-gradient-to-r from-pink-400 via-purple-400 to-blue-400 rounded-2xl blur-lg opacity-30 group-hover:opacity-60 transition-opacity duration-300"></div>
+                                    <div className="relative w-16 h-16 bg-white/90 backdrop-blur-xl rounded-2xl border border-gray-200 shadow-xl flex items-center justify-center hover:scale-110 transition-transform duration-300">
+                                        <InstagramIcon className="w-8 h-8 text-pink-600" />
+                                    </div>
+                                </div>
+                            </div>
 
-                        <button className="group px-8 py-4 bg-slate-800/80 backdrop-blur-sm text-slate-200 font-semibold rounded-xl border border-slate-700 hover:border-slate-600 hover:bg-slate-700/80 transition-all duration-300 flex items-center justify-center gap-2">
-                            <Play className="w-5 h-5" />
-                            Watch Demo
-                        </button>
+                            {/* TikTok - Top right */}
+                            <div className="absolute top-[15%] right-[10%] animate-float" style={{ animationDelay: '0.5s' }}>
+                                <div className="relative group">
+                                    <div className="absolute -inset-2 bg-gradient-to-r from-cyan-400 via-pink-400 to-gray-400 rounded-2xl blur-lg opacity-30 group-hover:opacity-60 transition-opacity duration-300"></div>
+                                    <div className="relative w-14 h-14 bg-white/90 backdrop-blur-xl rounded-2xl border border-gray-200 shadow-xl flex items-center justify-center hover:scale-110 transition-transform duration-300">
+                                        <TikTokIcon className="w-7 h-7 text-gray-800" />
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* YouTube - Right */}
+                            <div className="absolute top-1/2 right-0 -translate-y-1/2 translate-x-2 animate-float" style={{ animationDelay: '1s' }}>
+                                <div className="relative group">
+                                    <div className="absolute -inset-2 bg-gradient-to-r from-red-400 to-red-500 rounded-2xl blur-lg opacity-30 group-hover:opacity-60 transition-opacity duration-300"></div>
+                                    <div className="relative w-16 h-16 bg-white/90 backdrop-blur-xl rounded-2xl border border-gray-200 shadow-xl flex items-center justify-center hover:scale-110 transition-transform duration-300">
+                                        <YouTubeIcon className="w-8 h-8 text-red-600" />
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Facebook - Bottom right */}
+                            <div className="absolute bottom-[15%] right-[10%] animate-float" style={{ animationDelay: '1.5s' }}>
+                                <div className="relative group">
+                                    <div className="absolute -inset-2 bg-gradient-to-r from-blue-400 to-blue-600 rounded-2xl blur-lg opacity-30 group-hover:opacity-60 transition-opacity duration-300"></div>
+                                    <div className="relative w-14 h-14 bg-white/90 backdrop-blur-xl rounded-2xl border border-gray-200 shadow-xl flex items-center justify-center hover:scale-110 transition-transform duration-300">
+                                        <FacebookIcon className="w-7 h-7 text-blue-600" />
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* X - Bottom */}
+                            <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-2 animate-float" style={{ animationDelay: '2s' }}>
+                                <div className="relative group">
+                                    <div className="absolute -inset-2 bg-gradient-to-r from-gray-500 to-gray-700 rounded-2xl blur-lg opacity-30 group-hover:opacity-60 transition-opacity duration-300"></div>
+                                    <div className="relative w-14 h-14 bg-white/90 backdrop-blur-xl rounded-2xl border border-gray-200 shadow-xl flex items-center justify-center hover:scale-110 transition-transform duration-300">
+                                        <XIcon className="w-7 h-7 text-gray-800" />
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* LinkedIn - Bottom left */}
+                            <div className="absolute bottom-[15%] left-[10%] animate-float" style={{ animationDelay: '2.5s' }}>
+                                <div className="relative group">
+                                    <div className="absolute -inset-2 bg-gradient-to-r from-blue-500 to-blue-700 rounded-2xl blur-lg opacity-30 group-hover:opacity-60 transition-opacity duration-300"></div>
+                                    <div className="relative w-14 h-14 bg-white/90 backdrop-blur-xl rounded-2xl border border-gray-200 shadow-xl flex items-center justify-center hover:scale-110 transition-transform duration-300">
+                                        <LinkedInIcon className="w-7 h-7 text-blue-700" />
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* AI chat icon - Top left */}
+                            <div className="absolute top-[15%] left-[10%] animate-float" style={{ animationDelay: '3s' }}>
+                                <div className="relative group">
+                                    <div className="absolute -inset-2 bg-gradient-to-r from-cyan-400 via-purple-400 to-pink-400 rounded-2xl blur-lg opacity-20 group-hover:opacity-50 transition-opacity duration-300"></div>
+                                    <div className="relative w-12 h-12 bg-white/90 backdrop-blur-xl rounded-2xl border border-gray-200 shadow-xl flex items-center justify-center hover:scale-110 transition-transform duration-300">
+                                        <MessageSquare className="w-6 h-6 text-indigo-500" />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Floating particles */}
+                        <div className="absolute top-1/4 left-1/4 w-2 h-2 bg-blue-400/40 rounded-full animate-ping"></div>
+                        <div className="absolute top-1/3 right-1/4 w-3 h-3 bg-purple-400/30 rounded-full animate-ping" style={{ animationDelay: '0.5s' }}></div>
+                        <div className="absolute bottom-1/4 left-1/3 w-2 h-2 bg-cyan-400/40 rounded-full animate-ping" style={{ animationDelay: '1s' }}></div>
                     </div>
-
-                    <p className="text-xs text-slate-500 mt-2">
-                        14-day free trial. No credit card required. Cancel anytime.
-                    </p>
-                </div>
-
-                {/* RIGHT SIDE - COMPLETELY REDESIGNED with 3D Orbital Social Media Visual */}
-                <div className="relative">
-                    {/* Main orbital container */}
-                    <div className="relative w-full aspect-square max-w-lg mx-auto">
-                        {/* Central core glow */}
-                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-32 h-32 bg-gradient-to-r from-blue-500 via-purple-500 to-cyan-500 rounded-full blur-2xl opacity-60 animate-pulse"></div>
-                        
-                        {/* Central hub - glassmorphism sphere */}
-                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-72 h-56 backdrop-blur-md border border-white/20 shadow-2xl flex items-center justify-center z-20 overflow-hidden rounded-2xl">
-                            <img 
-                                src="/social1.avif" 
-                                alt="EngageHub Dashboard" 
-                                className="w-full h-full object-contain"
-                            />
-                        </div>
-
-                        {/* Orbital rings */}
-                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[300px] h-[300px] border border-blue-500/20 rounded-full animate-spin" style={{ animationDuration: '20s' }}></div>
-                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[380px] h-[380px] border border-purple-500/15 rounded-full animate-spin" style={{ animationDuration: '25s', animationDirection: 'reverse' }}></div>
-                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[450px] h-[450px] border border-cyan-500/10 rounded-full animate-spin" style={{ animationDuration: '30s' }}></div>
-
-                        {/* Platform icons in orbital positions */}
-                        {/* Instagram - Top position */}
-                        <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-2 animate-float" style={{ animationDelay: '0s' }}>
-                            <div className="relative group">
-                                <div className="absolute -inset-2 bg-gradient-to-r from-pink-500 via-purple-500 to-blue-500 rounded-2xl blur-lg opacity-40 group-hover:opacity-70 transition-opacity duration-300"></div>
-                                <div className="relative w-16 h-16 bg-slate-900/90 backdrop-blur-xl rounded-2xl border border-white/10 shadow-2xl flex items-center justify-center hover:scale-110 transition-transform duration-300">
-                                    <InstagramIcon className="w-8 h-8 text-white" />
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* TikTok - Top right */}
-                        <div className="absolute top-[15%] right-[10%] animate-float" style={{ animationDelay: '0.5s' }}>
-                            <div className="relative group">
-                                <div className="absolute -inset-2 bg-gradient-to-r from-cyan-400 via-pink-400 to-black rounded-2xl blur-lg opacity-40 group-hover:opacity-70 transition-opacity duration-300"></div>
-                                <div className="relative w-14 h-14 bg-slate-900/90 backdrop-blur-xl rounded-2xl border border-white/10 shadow-2xl flex items-center justify-center hover:scale-110 transition-transform duration-300">
-                                    <TikTokIcon className="w-7 h-7 text-white" />
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* YouTube - Right */}
-                        <div className="absolute top-1/2 right-0 -translate-y-1/2 translate-x-2 animate-float" style={{ animationDelay: '1s' }}>
-                            <div className="relative group">
-                                <div className="absolute -inset-2 bg-gradient-to-r from-red-500 to-red-600 rounded-2xl blur-lg opacity-40 group-hover:opacity-70 transition-opacity duration-300"></div>
-                                <div className="relative w-16 h-16 bg-slate-900/90 backdrop-blur-xl rounded-2xl border border-white/10 shadow-2xl flex items-center justify-center hover:scale-110 transition-transform duration-300">
-                                    <YouTubeIcon className="w-8 h-8 text-white" />
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Facebook - Bottom right */}
-                        <div className="absolute bottom-[15%] right-[10%] animate-float" style={{ animationDelay: '1.5s' }}>
-                            <div className="relative group">
-                                <div className="absolute -inset-2 bg-gradient-to-r from-blue-500 to-blue-700 rounded-2xl blur-lg opacity-40 group-hover:opacity-70 transition-opacity duration-300"></div>
-                                <div className="relative w-14 h-14 bg-slate-900/90 backdrop-blur-xl rounded-2xl border border-white/10 shadow-2xl flex items-center justify-center hover:scale-110 transition-transform duration-300">
-                                    <FacebookIcon className="w-7 h-7 text-white" />
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* X - Bottom */}
-                        <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-2 animate-float" style={{ animationDelay: '2s' }}>
-                            <div className="relative group">
-                                <div className="absolute -inset-2 bg-gradient-to-r from-gray-700 to-black rounded-2xl blur-lg opacity-40 group-hover:opacity-70 transition-opacity duration-300"></div>
-                                <div className="relative w-14 h-14 bg-slate-900/90 backdrop-blur-xl rounded-2xl border border-white/10 shadow-2xl flex items-center justify-center hover:scale-110 transition-transform duration-300">
-                                    <XIcon className="w-7 h-7 text-white" />
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* LinkedIn - Bottom left */}
-                        <div className="absolute bottom-[15%] left-[10%] animate-float" style={{ animationDelay: '2.5s' }}>
-                            <div className="relative group">
-                                <div className="absolute -inset-2 bg-gradient-to-r from-blue-600 to-blue-800 rounded-2xl blur-lg opacity-40 group-hover:opacity-70 transition-opacity duration-300"></div>
-                                <div className="relative w-14 h-14 bg-slate-900/90 backdrop-blur-xl rounded-2xl border border-white/10 shadow-2xl flex items-center justify-center hover:scale-110 transition-transform duration-300">
-                                    <LinkedInIcon className="w-7 h-7 text-white" />
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Left - duplicate Instagram for symmetry */}
-                        <div className="absolute top-[15%] left-[10%] animate-float" style={{ animationDelay: '3s' }}>
-                            <div className="relative group">
-                                <div className="absolute -inset-2 bg-gradient-to-r from-cyan-400 via-purple-400 to-pink-400 rounded-2xl blur-lg opacity-30 group-hover:opacity-60 transition-opacity duration-300"></div>
-                                <div className="relative w-12 h-12 bg-slate-900/90 backdrop-blur-xl rounded-2xl border border-white/10 shadow-2xl flex items-center justify-center hover:scale-110 transition-transform duration-300">
-                                    <svg viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6 text-cyan-400">
-                                        <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/>
-                                    </svg>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Additional floating particles/effects */}
-                    <div className="absolute top-1/4 left-1/4 w-2 h-2 bg-blue-400/60 rounded-full animate-ping"></div>
-                    <div className="absolute top-1/3 right-1/4 w-3 h-3 bg-purple-400/40 rounded-full animate-ping" style={{ animationDelay: '0.5s' }}></div>
-                    <div className="absolute bottom-1/4 left-1/3 w-2 h-2 bg-cyan-400/50 rounded-full animate-ping" style={{ animationDelay: '1s' }}></div>
-                    <div className="absolute bottom-1/3 right-1/3 w-2 h-2 bg-pink-400/40 rounded-full animate-ping" style={{ animationDelay: '1.5s' }}></div>
                 </div>
             </div>
 
             {/* Scroll indicator */}
             <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 animate-bounce">
-                <div className="w-6 h-10 border-2 border-slate-600 rounded-full flex justify-center p-1">
-                    <div className="w-1.5 h-3 bg-slate-500 rounded-full"></div>
+                <div className="w-6 h-10 border-2 border-gray-300 rounded-full flex justify-center p-1">
+                    <div className="w-1.5 h-3 bg-gray-400 rounded-full"></div>
                 </div>
             </div>
 
-            {/* Custom CSS for floating animation */}
+            {/* Custom CSS */}
             <style>{`
                 @keyframes float {
-                    0%, 100% {
-                        transform: translateY(0px) translateX(0px);
-                    }
-                    25% {
-                        transform: translateY(-10px) translateX(5px);
-                    }
-                    50% {
-                        transform: translateY(-5px) translateX(-5px);
-                    }
-                    75% {
-                        transform: translateY(-15px) translateX(3px);
-                    }
+                    0%, 100% { transform: translateY(0px) translateX(0px); }
+                    25% { transform: translateY(-10px) translateX(5px); }
+                    50% { transform: translateY(-5px) translateX(-5px); }
+                    75% { transform: translateY(-15px) translateX(3px); }
                 }
                 .animate-float {
                     animation: float 6s ease-in-out infinite;

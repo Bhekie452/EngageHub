@@ -1,5 +1,3 @@
-import { serve } from 'std/server.ts';
-import fetch from 'node-fetch';
 import { createClient } from '@supabase/supabase-js';
 
 // Retry job for failed YouTube syncs. It scans youtube_sync_logs for rows
@@ -15,11 +13,15 @@ const RETRY_INTERVAL_SECONDS = Number(process.env.RETRY_INTERVAL_SECONDS || Stri
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, { auth: { persistSession: false } });
 
-serve(async (req) => {
+export default async function handler(req: any, res: any) {
   try {
     // Simple guard: require internal secret header
-    const secret = req.headers.get('x-internal-secret') || '';
-    if (!INTERNAL_SECRET || secret !== INTERNAL_SECRET) return new Response('Unauthorized', { status: 401 });
+    const headers = req.headers || {};
+    const secret = (headers['x-internal-secret'] || headers['X-Internal-Secret'] || '') as string;
+    if (!INTERNAL_SECRET || secret !== INTERNAL_SECRET) {
+      res.statusCode = 401;
+      return res.end('Unauthorized');
+    }
 
     // Find candidate rows to retry
     const cutoff = new Date(Date.now() - RETRY_INTERVAL_SECONDS * 1000).toISOString();
@@ -34,10 +36,14 @@ serve(async (req) => {
 
     if (error) {
       console.error('retry lookup error', error);
-      return new Response(JSON.stringify({ ok: false, error: 'lookup_failed' }), { status: 500 });
+      res.statusCode = 500;
+      return res.end(JSON.stringify({ ok: false, error: 'lookup_failed' }));
     }
 
-    if (!rows || !rows.length) return new Response(JSON.stringify({ ok: true, processed: 0 }), { status: 200 });
+    if (!rows || !rows.length) {
+      res.statusCode = 200;
+      return res.end(JSON.stringify({ ok: true, processed: 0 }));
+    }
 
     let processed = 0;
     for (const r of rows) {
@@ -54,7 +60,10 @@ serve(async (req) => {
         .order('created_at', { ascending: false });
 
       if (acctErr || !accounts || !accounts.length) {
-        await supabase.from('youtube_sync_logs').update({ status: 'failed', attempt_count: (r.attempt_count || 0) + 1, last_attempt_at: new Date().toISOString(), last_error: 'no_youtube_account' }).eq('id', syncId);
+        await supabase
+          .from('youtube_sync_logs')
+          .update({ status: 'failed', attempt_count: (r.attempt_count || 0) + 1, last_attempt_at: new Date().toISOString(), last_error: 'no_youtube_account' })
+          .eq('id', syncId);
         continue;
       }
 
@@ -65,20 +74,31 @@ serve(async (req) => {
           headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' },
         });
         if (ytRes.ok) {
-          await supabase.from('youtube_sync_logs').update({ status: 'synced', attempt_count: (r.attempt_count || 0) + 1, last_attempt_at: new Date().toISOString(), last_error: null }).eq('id', syncId);
+          await supabase
+            .from('youtube_sync_logs')
+            .update({ status: 'synced', attempt_count: (r.attempt_count || 0) + 1, last_attempt_at: new Date().toISOString(), last_error: null })
+            .eq('id', syncId);
         } else {
           const text = await ytRes.text();
-          await supabase.from('youtube_sync_logs').update({ status: 'failed', attempt_count: (r.attempt_count || 0) + 1, last_attempt_at: new Date().toISOString(), last_error: text }).eq('id', syncId);
+          await supabase
+            .from('youtube_sync_logs')
+            .update({ status: 'failed', attempt_count: (r.attempt_count || 0) + 1, last_attempt_at: new Date().toISOString(), last_error: text })
+            .eq('id', syncId);
         }
       } catch (e) {
-        await supabase.from('youtube_sync_logs').update({ status: 'failed', attempt_count: (r.attempt_count || 0) + 1, last_attempt_at: new Date().toISOString(), last_error: String(e) }).eq('id', syncId);
+        await supabase
+          .from('youtube_sync_logs')
+          .update({ status: 'failed', attempt_count: (r.attempt_count || 0) + 1, last_attempt_at: new Date().toISOString(), last_error: String(e) })
+          .eq('id', syncId);
       }
       processed += 1;
     }
 
-    return new Response(JSON.stringify({ ok: true, processed }), { status: 200 });
+    res.statusCode = 200;
+    return res.end(JSON.stringify({ ok: true, processed }));
   } catch (e) {
     console.error('retry unexpected', e);
-    return new Response(JSON.stringify({ ok: false, error: 'unexpected', detail: String(e) }), { status: 500 });
+    res.statusCode = 500;
+    return res.end(JSON.stringify({ ok: false, error: 'unexpected', detail: String(e) }));
   }
-});
+}

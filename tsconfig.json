@@ -1,8 +1,6 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "experimentalDecorators": true,
-    "useDefineForClassFields": false,
     "module": "ESNext",
     "lib": [
       "ES2022",
@@ -18,11 +16,44 @@
     "moduleDetection": "force",
     "allowJs": true,
     "jsx": "react-jsx",
+    "noEmit": true,
+    "strict": false,
+    "strictNullChecks": false,
+    "noImplicitAny": false,
+    "noFallthroughCasesInSwitch": true,
+    "forceConsistentCasingInFileNames": true,
     "paths": {
       "@/*": [
         "./*"
       ]
     },
     "allowImportingTsExtensions": true
-  }
+  },
+  "include": [
+    "src/**/*",
+    "components/**/*",
+    "api/**/*",
+    "services/**/*",
+    "functions/**/*",
+    "pages/**/*",
+    "App.tsx",
+    "index.tsx",
+    "types.ts",
+    "constants.tsx",
+    "vite-env.d.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "**/*-broken.*",
+    "**/*-EXAMPLE.*",
+    "**/*-FINAL.*",
+    "*.cjs",
+    "*.sql",
+    "scripts/**",
+    "api/facebook.js",
+    "functions/**",
+    "pages/**",
+    "supabase/**"
+  ]
 }

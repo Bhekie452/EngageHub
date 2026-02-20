@@ -1,78 +1,79 @@
-import React, { useState } from 'react';
-import { Check, Sparkles, ArrowRight, Calculator } from 'lucide-react';
+﻿import React, { useState } from 'react';
+import { Check, ChevronDown, ChevronUp, Plus, Minus } from 'lucide-react';
 import { PaymentCheckout } from './PaymentCheckout';
 
 interface PricingTier {
     name: string;
-    price: string;
+    price: number;
     period: string;
+    channels: number;
     description: string;
-    features: string[];
-    popular?: boolean;
-    gradient: string;
-    ctaText: string;
-    tier: 'starter' | 'professional' | 'business';
+    features: { label: string; unlimited?: boolean }[];
+    tier: 'free' | 'professional' | 'business';
 }
 
 const pricingTiers: PricingTier[] = [
     {
-        name: 'Starter',
-        price: 'R549',
+        name: 'Free',
+        price: 0,
         period: '/month',
-        description: 'Perfect for Solopreneurs',
-        gradient: 'from-blue-500 to-cyan-500',
-        ctaText: 'Start Free Trial',
-        tier: 'starter',
+        channels: 1,
+        description: '1 channel · Free forever',
         features: [
-            'Unlimited Users',
-            'Unlimited Social Accounts',
-            '50 AI-Enhanced Posts/mo',
-            '1,000 CRM Contacts',
-            'Unified Inbox Access',
-            'Basic Analytics',
-            'Email Support',
-        ]
+            { label: 'Social connections' },
+            { label: 'Basic scheduling' },
+            { label: 'Simple calendar' },
+            { label: 'No AI content' },
+            { label: 'Community support' },
+        ],
+        tier: 'free',
     },
     {
         name: 'Professional',
-        price: 'R1,499',
+        price: 1800,
         period: '/month',
-        description: 'For Scaling Businesses',
-        popular: true,
-        gradient: 'from-purple-500 to-pink-500',
-        ctaText: 'Start Free Trial',
-        tier: 'professional',
+        channels: 5,
+        description: '5 channels · Billed monthly',
         features: [
-            'Unlimited Users',
-            'Unlimited Social Accounts',
-            '250 AI-Enhanced Posts/mo',
-            '10,000 CRM Contacts',
-            'Unified Inbox Access',
-            'Priority Support & Reports',
-            'Advanced Analytics',
-            'AI Content Assistant',
-        ]
+            { label: 'All Free features' },
+            { label: 'AI content generation' },
+            { label: 'Advanced scheduling' },
+            { label: 'Unified inbox' },
+            { label: 'CRM with 10K contacts' },
+            { label: 'Basic analytics' },
+            { label: 'Email support' },
+        ],
+        tier: 'professional',
     },
     {
         name: 'Business',
-        price: 'R2,849',
+        price: 4500,
         period: '/month',
-        description: 'For Established Enterprises',
-        gradient: 'from-orange-500 to-red-500',
-        ctaText: 'Start Free Trial',
-        tier: 'business',
+        channels: 20,
+        description: '20 channels · Billed monthly',
         features: [
-            'Unlimited Users',
-            'Unlimited Social Accounts',
-            '1,000 AI-Enhanced Posts/mo',
-            '100,000 CRM Contacts',
-            'Unified Inbox Access',
-            'White-label & Dedicated Manager',
-            'Custom Analytics & Dashboards',
-            'Advanced AI Features',
-            'Marketing Automation',
-        ]
+            { label: 'All Professional features' },
+            { label: 'Unlimited AI posts' },
+            { label: 'Advanced CRM' },
+            { label: 'Social listening' },
+            { label: 'Team collaboration' },
+            { label: 'Advanced analytics', unlimited: true },
+            { label: 'Priority support' },
+            { label: 'API access' },
+        ],
+        tier: 'business',
     }
+];
+
+const allFeatures = [
+    'AI Content Generation',
+    'Post Scheduling',
+    'Unified Inbox',
+    'CRM & Lead Pipeline',
+    'Social Listening',
+    'Analytics',
+    'Team Collaboration',
+    'API Access',
 ];
 
 interface LandingPricingProps {
@@ -80,108 +81,122 @@ interface LandingPricingProps {
 }
 
 export const LandingPricing: React.FC<LandingPricingProps> = ({ onSelectPlan }) => {
+    const [channels, setChannels] = useState(1);
+    const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('monthly');
     const [showCalculator, setShowCalculator] = useState(false);
-    const [monthlyPosts, setMonthlyPosts] = useState(100);
-    const [crmContacts, setCrmContacts] = useState(1000);
     const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
 
-    // Calculate recommended plan based on usage
-    const calculateRecommendedPlan = () => {
-        if (monthlyPosts <= 50 && crmContacts <= 1000) {
-            return 'Starter';
-        } else if (monthlyPosts <= 250 && crmContacts <= 10000) {
-            return 'Professional';
-        } else {
-            return 'Business';
-        }
+    const calculatePrice = (basePrice: number) => {
+        if (basePrice === 0) return 'E0';
+        const price = billingCycle === 'yearly' ? Math.floor(basePrice * 10) : basePrice;
+        return `E ${price.toLocaleString()}`;
     };
 
-    const recommendedPlan = calculateRecommendedPlan();
-
     return (
-        <section className="py-24 bg-gradient-to-br from-gray-50 to-blue-50 relative overflow-hidden">
-            {/* Background decorations */}
-            <div className="absolute top-20 left-10 w-72 h-72 bg-purple-200 rounded-full blur-3xl opacity-20"></div>
-            <div className="absolute bottom-20 right-10 w-72 h-72 bg-blue-200 rounded-full blur-3xl opacity-20"></div>
-
-            <div className="max-w-7xl mx-auto px-6 relative z-10">
-                {/* Section header */}
-                <div className="text-center mb-16 space-y-4">
-                    <div className="inline-flex items-center gap-2 px-4 py-2 bg-white rounded-full shadow-sm">
-                        <span className="text-sm font-bold text-purple-600">PRICING</span>
-                    </div>
-                    <h2 className="text-4xl md:text-5xl font-black text-gray-900">
-                        Simple, Transparent
-                        <span className="block bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
-                            Pricing for Everyone
-                        </span>
+        <section className="py-32 bg-white relative">
+            <div className="max-w-6xl mx-auto px-6 relative z-10">
+                {/* Header */}
+                <div className="text-center mb-12">
+                    <h2 className="text-4xl md:text-5xl font-black text-gray-900 mb-4">
+                        Simple, transparent pricing
                     </h2>
-                    <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-                        Choose the perfect plan for your business. All plans include a 14-day free trial.
+                    <p className="text-lg text-gray-500 max-w-2xl mx-auto">
+                        All plans include a 14-day free trial. No credit card required. Cancel anytime.
                     </p>
                 </div>
 
-                {/* Pricing cards */}
-                <div className="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto">
+                {/* Controls: Channel Selector + Billing Toggle */}
+                <div className="flex flex-col md:flex-row items-center justify-center gap-8 mb-12 pb-8 border-b border-gray-200">
+                    {/* Channel Selector */}
+                    <div className="flex items-center gap-4 bg-gray-100 rounded-full px-4 py-2">
+                        <button
+                            onClick={() => setChannels(Math.max(1, channels - 1))}
+                            className="p-1.5 hover:bg-gray-200 rounded-full transition-colors"
+                        >
+                            <Minus className="w-4 h-4 text-gray-600" />
+                        </button>
+                        <span className="text-sm font-bold text-gray-900 min-w-[4rem] text-center">
+                            {channels} channel{channels > 1 ? 's' : ''}
+                        </span>
+                        <button
+                            onClick={() => setChannels(channels + 1)}
+                            className="p-1.5 hover:bg-gray-200 rounded-full transition-colors"
+                        >
+                            <Plus className="w-4 h-4 text-gray-600" />
+                        </button>
+                    </div>
+
+                    {/* Billing Toggle */}
+                    <div className="flex items-center gap-3 bg-gray-100 rounded-full p-1">
+                        <button
+                            onClick={() => setBillingCycle('monthly')}
+                            className={`px-6 py-2 rounded-full font-semibold transition-all ${
+                                billingCycle === 'monthly'
+                                    ? 'bg-white text-gray-900 shadow-sm'
+                                    : 'text-gray-600'
+                            }`}
+                        >
+                            Pay Monthly
+                        </button>
+                        <button
+                            onClick={() => setBillingCycle('yearly')}
+                            className={`px-6 py-2 rounded-full font-semibold transition-all ${
+                                billingCycle === 'yearly'
+                                    ? 'bg-white text-gray-900 shadow-sm'
+                                    : 'text-gray-600'
+                            }`}
+                        >
+                            Pay Yearly
+                        </button>
+                    </div>
+                </div>
+
+                {/* Pricing Cards */}
+                <div className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto mb-12">
                     {pricingTiers.map((tier, index) => (
                         <div
                             key={index}
-                            className={`relative bg-white rounded-3xl p-8 border-2 transition-all duration-300 hover:shadow-2xl hover:-translate-y-2 ${tier.popular
-                                    ? 'border-purple-500 shadow-xl scale-105'
-                                    : 'border-gray-200 hover:border-purple-300'
-                                }`}
+                            className={`rounded-2xl p-8 border-2 transition-all duration-300 ${
+                                tier.tier === 'professional'
+                                    ? 'border-blue-500 bg-blue-50/30 ring-1 ring-blue-200'
+                                    : 'border-gray-200 bg-white hover:border-gray-300'
+                            }`}
                         >
-                            {/* Popular badge */}
-                            {tier.popular && (
-                                <div className="absolute -top-4 left-1/2 transform -translate-x-1/2">
-                                    <div className="flex items-center gap-1 px-4 py-1.5 bg-gradient-to-r from-purple-600 to-pink-600 text-white text-sm font-bold rounded-full shadow-lg">
-                                        <Sparkles className="w-4 h-4" />
-                                        Most Popular
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Plan header */}
-                            <div className="text-center mb-6">
-                                <h3 className="text-2xl font-black text-gray-900 mb-2">{tier.name}</h3>
-                                <p className="text-gray-600 text-sm mb-4">{tier.description}</p>
-
-                                {/* Price */}
-                                <div className="flex items-end justify-center gap-1 mb-2">
-                                    <span className={`text-5xl font-black bg-gradient-to-r ${tier.gradient} bg-clip-text text-transparent`}>
-                                        {tier.price}
+                            {/* Plan Header */}
+                            <div className="mb-6">
+                                <h3 className="text-lg font-bold text-gray-900 mb-2">{tier.name}</h3>
+                                <div className="flex items-baseline gap-1 mb-2">
+                                    <span className="text-4xl font-black text-gray-900">
+                                        {calculatePrice(tier.price)}
                                     </span>
-                                    <span className="text-gray-500 text-lg font-medium mb-2">{tier.period}</span>
+                                    {tier.price > 0 && (
+                                        <span className="text-gray-500 font-medium">/mo</span>
+                                    )}
                                 </div>
+                                <p className="text-sm text-gray-500">{tier.description}</p>
                             </div>
 
-                            {/* CTA button */}
+                            {/* CTA Button */}
                             <button
-                                onClick={() => {
-                                    if (tier.ctaText === 'Contact Sales') {
-                                        // For Business plan, could open contact form or email
-                                        window.location.href = 'mailto:sales@engagehub.com?subject=Business Plan Inquiry';
-                                    } else {
-                                        setSelectedPlan(tier.tier);
-                                    }
-                                }}
-                                className={`w-full py-4 rounded-xl font-bold text-white mb-6 transition-all duration-300 flex items-center justify-center gap-2 group ${tier.popular
-                                        ? `bg-gradient-to-r ${tier.gradient} shadow-lg hover:shadow-xl hover:scale-105`
-                                        : 'bg-gray-800 hover:bg-gray-900 hover:scale-105'
-                                    }`}
+                                onClick={() => setSelectedPlan(tier.tier)}
+                                className={`w-full py-3 rounded-lg font-bold transition-all duration-300 mb-8 ${
+                                    tier.tier === 'professional'
+                                        ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-lg hover:shadow-xl'
+                                        : 'bg-gray-100 text-gray-900 hover:bg-gray-200'
+                                }`}
                             >
-                                {tier.ctaText}
-                                <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                                Get Started
                             </button>
 
-                            {/* Features list */}
+                            {/* Features */}
                             <div className="space-y-3">
-                                {tier.features.map((feature, featureIndex) => (
-                                    <div key={featureIndex} className="flex items-start gap-3">
-                                        <div className={`flex-shrink-0 w-5 h-5 rounded-full bg-gradient-to-r ${tier.gradient} flex items-center justify-center mt-0.5`}>
-                                            <Check className="w-3 h-3 text-white" strokeWidth={3} />
-                                        </div>
-                                        <span className="text-gray-700 text-sm">{feature}</span>
+                                {tier.features.map((feature, idx) => (
+                                    <div key={idx} className="flex items-start gap-3">
+                                        <Check className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" strokeWidth={3} />
+                                        <span className="text-sm text-gray-700">{feature.label}</span>
+                                        {feature.unlimited && (
+                                            <span className="text-xs text-blue-600 font-semibold">∞</span>
+                                        )}
                                     </div>
                                 ))}
                             </div>
@@ -189,108 +204,40 @@ export const LandingPricing: React.FC<LandingPricingProps> = ({ onSelectPlan }) 
                     ))}
                 </div>
 
-                {/* Interactive Usage Calculator */}
-                <div className="mt-16 max-w-3xl mx-auto">
-                    <button
-                        onClick={() => setShowCalculator(!showCalculator)}
-                        className="w-full flex items-center justify-center gap-2 px-6 py-4 bg-white rounded-xl border-2 border-gray-200 hover:border-purple-500 transition-all duration-300 group"
-                    >
-                        <Calculator className="w-5 h-5 text-purple-600 group-hover:scale-110 transition-transform" />
-                        <span className="font-bold text-gray-900">Estimate Your Cost</span>
-                        <span className="text-sm text-gray-500">(Based on usage)</span>
-                    </button>
-
-                    {showCalculator && (
-                        <div className="mt-6 bg-white rounded-2xl p-8 border-2 border-purple-200 shadow-xl">
-                            <h3 className="text-2xl font-black text-gray-900 mb-6 text-center">
-                                Usage Calculator
-                            </h3>
-
-                            <div className="space-y-6">
-                                {/* Monthly Posts Slider */}
-                                <div>
-                                    <div className="flex items-center justify-between mb-3">
-                                        <label className="text-sm font-bold text-gray-700">
-                                            Monthly AI-Enhanced Posts
-                                        </label>
-                                        <span className="text-lg font-black text-purple-600">
-                                            {monthlyPosts}
-                                        </span>
-                                    </div>
-                                    <input
-                                        type="range"
-                                        min="10"
-                                        max="2000"
-                                        step="10"
-                                        value={monthlyPosts}
-                                        onChange={(e) => setMonthlyPosts(Number(e.target.value))}
-                                        className="w-full h-3 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-purple-600"
-                                    />
-                                    <div className="flex justify-between text-xs text-gray-500 mt-1">
-                                        <span>10</span>
-                                        <span>2000+</span>
-                                    </div>
-                                </div>
-
-                                {/* CRM Contacts Slider */}
-                                <div>
-                                    <div className="flex items-center justify-between mb-3">
-                                        <label className="text-sm font-bold text-gray-700">
-                                            CRM Contacts
-                                        </label>
-                                        <span className="text-lg font-black text-purple-600">
-                                            {crmContacts.toLocaleString()}
-                                        </span>
-                                    </div>
-                                    <input
-                                        type="range"
-                                        min="100"
-                                        max="200000"
-                                        step="100"
-                                        value={crmContacts}
-                                        onChange={(e) => setCrmContacts(Number(e.target.value))}
-                                        className="w-full h-3 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-purple-600"
-                                    />
-                                    <div className="flex justify-between text-xs text-gray-500 mt-1">
-                                        <span>100</span>
-                                        <span>200,000+</span>
-                                    </div>
-                                </div>
-
-                                {/* Recommended Plan */}
-                                <div className="pt-6 border-t border-gray-200">
-                                    <div className="text-center">
-                                        <p className="text-sm text-gray-600 mb-2">Recommended Plan:</p>
-                                        <div className={`inline-flex items-center gap-2 px-6 py-3 rounded-xl font-black text-lg ${
-                                            recommendedPlan === 'Starter' ? 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white' :
-                                            recommendedPlan === 'Professional' ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white' :
-                                            'bg-gradient-to-r from-orange-500 to-red-500 text-white'
-                                        }`}>
-                                            <Sparkles className="w-5 h-5" />
-                                            {recommendedPlan}
-                                        </div>
-                                        <p className="text-xs text-gray-500 mt-3">
-                                            Based on your usage, the {recommendedPlan} plan is the best fit for your needs.
-                                        </p>
-                                    </div>
-                                </div>
+                {/* All Features Included Banner */}
+                <div className="max-w-4xl mx-auto bg-gray-50 rounded-2xl p-8 border border-gray-200">
+                    <h3 className="text-center text-sm font-bold text-gray-600 uppercase tracking-wider mb-6">
+                        All plans include
+                    </h3>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        {allFeatures.map((feature) => (
+                            <div key={feature} className="flex items-center gap-2">
+                                <Check className="w-4 h-4 text-blue-600 flex-shrink-0" strokeWidth={3} />
+                                <span className="text-sm text-gray-600">{feature}</span>
                             </div>
-                        </div>
-                    )}
+                        ))}
+                    </div>
                 </div>
 
-                {/* Bottom note */}
-                <div className="mt-16 text-center space-y-2">
-                    <p className="text-gray-600 mb-2">All plans include a 14-day free trial. No credit card required.</p>
-                    <p className="text-sm text-gray-500">Need more volume? Custom usage credits available. Cancel anytime.</p>
-                    <p className="text-xs text-gray-400">Prices in South African Rand (ZAR).</p>
+                {/* Compare Link */}
+                <div className="text-center mt-12">
+                    <button
+                        onClick={() => setShowCalculator(!showCalculator)}
+                        className="text-blue-600 font-semibold hover:text-blue-700 flex items-center justify-center gap-2 mx-auto"
+                    >
+                        Compare all features →
+                    </button>
+                </div>
+
+                {/* Footer Notes */}
+                <div className="text-center text-sm text-gray-500 mt-12 pt-8 border-t border-gray-200">
+                    <p>Need more channels or custom pricing? <a href="#contact" className="text-blue-600 hover:underline">Contact us</a></p>
                 </div>
             </div>
 
-            {/* Payment Checkout Modal */}
             {selectedPlan && (
                 <PaymentCheckout
-                    planTier={selectedPlan}
+                    planTier={selectedPlan as any}
                     onClose={() => setSelectedPlan(null)}
                     onSuccess={() => {
                         setSelectedPlan(null);

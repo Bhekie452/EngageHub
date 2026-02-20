@@ -113,7 +113,7 @@ export default function Footer() {
     <footer className="bg-gray-50 dark:bg-slate-900 border-t border-gray-200 dark:border-slate-800 mt-auto">
       <div className="max-w-7xl mx-auto px-4 py-6">
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-          {Object.entries(profiles).map(([platform, profile]) => {
+          {Object.entries(profiles).map(([platform, profile]: [string, ConnectedProfile]) => {
             const Icon = platformIcons[platform as keyof typeof platformIcons];
             const colorClass = platformColors[platform as keyof typeof platformColors];
             return (

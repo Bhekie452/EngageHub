@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { WebsiteNav } from './WebsiteNav';
 import { LandingHero } from './LandingHero';
 import { LandingFeatures } from './LandingFeatures';
@@ -6,6 +6,7 @@ import { LandingTestimonials } from './LandingTestimonials';
 import { LandingPricing } from './LandingPricing';
 import { LandingSecurityTrust } from './LandingSecurityTrust';
 import { LandingFooter } from './LandingFooter';
+import { AISalesChatbot } from './AISalesChatbot';
 
 interface LandingPageProps {
     onGetStarted: () => void;
@@ -13,6 +14,8 @@ interface LandingPageProps {
 }
 
 export const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onSignIn }) => {
+    const [chatbotOpen, setChatbotOpen] = useState(false);
+
     const handleSelectPlan = (planName: string) => {
         onGetStarted();
     };
@@ -23,7 +26,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onSignIn
 
             {/* Main content with top padding for fixed nav */}
             <div className="pt-20">
-                <LandingHero onGetStarted={onGetStarted} />
+                <LandingHero onGetStarted={onGetStarted} onOpenChatbot={() => setChatbotOpen(true)} />
                 <div id="features">
                     <LandingFeatures />
                 </div>
@@ -40,6 +43,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onSignIn
                     <LandingFooter />
                 </div>
             </div>
+
+            {/* AI Sales Chatbot */}
+            <AISalesChatbot isOpen={chatbotOpen} onClose={() => setChatbotOpen(false)} />
         </div>
     );
 };

@@ -13,6 +13,7 @@ import { useCurrency } from '../src/hooks/useCurrency';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { contentApi } from '../src/lib/api';
 import {
   LineChart,
   Line,

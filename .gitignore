@@ -29,3 +29,20 @@ dist-ssr
 .env
 .env*.local
 
+# Debug/test scripts that should not be in the repo
+/*.cjs
+/*.js
+!api-server.cjs
+/*.sql
+/*.html
+/nul
+server-output.txt
+build_log.txt
+tsc_output.txt
+project_structure.txt
+
+# Legacy broken files
+*-broken.*
+*-EXAMPLE.*
+*-FINAL.*
+

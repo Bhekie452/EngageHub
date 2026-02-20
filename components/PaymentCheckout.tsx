@@ -10,6 +10,7 @@ import {
 } from '../src/lib/payfast';
 import { getStripeGatewayConfig } from '../src/lib/stripe';
 import { loadStripe } from '@stripe/stripe-js';
+import { paymentsApi } from '../src/lib/api';
 
 interface PaymentCheckoutProps {
   planTier: string;

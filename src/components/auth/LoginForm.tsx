@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Mail, Lock, LogIn, AlertCircle, Eye, EyeOff, ArrowRight, Facebook, Twitter, Linkedin, Instagram, Youtube, MessageCircle, BarChart3, Users, Calendar, Zap, Shield, Globe } from 'lucide-react';
+import { Mail, Lock, LogIn, AlertCircle, Eye, EyeOff, ArrowRight, Facebook, Twitter, Linkedin, Instagram, Youtube, BarChart3, Users, Zap, Globe } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 
 // SVG Icons for social login
@@ -12,37 +12,27 @@ const GoogleIcon = () => (
   </svg>
 );
 
-// Features to showcase on the login page
+// Features to showcase on the login page - matching landing page feature cards
 const features = [
   {
-    icon: <MessageCircle className="w-6 h-6" />,
-    title: 'Social Media Management',
-    description: 'Manage all your social accounts from one powerful dashboard'
-  },
-  {
-    icon: <BarChart3 className="w-6 h-6" />,
-    title: 'Advanced Analytics',
-    description: 'Track engagement, reach, and growth with detailed insights'
-  },
-  {
-    icon: <Calendar className="w-6 h-6" />,
-    title: 'Smart Scheduling',
-    description: 'Schedule posts at optimal times across all platforms'
+    icon: <Globe className="w-6 h-6" />,
+    title: 'Social Media Connect',
+    description: 'Connect Instagram, TikTok, YouTube, Facebook, X & LinkedIn'
   },
   {
     icon: <Users className="w-6 h-6" />,
-    title: 'CRM & Lead Management',
-    description: 'Track customers and convert leads into loyal clients'
+    title: 'CRM & Task Management',
+    description: 'Track leads, manage customers, and organize tasks'
   },
   {
     icon: <Zap className="w-6 h-6" />,
-    title: 'AI-Powered Content',
-    description: 'Generate engaging content with AI studio tools'
+    title: 'AI Content Creation',
+    description: 'Generate posts in your brand voice with AI'
   },
   {
-    icon: <Shield className="w-6 h-6" />,
-    title: 'Enterprise Security',
-    description: 'Bank-level security to protect your data'
+    icon: <BarChart3 className="w-6 h-6" />,
+    title: 'AI-Powered Insights',
+    description: 'Data-driven analytics and growth recommendations'
   }
 ];
 
@@ -156,15 +146,15 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onSwitchToRegister }) => {
           <div className="relative z-10 max-w-lg">
             <div className="mb-8">
               <span className="inline-block px-4 py-1.5 bg-white/10 backdrop-blur-sm text-purple-300 text-sm font-semibold rounded-full mb-4 border border-white/20">
-                All-in-One Platform
+                Social Media Marketing Automation
               </span>
               <h1 className="text-4xl xl:text-5xl font-bold text-white leading-tight mb-4">
-                Supercharge Your
-                <span className="bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 bg-clip-text text-transparent"> Social Presence</span>
+                Automate Your
+                <span className="bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 bg-clip-text text-transparent"> Social Media Marketing</span>
               </h1>
               <p className="text-lg text-slate-300 leading-relaxed">
-                Manage, schedule, and analyze all your social media from one powerful platform. 
-                Save time, grow your audience, and boost engagement.
+                Connect every platform. Generate AI content. Engage customers automatically.
+                One dashboard to grow your brand on autopilot.
               </p>
             </div>
 
@@ -201,7 +191,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onSwitchToRegister }) => {
                     </svg>
                   ))}
                 </div>
-                </div>
+                <p className="text-slate-300 text-sm">Trusted by 2,000+ marketers</p>
               </div>
             </div>
           </div>
@@ -372,6 +362,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onSwitchToRegister }) => {
             </p>
           </div>
         </div>
+      </div>
     </div>
   );
 };

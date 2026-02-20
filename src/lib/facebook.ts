@@ -1,5 +1,13 @@
 import { createClient } from '@supabase/supabase-js';
 
+// Extend Window for Facebook SDK
+declare global {
+  interface Window {
+    FB: any;
+    fbAsyncInit: () => void;
+  }
+}
+
 // Initialize Supabase with fallback for development
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
@@ -503,6 +511,51 @@ export const handleFacebookAuthSuccess = (result: any) => {
             detail: result 
         }));
     }
+};
+
+// ------------------------------------------------------------------
+//  Instagram via Facebook
+// ------------------------------------------------------------------
+
+/**
+ * Get Instagram Business accounts linked to connected Facebook pages.
+ * Requires a stored Facebook user access token.
+ */
+export const getConnectedInstagramAccounts = async (): Promise<any[]> => {
+    const accessToken = getFacebookAccessToken();
+    if (!accessToken) {
+        throw new Error('No Facebook access token found. Connect Facebook first.');
+    }
+
+    const pages = await getFacebookPagesFromAPI(accessToken);
+    if (!pages || pages.length === 0) {
+        return [];
+    }
+
+    const accounts: any[] = [];
+    for (const page of pages) {
+        try {
+            const igResponse = await fetch(
+                `https://graph.facebook.com/v19.0/${page.id}?fields=instagram_business_account{id,username,profile_picture_url}&access_token=${page.access_token}`
+            );
+            const igData = await igResponse.json();
+            if (igData.instagram_business_account) {
+                accounts.push({
+                    pageId: page.id,
+                    pageName: page.name,
+                    pageToken: page.access_token,
+                    instagram: {
+                        id: igData.instagram_business_account.id,
+                        username: igData.instagram_business_account.username,
+                        profilePicture: igData.instagram_business_account.profile_picture_url || '',
+                    },
+                });
+            }
+        } catch (err) {
+            console.warn(`Failed to fetch Instagram from page ${page.id}:`, err);
+        }
+    }
+    return accounts;
 };
 
 export const handleFacebookAuthError = (error: any) => {

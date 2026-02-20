@@ -1,6 +1,6 @@
-import React, { useState } from 'react'
-import { Youtube, Play, ThumbsUp, MessageSquare, Eye, ExternalLink, Loader2 } from 'lucide-react'
-import { fetchYouTubeVideos, likeYouTubeVideo, commentOnYouTubeVideo, subscribeToChannel } from '../src/utils/youtube-client'
+import React, { useState, useEffect } from 'react'
+import { Youtube, Play, ThumbsUp, MessageSquare, Eye, ExternalLink, Loader2, RefreshCw, Users } from 'lucide-react'
+import { fetchYouTubeVideosClient, likeYouTubeVideoClient, postYouTubeCommentClient, subscribeToChannelClient, fetchYouTubeChannelClient, getYouTubeVideoDetailsClient } from '../src/utils/youtube-client'
 import { useWorkspace } from '../src/hooks/useWorkspace'
 
 interface YouTubeVideo {

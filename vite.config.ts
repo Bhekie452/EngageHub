@@ -1,6 +1,7 @@
 import path from 'path';
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
+import tailwindcss from '@tailwindcss/vite';
 
 export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, '.', '');
@@ -14,18 +15,10 @@ export default defineConfig(({ mode }) => {
             target: 'http://localhost:3001',
             changeOrigin: true,
             secure: false,
-            configure: (proxy, _options) => {
-              proxy.on('error', (err, _req, _res) => {
-                console.log('Proxy error:', err);
-              });
-              proxy.on('proxyReq', (proxyReq, _req, _res) => {
-                console.log('Sending request to target:', proxyReq.method, proxyReq.path);
-              });
-            }
           }
         }
       },
-      plugins: [react()],
+      plugins: [tailwindcss(), react()],
       define: {
         'process.env.API_KEY': JSON.stringify(env.GEMINI_API_KEY),
         'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY)
@@ -34,6 +27,20 @@ export default defineConfig(({ mode }) => {
         alias: {
           '@': path.resolve(__dirname, '.'),
         }
+      },
+      build: {
+        rollupOptions: {
+          output: {
+            manualChunks: {
+              'vendor-react': ['react', 'react-dom', 'react-router-dom'],
+              'vendor-ui': ['lucide-react', 'recharts'],
+              'vendor-data': ['@supabase/supabase-js', '@tanstack/react-query', 'zustand'],
+              'vendor-forms': ['react-hook-form', '@hookform/resolvers', 'zod'],
+            }
+          }
+        },
+        sourcemap: false,
+        target: 'es2022',
       }
     };
 });
