@@ -44,9 +44,9 @@ import {
   ArrowUpRight,
   Info
 } from 'lucide-react';
-import { EngagementMetrics } from './EngagementMetrics';
-import { EngagementActions } from './EngagementActions';
-import { CommentsSection } from './CommentsSection';
+import EngagementMetrics from './EngagementMetrics';
+import EngagementActions from './EngagementActions';
+import CommentsSection from './CommentsSection';
 import {
   AreaChart, Area,
   PieChart, Pie, Cell,
@@ -3322,20 +3322,26 @@ const Content: React.FC = () => {
                         
                         {/* Engagement Metrics */}
                         <EngagementMetrics 
+                          workspaceId={currentWorkspaceId || ''}
                           platformPostId={platformPostId}
-                          platform={platform.toLowerCase()}
+                          platform={platform.toLowerCase() as any}
                         />
                         
                         {/* Engagement Actions (Like/Share buttons) */}
                         <EngagementActions 
+                          workspaceId={currentWorkspaceId || ''}
+                          userId={user?.id || ''}
                           platformPostId={platformPostId}
-                          platform={platform.toLowerCase()}
+                          platform={platform.toLowerCase() as any}
                         />
                         
                         {/* Comments Section */}
                         <CommentsSection 
+                          workspaceId={currentWorkspaceId || ''}
+                          userId={user?.id || ''}
+                          userName={user?.email?.split('@')[0] || 'User'}
                           platformPostId={platformPostId}
-                          platform={platform.toLowerCase()}
+                          platform={platform.toLowerCase() as any}
                         />
                       </div>
                     );
