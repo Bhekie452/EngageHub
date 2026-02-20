@@ -64,6 +64,7 @@ import AIStudio from './AIStudio';
 import ContentCalendar from './ContentCalendar';
 import ContentTemplates from './ContentTemplates';
 import YouTubeSimpleConnect from './YouTubeSimpleConnect';
+import { AIContentGenerator } from './AIContentGenerator';
 import { useYouTubeConnectionSimple } from '../src/hooks/useYouTubeConnectionSimple';
 import { useYouTubeSession } from '../src/hooks/useYouTubeSession';
 
@@ -79,6 +80,7 @@ const Content: React.FC = () => {
 
   const [socialAccounts, setSocialAccounts] = useState<Record<string, boolean>>({});
   const [currentWorkspaceId, setCurrentWorkspaceId] = useState<string | null>(null);
+  const [aiGeneratorOpen, setAiGeneratorOpen] = useState(false);
 
   const toast = useToast();
 
@@ -1625,6 +1627,15 @@ const Content: React.FC = () => {
                         >
                           <Smile size={18} />
                         </button>
+                        <div className="w-px h-5 bg-gray-200"></div>
+                        <button
+                          onClick={() => setAiGeneratorOpen(true)}
+                          className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 rounded transition-all"
+                          title="Generate with AI"
+                        >
+                          <Sparkles size={16} />
+                          <span className="hidden sm:inline">AI Generate</span>
+                        </button>
                       </div>
                       <div className="flex items-center gap-3">
                         <span className="text-xs font-medium text-gray-400">{postContent.length}/2,200</span>
@@ -2415,6 +2426,15 @@ const Content: React.FC = () => {
               </div>
             </div>
           </div>
+
+          {/* AI Content Generator Modal */}
+          <AIContentGenerator
+            isOpen={aiGeneratorOpen}
+            onClose={() => setAiGeneratorOpen(false)}
+            onInsert={(content) => setPostContent(content)}
+            selectedPlatforms={selectedPlatforms}
+            currentContent={postContent}
+          />
         );
       }
 
