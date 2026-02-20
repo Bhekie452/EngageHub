@@ -1517,6 +1517,7 @@ const SocialMedia: React.FC = () => {
       // Update the DB - if YouTube, update all for this platform to fix duplication confusion
       const query = supabase.from('social_accounts').update({
         is_active: false,
+        connection_status: 'disconnected',
         updated_at: new Date().toISOString()
       });
 
@@ -1579,10 +1580,7 @@ const SocialMedia: React.FC = () => {
               { name: 'YouTube', handle: 'Engagehub Tutorials', platform: 'youtube', icon: <Youtube className="text-red-600" /> },
             ].map((account, idx) => {
               const activeAccounts = connectedAccounts.filter(ca => ca.is_active);
-              // For YouTube, also check all accounts (not just active) since is_active may be false on existing connections
-              // but exclude accounts the user has explicitly disconnected this session
-              const connectedAccount = activeAccounts.find(ca => ca.platform === account.platform)
-                ?? connectedAccounts.find(ca => ca.platform === account.platform && ca.connection_status === 'connected' && !sessionStorage.getItem(`yt_disconnected_${ca.id}`));
+              const connectedAccount = activeAccounts.find(ca => ca.platform === account.platform);
               // Facebook account (may host an Instagram business account)
               const facebookAccount = activeAccounts.find(ca => ca.platform === 'facebook');
               // Instagram account stored in DB (preferred)

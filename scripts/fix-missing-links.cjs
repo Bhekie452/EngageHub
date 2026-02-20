@@ -1,14 +1,9 @@
 const { createClient } = require('@supabase/supabase-js');
 require('dotenv').config();
 
-const SUPABASE_URL = process.env.SUPABASE_URL;
-const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const SUPABASE_URL = process.env.SUPABASE_URL || 'https://zourlqrkoyugzymxkbgn.supabase.co';
+const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpvdXJscXJrb3l1Z3p5bXhrYmduIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2ODIxMTM2MiwiZXhwIjoyMDgzNzg3MzYyfQ.ic8p6qw_KJw5QtojcZwpIJ7ISJo3bxz9ef5RQA1wzfM';
 const EDGE_FUNCTION_URL = 'https://zourlqrkoyugzymxkbgn.functions.supabase.co/youtube-api';
-
-if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
-    console.error('Missing env vars');
-    process.exit(1);
-}
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 

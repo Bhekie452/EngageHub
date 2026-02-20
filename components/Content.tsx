@@ -2029,30 +2029,30 @@ const Content: React.FC = () => {
                 {/* Right Side: Preview */}
                 <div className="lg:col-span-5 bg-[#f8f9fb] p-6 flex flex-col items-center">
                   <div className="w-full bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden flex flex-col h-full max-w-[340px]">
-                            <div className="p-4 border-b border-gray-100 flex items-center justify-between">
-                              <div className="flex items-center gap-2">
-                                <div className="flex items-center gap-2 px-2 py-0.5 bg-indigo-600 text-white rounded text-[10px] font-bold">
-                                  <span className="relative flex h-2 w-2">
-                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-300 opacity-75" />
-                                    <span className="relative inline-flex rounded-full h-2 w-2 bg-indigo-200" />
-                                  </span>
-                                  <Share2 size={12} /> Live Preview
-                                </div>
-                              </div>
-                              {postContent && (
-                                <button
-                                  onClick={() => {
-                                    navigator.clipboard.writeText(postContent);
-                                    toast?.success('Preview copied to clipboard!');
-                                  }}
-                                  className="flex items-center gap-1 px-2 py-1 text-[10px] font-semibold text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded transition-all"
-                                  title="Copy preview content"
-                                >
-                                  <Copy size={12} />
-                                  Copy
-                                </button>
-                              )}
-                            </div>
+                    <div className="p-4 border-b border-gray-100 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 px-2 py-0.5 bg-indigo-600 text-white rounded text-[10px] font-bold">
+                          <span className="relative flex h-2 w-2">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-300 opacity-75" />
+                            <span className="relative inline-flex rounded-full h-2 w-2 bg-indigo-200" />
+                          </span>
+                          <Share2 size={12} /> Live Preview
+                        </div>
+                      </div>
+                      {postContent && (
+                        <button
+                          onClick={() => {
+                            navigator.clipboard.writeText(postContent);
+                            toast?.success('Preview copied to clipboard!');
+                          }}
+                          className="flex items-center gap-1 px-2 py-1 text-[10px] font-semibold text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded transition-all"
+                          title="Copy preview content"
+                        >
+                          <Copy size={12} />
+                          Copy
+                        </button>
+                      )}
+                    </div>
                     <div className="p-4 bg-white flex-1 overflow-y-auto space-y-4">
                       {editingPost ? (
                         <>
@@ -2458,20 +2458,20 @@ const Content: React.FC = () => {
                   </button>
                 </div>
               </div>
+
+              {/* AI Content Generator Modal */}
+              <AIContentGenerator
+                isOpen={aiGeneratorOpen}
+                onClose={() => setAiGeneratorOpen(false)}
+                onInsert={(content) => {
+                  setPostContent(content);
+                  setPostContentUpdatedAt(Date.now());
+                }}
+                selectedPlatforms={selectedPlatforms}
+                currentContent={postContent}
+              />
             </div>
           </div>
-
-          {/* AI Content Generator Modal */}
-          <AIContentGenerator
-            isOpen={aiGeneratorOpen}
-            onClose={() => setAiGeneratorOpen(false)}
-            onInsert={(content) => {
-              setPostContent(content);
-              setPostContentUpdatedAt(Date.now());
-            }}
-            selectedPlatforms={selectedPlatforms}
-            currentContent={postContent}
-          />
         );
       }
 
@@ -3413,7 +3413,13 @@ const Content: React.FC = () => {
                   {viewingPost.platforms.map((platform: string, idx: number) => {
                     // Note: platform_post_id should come from post_publications table
                     // For now using post.id as fallback - you may want to fetch from post_publications
-                    const platformPostId = viewingPost.platform_post_id || viewingPost.id;
+                    let platformPostId = viewingPost.platform_post_id || viewingPost.id;
+
+                    // Specific fix for YouTube: extract ID from link_url if platformPostId is just a UUID
+                    if (platform.toLowerCase() === 'youtube' && viewingPost.link_url) {
+                      const ytId = extractYouTubeId(viewingPost.link_url);
+                      if (ytId) platformPostId = ytId;
+                    }
 
                     return (
                       <div key={`${platform}-${idx}`} className="bg-gray-50 dark:bg-slate-800 rounded-xl p-4 space-y-4">

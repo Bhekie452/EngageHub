@@ -120,26 +120,15 @@ async function getWorkspaceIdForCurrentUser(): Promise<string> {
  */
 function extractYouTubeVideoId(url: string | null | undefined): string | null {
   if (!url) return null;
-
-  // Handle shorts: https://www.youtube.com/shorts/VIDEO_ID
-  if (url.includes('/shorts/')) {
-    return url.split('/shorts/')[1]?.split('?')[0]?.split('&')[0] || null;
+  const patterns = [
+    /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/shorts\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})/,
+    /([a-zA-Z0-9_-]{11})/
+  ];
+  for (const p of patterns) {
+    const m = url.match(p);
+    if (m) return m[1];
   }
-
-  // Handle regular watch: https://www.youtube.com/watch?v=VIDEO_ID
-  if (url.includes('v=')) {
-    return url.split('v=')[1]?.split('&')[0] || null;
-  }
-
-  // Handle short link: https://youtu.be/VIDEO_ID
-  if (url.includes('youtu.be/')) {
-    return url.split('youtu.be/')[1]?.split('?')[0]?.split('&')[0] || null;
-  }
-
-  // Fallback: see if it's just the ID itself
-  if (url.length === 11 && !url.includes('/')) return url;
-
-  return url.split('/').pop()?.split('?')[0] || null;
+  return null;
 }
 
 export const analyticsService = {
@@ -265,8 +254,21 @@ export const analyticsService = {
           ytErr = result.error;
         }
 
-        // FALLBACK: If Edge Function fails (e.g. 401/400) or user not authenticated, try local /api/app proxy
-        if (!ytData?.data) {
+        if (!ytErr && ytData?.data) {
+          ytConnected = true;
+          const stats = ytData.data.statistics;
+          if (stats) {
+            // SUMMATION: Adding platform metrics to local EngageHub metrics
+            metrics.views += Number(stats.viewCount) || 0;
+            metrics.likes += Number(stats.likeCount) || 0;
+            metrics.comments += Number(stats.commentCount) || 0;
+            metricsSource = 'youtube';
+          }
+        } else {
+          // FALLBACK 1: If Edge Function returns no data or fails, try local /api/app proxy
+          if (ytErr) {
+            console.warn('YouTube API edge function error (video-details), trying proxy:', ytErr);
+          }
           try {
             const resp = await fetch(`/api/app?action=engagement&method=aggregates&workspaceId=${workspace_id}&platformPostId=${videoId}&platform=youtube`);
             const proxyResult = await resp.json();
@@ -280,41 +282,34 @@ export const analyticsService = {
                   }
                 }
               };
-              ytConnected = true; // Mark as connected if we got data from proxy
+              ytConnected = true;
               ytErr = null;
+
+              const stats = ytData.data.statistics;
+              metrics.views += Number(stats.viewCount) || 0;
+              metrics.likes += Number(stats.likeCount) || 0;
+              metrics.comments += Number(stats.commentCount) || 0;
+              metricsSource = 'youtube';
             }
           } catch (proxyErr) {
             console.warn('Local proxy fallback failed:', proxyErr);
           }
-        }
 
-        if (!ytErr && ytData?.data) {
-          ytConnected = true;
-          const stats = ytData.data.statistics;
-          if (stats) {
-            // SUMMATION: Adding platform metrics to local EngageHub metrics
-            metrics.views += Number(stats.viewCount) || 0;
-            metrics.likes += Number(stats.likeCount) || 0;
-            metrics.comments += Number(stats.commentCount) || 0;
-            metricsSource = 'youtube';
-          }
-        } else {
-          // Fallback to reading from local cache in DB if Edge Function fails
-          if (ytErr) {
-            console.warn('YouTube API edge function error (video-details):', ytErr);
-          }
-          const { data: ymData, error: ymErr } = await supabase
-            .from('post_analytics')
-            .select('video_views, likes, comments')
-            .eq('post_id', postId)
-            .eq('platform', 'youtube')
-            .maybeSingle();
+          // FALLBACK 2: If proxy also fails, try reading from post_analytics cache
+          if (!ytData?.data) {
+            const { data: ymData, error: ymErr } = await supabase
+              .from('post_analytics')
+              .select('video_views, likes, comments')
+              .eq('post_id', postId)
+              .eq('platform', 'youtube')
+              .maybeSingle();
 
-          if (!ymErr && ymData) {
-            metrics.views += typeof ymData.video_views === 'number' ? ymData.video_views : 0;
-            metrics.likes += typeof ymData.likes === 'number' ? ymData.likes : 0;
-            metrics.comments += typeof ymData.comments === 'number' ? ymData.comments : 0;
-            metricsSource = 'youtube';
+            if (!ymErr && ymData) {
+              metrics.views += typeof ymData.video_views === 'number' ? ymData.video_views : 0;
+              metrics.likes += typeof ymData.likes === 'number' ? ymData.likes : 0;
+              metrics.comments += typeof ymData.comments === 'number' ? ymData.comments : 0;
+              metricsSource = 'youtube';
+            }
           }
         }
 

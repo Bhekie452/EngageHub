@@ -40,6 +40,11 @@ const EngagementMetrics: React.FC<EngagementMetricsProps> = ({
   }, [workspaceId, platformPostId, platform]);
 
   const fetchAggregates = async () => {
+    // Safety check: for YouTube, platformPostId should not be a UUID (internal ID)
+    if (platform === 'youtube' && platformPostId.includes('-') && platformPostId.length > 20) {
+      console.warn(`[EngagementMetrics] Possible invalid platformPostId for YouTube: ${platformPostId}. Expected video ID.`);
+    }
+
     setLoading(true);
     setError(null);
     try {
