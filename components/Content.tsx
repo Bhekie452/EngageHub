@@ -44,6 +44,9 @@ import {
   ArrowUpRight,
   Info
 } from 'lucide-react';
+import { EngagementMetrics } from './EngagementMetrics';
+import { EngagementActions } from './EngagementActions';
+import { CommentsSection } from './CommentsSection';
 import {
   AreaChart, Area,
   PieChart, Pie, Cell,
@@ -3288,6 +3291,55 @@ const Content: React.FC = () => {
                       </div>
                     </div>
                   )}
+                </div>
+              )}
+
+              {/* Engagement Section - Only show for published posts */}
+              {viewingPost.status === 'published' && viewingPost.platforms && viewingPost.platforms.length > 0 && (
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2 border-t border-gray-200 dark:border-slate-700 pt-6">
+                    <MessageCircle size={18} className="text-blue-600" />
+                    <h3 className="text-sm font-bold text-gray-900 dark:text-white uppercase">Engagement & Comments</h3>
+                  </div>
+                  
+                  {/* Show engagement for each platform */}
+                  {viewingPost.platforms.map((platform: string, idx: number) => {
+                    // Note: platform_post_id should come from post_publications table
+                    // For now using post.id as fallback - you may want to fetch from post_publications
+                    const platformPostId = viewingPost.platform_post_id || viewingPost.id;
+                    
+                    return (
+                      <div key={`${platform}-${idx}`} className="bg-gray-50 dark:bg-slate-800 rounded-xl p-4 space-y-4">
+                        <div className="flex items-center gap-2 mb-3">
+                          {platform.toLowerCase() === 'facebook' && <Facebook className="text-[#1877F2]" size={16} />}
+                          {platform.toLowerCase() === 'instagram' && <Instagram className="text-[#E4405F]" size={16} />}
+                          {platform.toLowerCase() === 'twitter' && <Twitter className="text-[#1DA1F2]" size={16} />}
+                          {platform.toLowerCase() === 'linkedin' && <Linkedin className="text-[#0A66C2]" size={16} />}
+                          <span className="text-xs font-bold text-gray-600 dark:text-slate-300 capitalize">
+                            {platform} Engagement
+                          </span>
+                        </div>
+                        
+                        {/* Engagement Metrics */}
+                        <EngagementMetrics 
+                          platformPostId={platformPostId}
+                          platform={platform.toLowerCase()}
+                        />
+                        
+                        {/* Engagement Actions (Like/Share buttons) */}
+                        <EngagementActions 
+                          platformPostId={platformPostId}
+                          platform={platform.toLowerCase()}
+                        />
+                        
+                        {/* Comments Section */}
+                        <CommentsSection 
+                          platformPostId={platformPostId}
+                          platform={platform.toLowerCase()}
+                        />
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>

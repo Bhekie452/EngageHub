@@ -17,7 +17,28 @@ serve(async (req) => {
   }
 
   try {
-    const { endpoint, workspaceId, ...options } = await req.json()
+    // Handle both GET (URL params) and POST (JSON body) requests
+    let endpoint, workspaceId, options = {};
+    
+    if (req.method === 'GET') {
+      const url = new URL(req.url);
+      workspaceId = url.searchParams.get('workspaceId');
+      endpoint = url.searchParams.get('action') || url.searchParams.get('endpoint');
+      // Parse any additional options from query params
+      for (const [key, value] of url.searchParams.entries()) {
+        if (key !== 'workspaceId' && key !== 'action' && key !== 'endpoint') {
+          options[key] = value;
+        }
+      }
+    } else {
+      // POST request with JSON body
+      const body = await req.json();
+      endpoint = body.endpoint;
+      workspaceId = body.workspaceId;
+      options = { ...body };
+      delete options.endpoint;
+      delete options.workspaceId;
+    }
 
     if (!workspaceId) {
       return new Response(
