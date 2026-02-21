@@ -3,28 +3,20 @@ import { GoogleGenerativeAI } from "npm:@google/generative-ai";
 
 const genAI = new GoogleGenerativeAI(Deno.env.get("GEMINI_API_KEY")!);
 
+// Simple CORS headers for public access (no JWT verification)
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
+
 Deno.serve(async (req) => {
-  // Handle CORS
-  if (req.method === "OPTIONS") {
-    return new Response("ok", {
-      headers: {
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Methods": "POST, OPTIONS",
-        "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-      },
-    });
+  // Handle CORS preflight
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders });
   }
 
   try {
-    const {
-      platform,
-      contentType,
-      topic,
-      audience,
-      tone,
-      cta,
-      currentContent,
-    } = await req.json();
+    const { platform, contentType, topic, audience, tone, cta, currentContent } = await req.json();
 
     const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
@@ -94,10 +86,7 @@ Generate only the 3 variations. No preamble, no explanations.`;
     const text = result.response.text();
 
     return new Response(JSON.stringify({ result: text }), {
-      headers: {
-        "Content-Type": "application/json",
-        "Access-Control-Allow-Origin": "*",
-      },
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (error) {
     console.error("Error:", error);
@@ -107,10 +96,7 @@ Generate only the 3 variations. No preamble, no explanations.`;
       }),
       {
         status: 500,
-        headers: {
-          "Content-Type": "application/json",
-          "Access-Control-Allow-Origin": "*",
-        },
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       }
     );
   }

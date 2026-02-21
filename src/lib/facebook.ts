@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
+import { supabase } from './supabase';
 
 // Extend Window for Facebook SDK
 declare global {
@@ -8,14 +8,7 @@ declare global {
   }
 }
 
-// Initialize Supabase with fallback for development
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
-
-// Only create client if we have valid credentials
-const supabase = (supabaseUrl && supabaseUrl !== 'your-project-url-here')
-  ? createClient(supabaseUrl, supabaseAnonKey || 'placeholder-key')
-  : null;
+// Use shared Supabase client from src/lib/supabase
 
 // Facebook App Configuration
 const FB_APP_ID = import.meta.env.VITE_FACEBOOK_APP_ID || '2106228116796555';
