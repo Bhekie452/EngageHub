@@ -24,11 +24,19 @@ export default function YouTubeEngagement() {
   const [selectedVideo, setSelectedVideo] = useState<Video | null>(null);
   const [comments, setComments] = useState<Comment[]>([]);
   const [loading, setLoading] = useState(false);
+  const [commentsLoading, setCommentsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<'videos' | 'comments' | 'likes'>('videos');
 
   useEffect(() => {
     fetchVideos();
   }, []);
+
+  // Fetch comments when switching to comments tab with a selected video
+  useEffect(() => {
+    if (activeTab === 'comments' && selectedVideo) {
+      fetchComments(selectedVideo.id);
+    }
+  }, [activeTab, selectedVideo]);
 
   const fetchVideos = async () => {
     try {
@@ -58,6 +66,7 @@ export default function YouTubeEngagement() {
 
   const fetchComments = async (videoId: string) => {
     try {
+      setCommentsLoading(true);
       const workspaceId = localStorage.getItem('current_workspace_id') || '';
       const response = await getYouTubeVideoCommentsClient(workspaceId, videoId, 50);
       
@@ -66,6 +75,8 @@ export default function YouTubeEngagement() {
       }
     } catch (error) {
       console.error('Failed to fetch comments:', error);
+    } finally {
+      setCommentsLoading(false);
     }
   };
 
@@ -204,40 +215,50 @@ export default function YouTubeEngagement() {
         </div>
       )}
 
-      {activeTab === 'comments' && selectedVideo && (
+      {activeTab === 'comments' && (
         <div className="space-y-4">
-          <div className="bg-white rounded-lg border border-gray-200 p-6">
-            <h3 className="font-bold text-gray-900 mb-4">Comments for "{selectedVideo.title}"</h3>
-            <div className="space-y-3 max-h-96 overflow-y-auto">
-              {comments.map((comment) => (
-                <div key={comment.id} className="flex gap-3 p-3 border-b border-gray-100">
-                  <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center">
-                    <Users size={16} />
-                  </div>
-                  <div className="flex-1">
-                    <div className="font-medium text-gray-900">{comment.author}</div>
-                    <div className="text-sm text-gray-600 mt-1">{comment.text}</div>
-                    <div className="text-xs text-gray-400 mt-2">{formatDate(comment.publishedAt)}</div>
-                  </div>
-                </div>
-              ))}
+          {!selectedVideo ? (
+            <div className="bg-white rounded-lg border border-gray-200 p-12 text-center">
+              <p className="text-gray-500">Click on a video first to view its comments</p>
             </div>
-            <div className="flex gap-3 mt-4">
-              <button
-                onClick={() => handleLike(selectedVideo.id)}
-                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-              >
-                <ThumbsUp size={16} />
-                Like Video
-              </button>
-              <button
-                onClick={() => setSelectedVideo(null)}
-                className="px-4 py-2 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 transition-colors"
-              >
-                Back to Videos
-              </button>
+          ) : commentsLoading ? (
+            <div className="flex justify-center items-center py-12">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
             </div>
-          </div>
+          ) : (
+            <div className="bg-white rounded-lg border border-gray-200 p-6">
+              <h3 className="font-bold text-gray-900 mb-4">Comments for "{selectedVideo.title}"</h3>
+              <div className="space-y-3 max-h-96 overflow-y-auto">
+                {comments.map((comment) => (
+                  <div key={comment.id} className="flex gap-3 p-3 border-b border-gray-100">
+                    <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center">
+                      <Users size={16} />
+                    </div>
+                    <div className="flex-1">
+                      <div className="font-medium text-gray-900">{comment.author}</div>
+                      <div className="text-sm text-gray-600 mt-1">{comment.text}</div>
+                      <div className="text-xs text-gray-400 mt-2">{formatDate(comment.publishedAt)}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="flex gap-3 mt-4">
+                <button
+                  onClick={() => handleLike(selectedVideo.id)}
+                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  <ThumbsUp size={16} />
+                  Like Video
+                </button>
+                <button
+                  onClick={() => setSelectedVideo(null)}
+                  className="px-4 py-2 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 transition-colors"
+                >
+                  Back to Videos
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
