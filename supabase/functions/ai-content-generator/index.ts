@@ -1,7 +1,7 @@
 // @ts-nocheck
-import { GoogleGenerativeAI } from "npm:@google/generative-ai";
+// Use fetch directly to call Gemini API with v1 endpoint
 
-const genAI = new GoogleGenerativeAI(Deno.env.get("GEMINI_API_KEY")!);
+const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY")!;
 
 // Simple CORS headers for public access (no JWT verification)
 const corsHeaders = {
@@ -17,8 +17,6 @@ Deno.serve(async (req) => {
 
   try {
     const { platform, contentType, topic, audience, tone, cta, currentContent } = await req.json();
-
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
     const platformGuidelines = {
       "X (Twitter)":
@@ -82,8 +80,28 @@ Variation 3: Story-Driven Approach
 
 Generate only the 3 variations. No preamble, no explanations.`;
 
-    const result = await model.generateContent(prompt);
-    const text = result.response.text();
+    // Use fetch to call Gemini API directly with v1 endpoint
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent?key=${GEMINI_API_KEY}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: {
+          temperature: 0.9,
+          maxOutputTokens: 2048,
+        },
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.text();
+      throw new Error(`Gemini API error: ${response.status} - ${errorData}`);
+    }
+
+    const data = await response.json();
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || 'No response generated';
 
     return new Response(JSON.stringify({ result: text }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
