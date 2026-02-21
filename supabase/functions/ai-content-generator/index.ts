@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { GoogleGenerativeAI } from "npm:@google/generative-ai";
 
 const genAI = new GoogleGenerativeAI(Deno.env.get("GEMINI_API_KEY")!);
@@ -9,7 +10,7 @@ Deno.serve(async (req) => {
       headers: {
         "Access-Control-Allow-Origin": "*",
         "Access-Control-Allow-Methods": "POST, OPTIONS",
-        "Access-Control-Allow-Headers": "Content-Type, Authorization",
+        "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
       },
     });
   }
