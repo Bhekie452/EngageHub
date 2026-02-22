@@ -118,7 +118,9 @@ const CommentsSection: React.FC<CommentsSectionProps> = ({
                 body: {
                   videoId: videoId,
                   postId: postId,
-                  accessToken: youtubeToken
+                  accessToken: youtubeToken,
+                  workspaceId: workspaceId,
+                  userId: userId
                 }
               });
             }

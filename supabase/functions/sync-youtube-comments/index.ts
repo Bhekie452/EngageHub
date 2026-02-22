@@ -9,7 +9,7 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const { videoId, postId, accessToken } = await req.json();
+    const { videoId, postId, accessToken, workspaceId, userId } = await req.json();
 
     if (!videoId || !postId || !accessToken) {
       return new Response(
@@ -33,19 +33,26 @@ Deno.serve(async (req: Request) => {
     const ytData = await ytRes.json();
     const items = ytData.items ?? [];
 
-    // Map YouTube comments to your schema
+    // Map YouTube comments to engagement_actions table
     const comments = items
       .filter((item: any) => item?.snippet?.topLevelComment?.snippet)
       .map((item: any) => {
         const s = item.snippet.topLevelComment.snippet;
         return {
+          workspace_id: workspaceId || null,
+          user_id: userId || null,
           post_id: postId,
-          external_id: item.id,
-          content: s.textDisplay,
-          author_name: s.authorDisplayName,
-          author_avatar: s.authorProfileImageUrl,
-          like_count: s.likeCount ?? 0,
+          platform_post_id: videoId,
+          platform: 'youtube',
+          action_type: 'comment',
+          action_data: {
+            comment_text: s.textDisplay,
+            user_name: s.authorDisplayName,
+            user_avatar: s.authorProfileImageUrl,
+          },
           source: 'youtube',
+          platform_object_id: item.id, // YouTube comment ID for deduplication
+          like_count: s.likeCount ?? 0,
           synced_at: new Date().toISOString(),
           created_at: s.publishedAt,
         };
@@ -58,11 +65,11 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // Upsert into Supabase (skip duplicates)
+    // Upsert into Supabase engagement_actions table (skip duplicates)
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
-    const upsertRes = await fetch(`${supabaseUrl}/rest/v1/comments`, {
+    const upsertRes = await fetch(`${supabaseUrl}/rest/v1/engagement_actions`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
