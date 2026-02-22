@@ -49,7 +49,9 @@ export const AIImageBlender: React.FC = () => {
           throw error;
         }
 
-        setGeneratedImage(data.image);
+        // Add proper data URI prefix for image display
+        const imageMimeType = image?.type || 'image/png';
+        setGeneratedImage(`data:${imageMimeType};base64,${data.image}`);
         toast?.success('Image generated successfully!');
       } catch (error) {
         console.error('Error generating image:', error);
