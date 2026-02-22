@@ -110,14 +110,18 @@ const CommentsSection: React.FC<CommentsSectionProps> = ({
           // Get YouTube OAuth token from localStorage or session
           const youtubeToken = localStorage.getItem('youtube_access_token');
           if (youtubeToken) {
-            // Call sync function - pass the video ID as platformPostId
-            await supabase.functions.invoke('sync-youtube-comments', {
-              body: {
-                videoId: platformPostId,
-                postId: postId,
-                accessToken: youtubeToken
-              }
-            });
+            // Use external_video_id from post if available, otherwise use platformPostId
+            const videoId = platformPostId;
+            if (videoId) {
+              // Call sync function - pass the video ID as platformPostId
+              await supabase.functions.invoke('sync-youtube-comments', {
+                body: {
+                  videoId: videoId,
+                  postId: postId,
+                  accessToken: youtubeToken
+                }
+              });
+            }
           }
         } catch (syncError) {
           console.error('[CommentsSection] YouTube sync failed:', syncError);

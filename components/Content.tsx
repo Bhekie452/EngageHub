@@ -1035,7 +1035,7 @@ const Content: React.FC = () => {
       const skippedLarge = allMedia.length - mediaForDb.length;
 
       // 2. Prepare data matching schema
-      const postData = {
+      const postData: any = {
         workspace_id: workspaceId,
         created_by: user.id,
         content: postContent,
@@ -1054,6 +1054,14 @@ const Content: React.FC = () => {
         // Optional metadata
         content_type: uploadedVideos.length > 0 ? 'video' : uploadedImages.length > 0 ? 'image' : 'text',
       };
+
+      // Extract and save YouTube video ID for YouTube posts
+      if (selectedPlatforms.includes('youtube') && linkUrl) {
+        const ytId = extractYouTubeId(linkUrl);
+        if (ytId) {
+          postData.external_video_id = ytId;
+        }
+      }
 
       // 3. Update or Insert to Supabase
       let postId = editingPost?.id;
