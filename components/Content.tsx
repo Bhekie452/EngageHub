@@ -3481,6 +3481,7 @@ const Content: React.FC = () => {
                           workspaceId={currentWorkspaceId || ''}
                           userId={user?.id || ''}
                           userName={user?.email?.split('@')[0] || 'User'}
+                          postId={viewingPost?.id}
                           platformPostId={platformPostId}
                           platform={platform.toLowerCase() as any}
                         />
