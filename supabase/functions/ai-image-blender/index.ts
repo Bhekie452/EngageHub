@@ -2,30 +2,24 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { GoogleGenerativeAI } from 'npm:@google/genai';
 
 const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY');
-const ALLOWED_ORIGINS = [
-  'http://localhost:3000',
-  'http://localhost:3001',
-  'http://localhost:5173',
-  'https://engage-hub-ten.vercel.app',
-];
 
-const corsHeaders = (origin: string) => ({
-  'Access-Control-Allow-Origin': ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0],
+// CORS headers - allow any origin for flexibility
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization, apikey, x-client-info',
   'Access-Control-Max-Age': '86400',
-});
+};
 
 serve(async (req) => {
-  const origin = req.headers.get('Origin') || '';
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders(origin) });
+    return new Response(null, { headers: corsHeaders });
   }
 
   if (!GEMINI_API_KEY) {
     return new Response(JSON.stringify({ error: 'Missing GEMINI_API_KEY' }), {
       status: 500,
-      headers: { 'Content-Type': 'application/json', ...corsHeaders(origin) },
+      headers: { 'Content-Type': 'application/json', ...corsHeaders },
     });
   }
 
@@ -34,7 +28,7 @@ serve(async (req) => {
   if (!image || !text || !textColor || !backgroundColor) {
     return new Response(JSON.stringify({ error: 'Missing required parameters' }), {
       status: 400,
-      headers: { 'Content-Type': 'application/json', ...corsHeaders(origin) },
+      headers: { 'Content-Type': 'application/json', ...corsHeaders },
     });
   }
 
@@ -65,13 +59,13 @@ serve(async (req) => {
 
 
     return new Response(JSON.stringify({ image: `data:image/jpeg;base64,${base64Image}` }), {
-      headers: { 'Content-Type': 'application/json', ...corsHeaders(origin) },
+      headers: { 'Content-Type': 'application/json', ...corsHeaders },
     });
   } catch (error) {
     console.error('Error generating image:', error);
     return new Response(JSON.stringify({ error: 'Failed to generate image' }), {
       status: 500,
-      headers: { 'Content-Type': 'application/json', ...corsHeaders(origin) },
+      headers: { 'Content-Type': 'application/json', ...corsHeaders },
     });
   }
 });
