@@ -53,13 +53,35 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     )
 
-    // Fetch YouTube account from database
+    // Fetch YouTube account from database - check youtube_accounts table first, then social_accounts
     const { data: youtubeAccount, error: fetchError } = await supabase
-      .from('social_accounts')
-      .select('access_token, refresh_token, token_expires_at, account_id, platform')
+      .from('youtube_accounts')
+      .select('access_token, refresh_token, token_expires_at, channel_id')
       .eq('workspace_id', workspaceId)
-      .eq('platform', 'youtube')
-      .single();
+      .single()
+    
+    // If not in youtube_accounts, try social_accounts
+    let ytAccount = youtubeAccount
+    let ytError = fetchError
+    
+    if (!youtubeAccount || fetchError) {
+      const { data: socialData, error: socialError } = await supabase
+        .from('social_accounts')
+        .select('access_token, refresh_token, token_expires_at, account_id')
+        .eq('workspace_id', workspaceId)
+        .eq('platform', 'youtube')
+        .single()
+      
+      if (socialData && !socialError) {
+        ytAccount = {
+          access_token: socialData.access_token,
+          refresh_token: socialData.refresh_token,
+          token_expires_at: socialData.token_expires_at,
+          channel_id: socialData.account_id
+        }
+        ytError = null
+      }
+    }
 
     if (fetchError || !youtubeAccount) {
       return new Response(
@@ -72,7 +94,7 @@ serve(async (req) => {
     }
 
     let accessToken = youtubeAccount.access_token
-    const channelId = youtubeAccount.account_id; // Changed from youtubeAccount.channel_id
+    const channelId = youtubeAccount.channel_id;
 
     // Check if token is expired and refresh if needed
     const now = new Date()
