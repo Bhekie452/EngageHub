@@ -8,10 +8,14 @@ interface Comment {
   user_name?: string;
   user_avatar?: string;
   comment_text: string;
-  source: 'native' | 'engagehub';
+  source: 'native' | 'engagehub' | 'youtube' | 'instagram' | 'twitter' | 'tiktok' | 'linkedin' | 'facebook';
   platform_object_id?: string;
-  created_at: string;
+  external_id?: string;
+  author_name?: string;
+  author_avatar?: string;
+  like_count?: number;
   synced_at?: string;
+  created_at: string;
   sync_status?: 'pending' | 'synced' | 'failed';
 }
 
@@ -81,13 +85,15 @@ const CommentsSection: React.FC<CommentsSectionProps> = ({
   const mapEngagementToComment = (engagement: any): Comment => ({
     id: engagement.id,
     user_id: engagement.user_id,
-    user_name: engagement.action_data?.user_name || 'Unknown User',
-    user_avatar: engagement.action_data?.user_avatar,
-    comment_text: engagement.action_data?.comment_text || '',
-    source: engagement.source,
+    user_name: engagement.action_data?.user_name || engagement.author_name || 'Unknown User',
+    user_avatar: engagement.action_data?.user_avatar || engagement.author_avatar,
+    comment_text: engagement.action_data?.comment_text || engagement.content || '',
+    source: engagement.source || 'engagehub',
     platform_object_id: engagement.platform_object_id,
-    created_at: engagement.created_at,
+    external_id: engagement.external_id,
+    like_count: engagement.like_count,
     synced_at: engagement.synced_at,
+    created_at: engagement.created_at,
     sync_status: engagement.platform_object_id
       ? 'synced'
       : engagement.source === 'engagehub'
@@ -98,6 +104,27 @@ const CommentsSection: React.FC<CommentsSectionProps> = ({
   const fetchComments = async () => {
     setLoading(true);
     try {
+      // For YouTube, sync comments from YouTube API first
+      if (platform === 'youtube' && postId) {
+        try {
+          // Get YouTube OAuth token from localStorage or session
+          const youtubeToken = localStorage.getItem('youtube_access_token');
+          if (youtubeToken) {
+            // Call sync function - pass the video ID as platformPostId
+            await supabase.functions.invoke('sync-youtube-comments', {
+              body: {
+                videoId: platformPostId,
+                postId: postId,
+                accessToken: youtubeToken
+              }
+            });
+          }
+        } catch (syncError) {
+          console.error('[CommentsSection] YouTube sync failed:', syncError);
+          // Continue to fetch comments even if sync fails
+        }
+      }
+
       const response = await fetch(
         `/api/app?action=engagement&method=list&workspaceId=${workspaceId}&platformPostId=${platformPostId}&platform=${platform}&actionType=comment`
       );
@@ -272,17 +299,17 @@ const CommentsSection: React.FC<CommentsSectionProps> = ({
                       {/* Source badge */}
                       <span
                         className={`text-xs px-2 py-0.5 rounded-full ${
-                          comment.source === 'native'
+                          comment.source === 'native' || comment.source === 'youtube' || comment.source === 'instagram' || comment.source === 'twitter' || comment.source === 'tiktok' || comment.source === 'linkedin' || comment.source === 'facebook'
                             ? 'bg-green-100 text-green-700'
                             : 'bg-blue-100 text-blue-700'
                         }`}
                         title={
-                          comment.source === 'native'
-                            ? `From native ${platform}`
+                          comment.source === 'native' || comment.source === 'youtube' || comment.source === 'instagram' || comment.source === 'twitter' || comment.source === 'tiktok' || comment.source === 'linkedin' || comment.source === 'facebook'
+                            ? `From ${comment.source === 'native' ? platform : comment.source}`
                             : 'From EngageHub'
                         }
                       >
-                        {comment.source === 'native' ? platform : 'EngageHub'}
+                        {comment.source === 'native' ? platform : comment.source === 'engagehub' ? 'EngageHub' : comment.source}
                       </span>
                       {/* Sync status */}
                       {comment.source === 'engagehub' && (
