@@ -15,11 +15,13 @@ import {
   Lightbulb,
   ArrowRight,
   BrainCircuit,
-  Bot
+  Bot,
+  ImagePlus
 } from 'lucide-react';
 import { generateContentSuggestion, analyzeCRMLead } from '../services/geminiService';
+import { AIImageBlender } from './AIImageBlender';
 
-type AISubTab = 'content' | 'crm' | 'inbox' | 'campaigns' | 'scoring' | 'automations';
+type AISubTab = 'content' | 'crm' | 'inbox' | 'campaigns' | 'scoring' | 'automations' | 'image';
 
 const AIStudio: React.FC = () => {
   const [activeSubTab, setActiveSubTab] = useState<AISubTab>('content');
@@ -29,6 +31,7 @@ const AIStudio: React.FC = () => {
 
   const tabs: { id: AISubTab; label: string; icon: React.ReactNode; desc: string }[] = [
     { id: 'content', label: 'Content Generator', icon: <Wand2 size={16} />, desc: 'Draft hooks, captions, and blog posts.' },
+    { id: 'image', label: 'Image Blender', icon: <ImagePlus size={16} />, desc: 'Blend images with text and colors.' },
     { id: 'crm', label: 'CRM Assistant', icon: <Users size={16} />, desc: 'Draft follow-ups and relationship summaries.' },
     { id: 'inbox', label: 'Inbox Replies', icon: <MessageSquare size={16} />, desc: 'Smart, context-aware message responses.' },
     { id: 'campaigns', label: 'Campaign Planner', icon: <Megaphone size={16} />, desc: 'Strategic multichannel launch blueprints.' },
@@ -64,6 +67,9 @@ const AIStudio: React.FC = () => {
   };
 
   const renderTabContent = () => {
+    if (activeSubTab === 'image') {
+      return <AIImageBlender />;
+    }
     const activeInfo = tabs.find(t => t.id === activeSubTab);
 
     return (
