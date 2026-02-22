@@ -16,10 +16,38 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { platform, contentType, topic, audience, tone, cta, currentContent, existingText, variationIndex } = await req.json();
+    const { platform, contentType, topic, audience, tone, cta, currentContent, existingText, variationIndex, websiteUrl } = await req.json();
 
     // Handle Image Text content type
     if (contentType === 'Image Text' || contentType === 'Image Text Regenerate') {
+      let companyContext = '';
+      
+      // If website URL is provided, fetch company info
+      if (websiteUrl) {
+        try {
+          const websiteResponse = await fetch(websiteUrl, {
+            headers: { 'User-Agent': 'EngageHub-Bot/1.0' }
+          });
+          const html = await websiteResponse.text();
+          
+          // Extract basic info from HTML
+          const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
+          const descMatch = html.match(/<meta[^>]*name=["']description["'][^>]*content=["']([^"']+)["']/i);
+          
+          const companyName = titleMatch?.[1] || 'Company';
+          const description = descMatch?.[1] || '';
+          
+          companyContext = `
+COMPANY INFO FROM WEBSITE:
+- Company Name: ${companyName}
+- Description: ${description}
+- Use this company identity to create relevant, consistent content that matches their brand.
+`;
+        } catch (e) {
+          console.log('Could not fetch website info:', e);
+        }
+      }
+
       const imageTextPrompt = contentType === 'Image Text Regenerate' 
         ? `Generate a new catchy text for an image based on topic: ${topic}. The current text is: ${existingText || ''}. Generate 5 short, impactful text options (max 15 words each) suitable for overlay on images. Make them attention-grabbing, emotional, or question-based.`
         : `You are a professional graphic designer and copywriter specializing in social media image text overlays.
@@ -28,12 +56,13 @@ Generate catchy, scroll-stopping text for images based on:
 - Topic/Theme: ${topic}
 - Target Audience: ${audience}
 - Tone: ${tone}
-
+${companyContext}
 Create 5 short, impactful text options (MAX 15 words each) that work well as image overlays. They should be:
 ✓ Attention-grabbing
 ✓ Easy to read at a glance
 ✓ Emotionally compelling
 ✓ Different styles (bold statement, question, quote, minimal, FOMO)
+✓ Match the company brand if company info provided
 
 FORMAT YOUR RESPONSE EXACTLY LIKE THIS (one option per line, no numbering):
 

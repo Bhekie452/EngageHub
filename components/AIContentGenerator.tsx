@@ -14,6 +14,10 @@ import {
   TrendingUp,
   Image,
   Edit3,
+  Upload,
+  Globe,
+  ImagePlus,
+  XCircle,
 } from 'lucide-react';
 import { supabase } from '../src/lib/supabase';
 import { useToast } from '../src/components/common/Toast';
@@ -61,6 +65,9 @@ export const AIContentGenerator: React.FC<AIContentGeneratorProps> = ({
   const [refiningVariationIndex, setRefiningVariationIndex] = useState<number | null>(null);
   const [imageTextVariations, setImageTextVariations] = useState<ImageTextVariation[]>([]);
   const [regeneratingImageTextIndex, setRegeneratingImageTextIndex] = useState<number | null>(null);
+  const [uploadedImage, setUploadedImage] = useState<string | null>(null);
+  const [websiteUrl, setWebsiteUrl] = useState<string>('');
+  const [isUploading, setIsUploading] = useState(false);
   const toast = useToast();
 
   const contentTypes = ['Post', 'Caption', 'Ad Copy', 'Description', 'Story', 'Image Text'];
@@ -227,6 +234,7 @@ export const AIContentGenerator: React.FC<AIContentGeneratorProps> = ({
             tone,
             cta: cta || 'Not specified',
             currentContent,
+            websiteUrl: websiteUrl || null,
           },
         }
       );
@@ -317,6 +325,33 @@ export const AIContentGenerator: React.FC<AIContentGeneratorProps> = ({
       text: newText,
     };
     setImageTextVariations(updated);
+  };
+
+  // Handle image upload
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploading(true);
+    try {
+      // Create a preview URL
+      const previewUrl = URL.createObjectURL(file);
+      setUploadedImage(previewUrl);
+      toast?.success('Image attached!');
+    } catch (err) {
+      console.error('Error uploading image:', err);
+      toast?.error('Failed to attach image');
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  // Remove uploaded image
+  const handleRemoveImage = () => {
+    if (uploadedImage) {
+      URL.revokeObjectURL(uploadedImage);
+    }
+    setUploadedImage(null);
   };
 
   if (!isOpen) return null;
@@ -421,6 +456,85 @@ export const AIContentGenerator: React.FC<AIContentGeneratorProps> = ({
                 className="w-full px-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
               />
             </div>
+
+            {/* Image Text Options - Show when Image Text is selected */}
+            {contentType === 'Image Text' && (
+              <div className="space-y-4 pt-2">
+                <div className="p-4 bg-purple-50 rounded-lg border border-purple-200">
+                  <h4 className="text-sm font-bold text-purple-700 mb-3 flex items-center gap-2">
+                    <ImagePlus size={16} />
+                    Image & Company Details (Optional)
+                  </h4>
+                  
+                  {/* Image Upload */}
+                  <div className="mb-3">
+                    <label className="block text-xs font-semibold text-gray-600 mb-2">
+                      Attach Product/Image
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleImageUpload}
+                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                      />
+                      <div className={`flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed rounded-lg transition-all ${
+                        uploadedImage ? 'border-purple-400 bg-purple-100' : 'border-gray-300 hover:border-purple-400'
+                      }`}>
+                        {isUploading ? (
+                          <Loader size={16} className="animate-spin text-purple-600" />
+                        ) : uploadedImage ? (
+                          <>
+                            <Image size={16} className="text-purple-600" />
+                            <span className="text-sm text-purple-700">Image attached!</span>
+                          </>
+                        ) : (
+                          <>
+                            <Upload size={16} className="text-gray-400" />
+                            <span className="text-sm text-gray-500">Click to upload image</span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                    {uploadedImage && (
+                      <div className="mt-2 relative inline-block">
+                        <img 
+                          src={uploadedImage} 
+                          alt="Uploaded" 
+                          className="h-20 w-auto rounded-lg object-cover"
+                        />
+                        <button
+                          onClick={handleRemoveImage}
+                          className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600"
+                        >
+                          <XCircle size={16} />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Website URL */}
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-2">
+                      Company Website (for AI context)
+                    </label>
+                    <div className="relative">
+                      <Globe size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                      <input
+                        type="url"
+                        value={websiteUrl}
+                        onChange={(e) => setWebsiteUrl(e.target.value)}
+                        placeholder="https://yourcompany.com"
+                        className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                      />
+                    </div>
+                    <p className="text-[10px] text-gray-500 mt-1">
+                      AI will fetch company info from website to create relevant content
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Error State */}
@@ -637,17 +751,25 @@ export const AIContentGenerator: React.FC<AIContentGeneratorProps> = ({
                     className={`
                       relative h-32 rounded-lg flex items-center justify-center overflow-hidden
                       ${variation.position === 'center' ? 'items-center' : variation.position === 'top' ? 'items-start' : 'items-end'}
-                      bg-gradient-to-br from-gray-800 to-gray-900
+                      ${uploadedImage ? '' : 'bg-gradient-to-br from-gray-800 to-gray-900'}
                     `}
                     style={{
                       padding: variation.position === 'center' ? '2rem' : '1rem',
+                      backgroundImage: uploadedImage ? `url(${uploadedImage})` : undefined,
+                      backgroundSize: 'cover',
+                      backgroundPosition: 'center',
                     }}
                   >
+                    {/* Overlay for text readability */}
+                    {uploadedImage && (
+                      <div className="absolute inset-0 bg-black/40" />
+                    )}
                     <span 
                       className={`
-                        text-white text-center font-bold
+                        relative z-10 text-white text-center font-bold
                         ${variation.fontSize === 'large' ? 'text-xl' : variation.fontSize === 'medium' ? 'text-lg' : 'text-base'}
                         ${variation.style === 'bold' ? 'font-extrabold' : variation.style === 'minimal' ? 'font-light' : variation.style === 'quote' ? 'italic' : ''}
+                        drop-shadow-lg
                       `}
                     >
                       {variation.text}
