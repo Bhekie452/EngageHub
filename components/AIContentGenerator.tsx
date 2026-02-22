@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import {
   Sparkles,
   X,
@@ -18,8 +18,6 @@ import {
   Globe,
   ImagePlus,
   XCircle,
-  Download,
-  Palette,
 } from 'lucide-react';
 import { supabase } from '../src/lib/supabase';
 import { useToast } from '../src/components/common/Toast';
@@ -70,10 +68,6 @@ export const AIContentGenerator: React.FC<AIContentGeneratorProps> = ({
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
   const [websiteUrl, setWebsiteUrl] = useState<string>('');
   const [isUploading, setIsUploading] = useState(false);
-  const [textColor, setTextColor] = useState('#ffffff');
-  const [overlayColor, setOverlayColor] = useState('rgba(0,0,0,0.5)');
-  const [overlayOpacity, setOverlayOpacity] = useState(50);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
   const toast = useToast();
 
   const contentTypes = ['Post', 'Caption', 'Ad Copy', 'Description', 'Story', 'Image Text'];
@@ -360,149 +354,10 @@ export const AIContentGenerator: React.FC<AIContentGeneratorProps> = ({
     setUploadedImage(null);
   };
 
-  // Download image with text overlay
-  const handleDownloadImage = async (variation: ImageTextVariation) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    // Set canvas size (high quality)
-    canvas.width = 1200;
-    canvas.height = 630;
-
-    try {
-      if (uploadedImage) {
-        // Load and draw uploaded image
-        const img = new Image();
-        img.crossOrigin = 'anonymous';
-        await new Promise((resolve, reject) => {
-          img.onload = resolve;
-          img.onerror = reject;
-          img.src = uploadedImage;
-        });
-
-        // Draw image scaled to cover canvas
-        const imgRatio = img.width / img.height;
-        const canvasRatio = canvas.width / canvas.height;
-        let sx = 0, sy = 0, sw = img.width, sh = img.height;
-
-        if (imgRatio > canvasRatio) {
-          sw = img.height * canvasRatio;
-          sx = (img.width - sw) / 2;
-        } else {
-          sh = img.width / canvasRatio;
-          sy = (img.height - sh) / 2;
-        }
-
-        ctx.drawImage(img, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
-      } else {
-        // Create gradient background if no image
-        const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
-        gradient.addColorStop(0, '#6366f1');
-        gradient.addColorStop(0.5, '#8b5cf6');
-        gradient.addColorStop(1, '#d946ef');
-        ctx.fillStyle = gradient;
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-      }
-
-      // Draw overlay
-      const overlayOpacityValue = overlayOpacity / 100;
-      ctx.fillStyle = variation.position === 'center' 
-        ? `rgba(0, 0, 0, 0.3)` 
-        : `rgba(0, 0, 0, ${overlayOpacityValue})`;
-      
-      if (variation.position === 'top') {
-        ctx.fillRect(0, 0, canvas.width, 150);
-      } else if (variation.position === 'bottom') {
-        ctx.fillRect(0, canvas.height - 150, canvas.width, 150);
-      } else {
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-      }
-
-      // Configure text
-      const fontSize = variation.fontSize === 'large' ? 72 : variation.fontSize === 'medium' ? 56 : 42;
-      ctx.fillStyle = textColor;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-
-      // Set font based on style
-      if (variation.style === 'bold') {
-        ctx.font = `bold ${fontSize}px Inter, system-ui, sans-serif`;
-      } else if (variation.style === 'minimal') {
-        ctx.font = `300 ${fontSize}px Inter, system-ui, sans-serif`;
-      } else if (variation.style === 'quote') {
-        ctx.font = `italic ${fontSize}px Georgia, serif`;
-      } else {
-        ctx.font = `${fontSize}px Inter, system-ui, sans-serif`;
-      }
-
-      // Add text shadow for readability
-      ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
-      ctx.shadowBlur = 10;
-      ctx.shadowOffsetX = 2;
-      ctx.shadowOffsetY = 2;
-
-      // Draw text based on position
-      let x = canvas.width / 2;
-      let y: number;
-
-      if (variation.position === 'top') {
-        y = 75;
-      } else if (variation.position === 'bottom') {
-        y = canvas.height - 75;
-      } else {
-        y = canvas.height / 2;
-      }
-
-      // Word wrap text
-      const maxWidth = canvas.width - 100;
-      const words = variation.text.split(' ');
-      let line = '';
-      const lines: string[] = [];
-
-      for (let i = 0; i < words.length; i++) {
-        const testLine = line + words[i] + ' ';
-        const metrics = ctx.measureText(testLine);
-        if (metrics.width > maxWidth && i > 0) {
-          lines.push(line);
-          line = words[i] + ' ';
-        } else {
-          line = testLine;
-        }
-      }
-      lines.push(line);
-
-      // Draw each line
-      const lineHeight = fontSize * 1.2;
-      const startY = y - ((lines.length - 1) * lineHeight) / 2;
-
-      lines.forEach((line, i) => {
-        ctx.fillText(line.trim(), x, startY + (i * lineHeight));
-      });
-
-      // Download the canvas
-      const link = document.createElement('a');
-      link.download = `image-text-${Date.now()}.png`;
-      link.href = canvas.toDataURL('image/png');
-      link.click();
-
-      toast?.success('Image downloaded!');
-    } catch (err) {
-      console.error('Error downloading image:', err);
-      toast?.error('Failed to download image');
-    }
-  };
-
   if (!isOpen) return null;
 
   return (
-    <>
-      {/* Hidden canvas for image generation */}
-      <canvas ref={canvasRef} className="hidden" />
-      
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
       <div className="w-full max-w-2xl max-h-[90vh] bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-300">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-gradient-to-r from-indigo-50 to-purple-50">
@@ -676,67 +531,6 @@ export const AIContentGenerator: React.FC<AIContentGeneratorProps> = ({
                     <p className="text-[10px] text-gray-500 mt-1">
                       AI will fetch company info from website to create relevant content
                     </p>
-                  </div>
-
-                  {/* Color Options */}
-                  <div className="grid grid-cols-2 gap-3">
-                    {/* Text Color */}
-                    <div>
-                      <label className="block text-xs font-semibold text-gray-600 mb-2 flex items-center gap-1">
-                        <Palette size={12} />
-                        Text Color
-                      </label>
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="color"
-                          value={textColor}
-                          onChange={(e) => setTextColor(e.target.value)}
-                          className="w-10 h-10 rounded-lg border border-gray-200 cursor-pointer"
-                        />
-                        <input
-                          type="text"
-                          value={textColor}
-                          onChange={(e) => setTextColor(e.target.value)}
-                          className="flex-1 px-2 py-1.5 border border-gray-200 rounded-lg text-xs font-mono"
-                        />
-                      </div>
-                    </div>
-
-                    {/* Overlay Color */}
-                    <div>
-                      <label className="block text-xs font-semibold text-gray-600 mb-2 flex items-center gap-1">
-                        <ImagePlus size={12} />
-                        Overlay
-                      </label>
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="range"
-                          min="0"
-                          max="100"
-                          value={overlayOpacity}
-                          onChange={(e) => setOverlayOpacity(Number(e.target.value))}
-                          className="flex-1 h-10 rounded-lg cursor-pointer accent-purple-600"
-                        />
-                        <span className="text-xs text-gray-500 w-8">{overlayOpacity}%</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Quick Color Presets */}
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-600 mb-2">Quick Color Presets</label>
-                    <div className="flex flex-wrap gap-2">
-                      {['#ffffff', '#000000', '#fbbf24', '#ef4444', '#22c55e', '#3b82f6', '#8b5cf6', '#ec4899'].map((color) => (
-                        <button
-                          key={color}
-                          onClick={() => setTextColor(color)}
-                          className={`w-8 h-8 rounded-full border-2 transition-all ${
-                            textColor === color ? 'border-purple-500 scale-110' : 'border-gray-200'
-                          }`}
-                          style={{ backgroundColor: color }}
-                        />
-                      ))}
-                    </div>
                   </div>
                 </div>
               </div>
@@ -968,19 +762,15 @@ export const AIContentGenerator: React.FC<AIContentGeneratorProps> = ({
                   >
                     {/* Overlay for text readability */}
                     {uploadedImage && (
-                      <div 
-                        className="absolute inset-0"
-                        style={{ backgroundColor: `rgba(0,0,0,${overlayOpacity / 100})` }} 
-                      />
+                      <div className="absolute inset-0 bg-black/40" />
                     )}
                     <span 
                       className={`
-                        relative z-10 text-center font-bold
+                        relative z-10 text-white text-center font-bold
                         ${variation.fontSize === 'large' ? 'text-xl' : variation.fontSize === 'medium' ? 'text-lg' : 'text-base'}
                         ${variation.style === 'bold' ? 'font-extrabold' : variation.style === 'minimal' ? 'font-light' : variation.style === 'quote' ? 'italic' : ''}
                         drop-shadow-lg
                       `}
-                      style={{ color: textColor }}
                     >
                       {variation.text}
                     </span>
@@ -1020,15 +810,18 @@ export const AIContentGenerator: React.FC<AIContentGeneratorProps> = ({
                       ) : (
                         <RefreshCw size={14} />
                       )}
-                      Refresh
+                      Refresh Text
                     </button>
 
                     <button
-                      onClick={() => handleDownloadImage(variation)}
-                      className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-green-600 hover:bg-green-700 rounded-lg text-xs font-semibold text-white transition-all"
+                      onClick={() => {
+                        navigator.clipboard.writeText(variation.text);
+                        toast?.success('Text copied to clipboard!');
+                      }}
+                      className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-purple-600 hover:bg-purple-700 rounded-lg text-xs font-semibold text-white transition-all"
                     >
-                      <Download size={14} />
-                      Download
+                      <Copy size={14} />
+                      Copy Text
                     </button>
                   </div>
                 </div>
@@ -1051,6 +844,6 @@ export const AIContentGenerator: React.FC<AIContentGeneratorProps> = ({
           </button>
         </div>
       </div>
-    </>
+    </div>
   );
 };
