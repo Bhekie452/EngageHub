@@ -3443,10 +3443,17 @@ const Content: React.FC = () => {
                     // For now using post.id as fallback - you may want to fetch from post_publications
                     let platformPostId = viewingPost.platform_post_id || viewingPost.id;
 
-                    // Specific fix for YouTube: extract ID from link_url if platformPostId is just a UUID
-                    if (platform.toLowerCase() === 'youtube' && viewingPost.link_url) {
-                      const ytId = extractYouTubeId(viewingPost.link_url);
-                      if (ytId) platformPostId = ytId;
+                    // Specific fix for YouTube: extract ID from link_url or external_video_id
+                    if (platform.toLowerCase() === 'youtube') {
+                      // First try external_video_id (set when publishing)
+                      if (viewingPost.external_video_id) {
+                        platformPostId = viewingPost.external_video_id;
+                      }
+                      // Fallback: extract from link_url
+                      else if (viewingPost.link_url) {
+                        const ytId = extractYouTubeId(viewingPost.link_url);
+                        if (ytId) platformPostId = ytId;
+                      }
                     }
 
                     return (
