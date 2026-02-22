@@ -70,9 +70,9 @@ export default function YouTubeEngagement() {
       const workspaceId = localStorage.getItem('current_workspace_id') || '';
       const response = await getYouTubeVideoCommentsClient(workspaceId, videoId, 50);
       
-      if (response?.comments) {
-        setComments(response.comments);
-      }
+      // Handle both response formats: { comments: [...] } or { data: [...] } from youtube-api
+      const commentsData = response?.comments || response?.data || [];
+      setComments(commentsData);
     } catch (error) {
       console.error('Failed to fetch comments:', error);
     } finally {

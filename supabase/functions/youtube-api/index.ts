@@ -199,7 +199,7 @@ serve(async (req) => {
         }
         break
       case 'video-comments':
-        result = await getVideoComments(accessToken, options.videoId, options.maxResults || 20)
+        result = await getVideoComments(accessToken, options.videoId, options.maxResults || 20, supabase, workspaceId)
         break
       case 'like-video':
         result = await likeVideo(accessToken, options.videoId)
@@ -371,7 +371,7 @@ async function getVideoDetails(accessToken: string, videoId: string) {
 }
 
 // Get video comments
-async function getVideoComments(accessToken: string, videoId: string, maxResults: number = 20) {
+async function getVideoComments(accessToken: string, videoId: string, maxResults: number = 20, supabaseClient?: any, workspaceId?: string) {
   const response = await fetch(
     `https://www.googleapis.com/youtube/v3/commentThreads?part=snippet&videoId=${videoId}&maxResults=${maxResults}&order=relevance`,
     {
@@ -386,7 +386,84 @@ async function getVideoComments(accessToken: string, videoId: string, maxResults
   }
 
   const data = await response.json()
-  return data.items || []
+  const items = data.items || []
+  
+  // Transform to our format
+  const comments = items.map((item: any) => ({
+    id: item.id,
+    author: item.snippet.topLevelComment.snippet.authorDisplayName,
+    authorChannelId: item.snippet.topLevelComment.snippet.authorChannelId?.value || '',
+    text: item.snippet.topLevelComment.snippet.textDisplay,
+    likeCount: item.snippet.topLevelComment.snippet.likeCount,
+    publishedAt: item.snippet.topLevelComment.snippet.publishedAt
+  }))
+  
+  // Store comments in database for harvesting (using engagement_actions table)
+  if (supabaseClient && workspaceId) {
+    try {
+      // Get the workspace owner user_id
+      const { data: workspaceData } = await supabaseClient
+        .from('workspaces')
+        .select('owner_id')
+        .eq('id', workspaceId)
+        .single()
+      
+      const userId = workspaceData?.owner_id
+      
+      // Find or create the post for this video
+      const { data: postData } = await supabaseClient
+        .from('posts')
+        .select('id')
+        .eq('workspace_id', workspaceId)
+        .eq('platform', 'youtube')
+        .eq('platform_post_id', videoId)
+        .single()
+      
+      const postId = postData?.id
+      
+      for (const comment of comments) {
+        // Check if comment already exists (deduplication)
+        const { data: existing } = await supabaseClient
+          .from('engagement_actions')
+          .select('id')
+          .eq('workspace_id', workspaceId)
+          .eq('platform', 'youtube')
+          .eq('platform_post_id', videoId)
+          .eq('platform_action_id', comment.id)
+          .eq('action_type', 'comment')
+          .single()
+        
+        if (!existing && postId && userId) {
+          // Insert new comment
+          await supabaseClient
+            .from('engagement_actions')
+            .insert({
+              workspace_id: workspaceId,
+              user_id: userId,
+              post_id: postId,
+              platform_post_id: videoId,
+              platform: 'youtube',
+              action_type: 'comment',
+              action_data: {
+                author: comment.author,
+                authorChannelId: comment.authorChannelId,
+                text: comment.text,
+                likeCount: comment.likeCount
+              },
+              source: 'native',
+              platform_action_id: comment.id,
+              platform_user_id: comment.authorChannelId,
+              synced: true
+            })
+        }
+      }
+    } catch (dbError) {
+      console.error('Failed to store comments in database:', dbError)
+      // Don't throw - just log the error, comments are still returned
+    }
+  }
+  
+  return comments
 }
 
 // Post comment to video
