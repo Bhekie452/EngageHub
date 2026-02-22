@@ -385,16 +385,19 @@ export const analyticsService = {
           });
 
           if (ytComments?.data) {
-            youtubeActivity.push(...ytComments.data.map((c: any) => ({
-              type: 'comment',
-              user: c.snippet.topLevelComment.snippet.authorDisplayName,
-              text: c.snippet.topLevelComment.snippet.textDisplay,
-              occurred_at: c.snippet.topLevelComment.snippet.publishedAt,
-              platform: 'youtube' as const,
-              time: timeAgo(c.snippet.topLevelComment.snippet.publishedAt),
-              avatar: c.snippet.topLevelComment.snippet.authorProfileImageUrl,
-              userUrl: c.snippet.topLevelComment.snippet.authorChannelUrl
-            })));
+            const validComments = ytComments.data
+              .filter((c: any) => c?.snippet?.topLevelComment?.snippet)  // guard: skip malformed items
+              .map((c: any) => ({
+                type: 'comment',
+                user: c.snippet.topLevelComment.snippet.authorDisplayName,
+                text: c.snippet.topLevelComment.snippet.textDisplay,
+                occurred_at: c.snippet.topLevelComment.snippet.publishedAt,
+                platform: 'youtube' as const,
+                time: timeAgo(c.snippet.topLevelComment.snippet.publishedAt),
+                avatar: c.snippet.topLevelComment.snippet.authorProfileImageUrl,
+                userUrl: c.snippet.topLevelComment.snippet.authorChannelUrl
+              }));
+            youtubeActivity.push(...validComments);
           } else {
             // FALLBACK: Try local /api/app proxy for comments
             try {
