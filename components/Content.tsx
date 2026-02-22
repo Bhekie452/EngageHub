@@ -65,6 +65,7 @@ import ContentCalendar from './ContentCalendar';
 import ContentTemplates from './ContentTemplates';
 import YouTubeSimpleConnect from './YouTubeSimpleConnect';
 import { AIContentGenerator } from './AIContentGenerator';
+import { AIImageBlender } from './AIImageBlender';
 import { useYouTubeConnectionSimple } from '../src/hooks/useYouTubeConnectionSimple';
 import { useYouTubeSession } from '../src/hooks/useYouTubeSession';
 
@@ -81,6 +82,7 @@ const Content: React.FC = () => {
   const [socialAccounts, setSocialAccounts] = useState<Record<string, boolean>>({});
   const [currentWorkspaceId, setCurrentWorkspaceId] = useState<string | null>(null);
   const [aiGeneratorOpen, setAiGeneratorOpen] = useState(false);
+  const [aiImageGeneratorOpen, setAiImageGeneratorOpen] = useState(false);
 
   const toast = useToast();
 
@@ -1632,10 +1634,18 @@ const Content: React.FC = () => {
                         <button
                           onClick={() => setAiGeneratorOpen(true)}
                           className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 rounded transition-all"
-                          title="Generate with AI"
+                          title="Generate text with AI"
                         >
                           <Sparkles size={16} />
                           <span className="hidden sm:inline">AI Generate</span>
+                        </button>
+                        <button
+                          onClick={() => setAiImageGeneratorOpen(true)}
+                          className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold text-pink-600 hover:text-pink-700 hover:bg-pink-50 rounded transition-all"
+                          title="Generate image with AI"
+                        >
+                          <ImageIcon size={16} />
+                          <span className="hidden sm:inline">AI Image</span>
                         </button>
                       </div>
                       <div className="flex items-center gap-3">
@@ -2469,6 +2479,16 @@ const Content: React.FC = () => {
                 }}
                 selectedPlatforms={selectedPlatforms}
                 currentContent={postContent}
+              />
+              {/* AI Image Blender Modal */}
+              <AIImageBlender
+                isOpen={aiImageGeneratorOpen}
+                onClose={() => setAiImageGeneratorOpen(false)}
+                onInsert={(imageData) => {
+                  // Add the generated image to uploaded images
+                  setUploadedImages(prev => [...prev, imageData]);
+                  setAiImageGeneratorOpen(false);
+                }}
               />
             </div>
           </div>

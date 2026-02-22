@@ -1,7 +1,7 @@
 // @ts-nocheck
-// Use fetch directly to call Gemini API with v1 endpoint
+// Use OpenAI API for content generation
 
-const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY")!;
+const GROQ_API_KEY = Deno.env.get("GROQ_API_KEY")!;
 
 // Simple CORS headers for public access (no JWT verification)
 const corsHeaders = {
@@ -86,22 +86,27 @@ Don't miss out!
 
 What's stopping you?`;
 
-      const imageTextResponse = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`, {
+      const imageTextResponse = await fetch(`https://api.groq.com/openai/v1/chat/completions`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${GROQ_API_KEY}`
+        },
         body: JSON.stringify({
-          contents: [{ parts: [{ text: imageTextPrompt }] }],
-          generationConfig: { temperature: 0.9, maxOutputTokens: 1024 },
+          model: 'llama-3.1-8b-instant',
+          messages: [{ role: 'user', content: imageTextPrompt }],
+          temperature: 0.9,
+          max_tokens: 1024,
         }),
       });
 
       if (!imageTextResponse.ok) {
         const errorData = await imageTextResponse.text();
-        throw new Error(`Gemini API error: ${imageTextResponse.status} - ${errorData}`);
+        throw new Error(`Groq API error: ${imageTextResponse.status} - ${errorData}`);
       }
 
       const imageTextData = await imageTextResponse.json();
-      const imageText = imageTextData.candidates?.[0]?.content?.parts?.[0]?.text || '';
+      const imageText = imageTextData.choices[0]?.message?.content || '';
 
       return new Response(JSON.stringify({ result: imageText }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -171,28 +176,28 @@ Variation 3: Story-Driven Approach
 
 Generate only the 3 variations. No preamble, no explanations.`;
 
-    // Use fetch to call Gemini API directly with v1 endpoint
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`, {
+    // Use fetch to call Groq API
+    const response = await fetch(`https://api.groq.com/openai/v1/chat/completions`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'Authorization': `Bearer ${GROQ_API_KEY}`
       },
       body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: {
-          temperature: 0.9,
-          maxOutputTokens: 2048,
-        },
+        model: 'llama-3.1-8b-instant',
+        messages: [{ role: 'user', content: prompt }],
+        temperature: 0.9,
+        max_tokens: 2048,
       }),
     });
 
     if (!response.ok) {
       const errorData = await response.text();
-      throw new Error(`Gemini API error: ${response.status} - ${errorData}`);
+      throw new Error(`Groq API error: ${response.status} - ${errorData}`);
     }
 
     const data = await response.json();
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || 'No response generated';
+    const text = data.choices[0]?.message?.content || 'No response generated';
 
     return new Response(JSON.stringify({ result: text }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

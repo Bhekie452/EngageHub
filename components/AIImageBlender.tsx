@@ -3,7 +3,13 @@ import { Upload, Wand, Loader, Image as ImageIcon, Palette, Type, X } from 'luci
 import { supabase } from '../src/lib/supabase';
 import { useToast } from '../src/components/common/Toast';
 
-export const AIImageBlender: React.FC = () => {
+interface AIImageBlenderProps {
+  isOpen?: boolean;
+  onClose?: () => void;
+  onInsert?: (imageData: string) => void;
+}
+
+export const AIImageBlender: React.FC<AIImageBlenderProps> = ({ isOpen = true, onClose, onInsert }) => {
   const [image, setImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [text, setText] = useState<string>('Your Text Here');
@@ -63,7 +69,29 @@ export const AIImageBlender: React.FC = () => {
   };
 
   return (
-    <div className="p-4 md:p-6">
+    <>
+      {isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          {/* Backdrop */}
+          <div 
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            onClick={onClose}
+          />
+          {/* Modal */}
+          <div className="relative z-10 bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden">
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <h2 className="text-xl font-bold text-gray-900">AI Image Blender</h2>
+              <button 
+                onClick={onClose}
+                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            {/* Content */}
+            <div className="p-4 md:p-6 overflow-y-auto max-h-[calc(90vh-80px)]">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
         <div className="space-y-6">
           <div className="space-y-4">
@@ -167,7 +195,18 @@ export const AIImageBlender: React.FC = () => {
         </div>
         <div className="flex items-center justify-center bg-gray-100 rounded-lg">
           {generatedImage ? (
-            <img src={generatedImage} alt="Generated" className="rounded-md max-h-full max-w-full" />
+            <div className="space-y-4">
+              <img src={generatedImage} alt="Generated" className="rounded-md max-h-full max-w-full" />
+              {onInsert && (
+                <button
+                  onClick={() => onInsert(generatedImage)}
+                  className="w-full py-2 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center gap-2"
+                >
+                  <ImageIcon className="w-4 h-4" />
+                  Insert Image
+                </button>
+              )}
+            </div>
           ) : (
             <div className="text-center text-gray-500">
               <ImageIcon className="mx-auto h-12 w-12" />
@@ -176,6 +215,11 @@ export const AIImageBlender: React.FC = () => {
           )}
         </div>
       </div>
-    </div>
+      </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 };

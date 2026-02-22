@@ -1,7 +1,7 @@
 // @ts-nocheck
-import { GoogleGenerativeAI } from "npm:@google/generative-ai";
+// Use OpenAI API for content refinement
 
-const genAI = new GoogleGenerativeAI(Deno.env.get("GEMINI_API_KEY")!);
+const GROQ_API_KEY = Deno.env.get("GROQ_API_KEY")!;
 
 Deno.serve(async (req) => {
   // Handle CORS
@@ -23,8 +23,7 @@ Deno.serve(async (req) => {
       refinementPrompt,
     } = await req.json();
 
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-
+    // Build the prompt for refinement
     const prompt = `You are a professional social media marketing expert.
 
 Your task is to refine existing social media content for ${platform}.
@@ -43,8 +42,28 @@ IMPORTANT:
 
 Refined content:`;
 
-    const result = await model.generateContent(prompt);
-    const refinedText = result.response.text();
+    // Call Groq API
+    const response = await fetch(`https://api.groq.com/openai/v1/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${GROQ_API_KEY}`
+      },
+      body: JSON.stringify({
+        model: 'llama-3.1-8b-instant',
+        messages: [{ role: 'user', content: prompt }],
+        temperature: 0.9,
+        max_tokens: 1024,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.text();
+      throw new Error(`Groq API error: ${response.status} - ${errorData}`);
+    }
+
+    const data = await response.json();
+    const refinedText = data.choices[0]?.message?.content || '';
 
     // Clean up the response
     const cleanedText = refinedText
