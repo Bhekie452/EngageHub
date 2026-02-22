@@ -16,8 +16,70 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { platform, contentType, topic, audience, tone, cta, currentContent } = await req.json();
+    const { platform, contentType, topic, audience, tone, cta, currentContent, existingText, variationIndex } = await req.json();
 
+    // Handle Image Text content type
+    if (contentType === 'Image Text' || contentType === 'Image Text Regenerate') {
+      const imageTextPrompt = contentType === 'Image Text Regenerate' 
+        ? `Generate a new catchy text for an image based on topic: ${topic}. The current text is: ${existingText || ''}. Generate 5 short, impactful text options (max 15 words each) suitable for overlay on images. Make them attention-grabbing, emotional, or question-based.`
+        : `You are a professional graphic designer and copywriter specializing in social media image text overlays.
+
+Generate catchy, scroll-stopping text for images based on:
+- Topic/Theme: ${topic}
+- Target Audience: ${audience}
+- Tone: ${tone}
+
+Create 5 short, impactful text options (MAX 15 words each) that work well as image overlays. They should be:
+✓ Attention-grabbing
+✓ Easy to read at a glance
+✓ Emotionally compelling
+✓ Different styles (bold statement, question, quote, minimal, FOMO)
+
+FORMAT YOUR RESPONSE EXACTLY LIKE THIS (one option per line, no numbering):
+
+---
+
+Make it happen today
+
+---
+
+Ready to level up?
+
+---
+
+Your journey starts here
+
+---
+
+Don't miss out!
+
+---
+
+What's stopping you?`;
+
+      const imageTextResponse = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: imageTextPrompt }] }],
+          generationConfig: { temperature: 0.9, maxOutputTokens: 1024 },
+        }),
+      });
+
+      if (!imageTextResponse.ok) {
+        const errorData = await imageTextResponse.text();
+        throw new Error(`Gemini API error: ${imageTextResponse.status} - ${errorData}`);
+      }
+
+      const imageTextData = await imageTextResponse.json();
+      const imageText = imageTextData.candidates?.[0]?.content?.parts?.[0]?.text || '';
+
+      return new Response(JSON.stringify({ result: imageText }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Original content generation for other types
     const platformGuidelines = {
       "X (Twitter)":
         "Max 280 characters. Keep punchy and conversational. Include relevant hashtags (up to 2).",

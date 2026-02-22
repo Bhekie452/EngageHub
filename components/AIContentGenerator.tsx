@@ -12,6 +12,8 @@ import {
   Flame,
   Diamond,
   TrendingUp,
+  Image,
+  Edit3,
 } from 'lucide-react';
 import { supabase } from '../src/lib/supabase';
 import { useToast } from '../src/components/common/Toast';
@@ -32,6 +34,15 @@ interface GeneratedContent {
   isRefining?: boolean;
 }
 
+// New interface for Image Text variations
+interface ImageTextVariation {
+  id: number;
+  text: string;
+  style: 'bold' | 'minimal' | 'quote' | 'question' | 'statement';
+  fontSize: 'small' | 'medium' | 'large';
+  position: 'center' | 'top' | 'bottom';
+}
+
 export const AIContentGenerator: React.FC<AIContentGeneratorProps> = ({
   isOpen,
   onClose,
@@ -48,9 +59,11 @@ export const AIContentGenerator: React.FC<AIContentGeneratorProps> = ({
   const [generatedVariations, setGeneratedVariations] = useState<GeneratedContent[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [refiningVariationIndex, setRefiningVariationIndex] = useState<number | null>(null);
+  const [imageTextVariations, setImageTextVariations] = useState<ImageTextVariation[]>([]);
+  const [regeneratingImageTextIndex, setRegeneratingImageTextIndex] = useState<number | null>(null);
   const toast = useToast();
 
-  const contentTypes = ['Post', 'Caption', 'Ad Copy', 'Description', 'Story'];
+  const contentTypes = ['Post', 'Caption', 'Ad Copy', 'Description', 'Story', 'Image Text'];
   const tones = ['Engaging', 'Professional', 'Funny', 'Emotional', 'Bold', 'Luxury'];
   const primaryPlatform =
     selectedPlatforms.length > 0
@@ -192,6 +205,120 @@ export const AIContentGenerator: React.FC<AIContentGeneratorProps> = ({
     }
   };
 
+  // Handle generating image text variations
+  const handleGenerateImageText = async () => {
+    if (!topic.trim()) {
+      setError('Please enter a topic');
+      return;
+    }
+
+    setIsGenerating(true);
+    setError(null);
+
+    try {
+      const { data, error: invocationError } = await supabase.functions.invoke(
+        'ai-content-generator',
+        {
+          body: {
+            platform: primaryPlatform,
+            contentType: 'Image Text',
+            topic,
+            audience: audience || 'General audience',
+            tone,
+            cta: cta || 'Not specified',
+            currentContent,
+          },
+        }
+      );
+
+      if (invocationError) {
+        throw invocationError;
+      }
+
+      // Parse the response for image text suggestions
+      const responseText = data?.result || '';
+      const variations = parseImageTextVariations(responseText);
+      setImageTextVariations(variations);
+
+      if (variations.length === 0) {
+        setError('Could not generate image text. Please try again.');
+      }
+    } catch (err) {
+      console.error('Error generating image text:', err);
+      setError(err instanceof Error ? err.message : 'Failed to generate image text. Please try again.');
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  // Parse AI response into image text variations
+  const parseImageTextVariations = (text: string): ImageTextVariation[] => {
+    const styles: Array<'bold' | 'minimal' | 'quote' | 'question' | 'statement'> = ['bold', 'minimal', 'quote', 'question', 'statement'];
+    const variations: ImageTextVariation[] = [];
+    
+    // Split by numbered items or line breaks
+    const lines = text.split(/\n+/).filter(line => line.trim().length > 5);
+    
+    lines.slice(0, 5).forEach((line, index) => {
+      variations.push({
+        id: index + 1,
+        text: line.trim().slice(0, 100), // Limit text length
+        style: styles[index % styles.length],
+        fontSize: index < 2 ? 'large' : index < 4 ? 'medium' : 'small',
+        position: index % 3 === 0 ? 'center' : index % 3 === 1 ? 'top' : 'bottom',
+      });
+    });
+
+    return variations;
+  };
+
+  // Handle regenerating a single image text variation
+  const handleRegenerateImageText = async (index: number) => {
+    setRegeneratingImageTextIndex(index);
+
+    try {
+      const { data, error: invocationError } = await supabase.functions.invoke(
+        'ai-content-generator',
+        {
+          body: {
+            platform: primaryPlatform,
+            contentType: 'Image Text Regenerate',
+            topic,
+            existingText: imageTextVariations[index]?.text || '',
+            variationIndex: index,
+          },
+        }
+      );
+
+      if (invocationError) throw invocationError;
+
+      const newText = data?.result?.trim() || imageTextVariations[index]?.text || '';
+      
+      const updated = [...imageTextVariations];
+      updated[index] = {
+        ...updated[index],
+        text: newText.slice(0, 100),
+      };
+      setImageTextVariations(updated);
+      toast?.success('Text regenerated!');
+    } catch (err) {
+      console.error('Error regenerating image text:', err);
+      toast?.error('Failed to regenerate text');
+    } finally {
+      setRegeneratingImageTextIndex(null);
+    }
+  };
+
+  // Handle updating image text manually
+  const handleUpdateImageText = (index: number, newText: string) => {
+    const updated = [...imageTextVariations];
+    updated[index] = {
+      ...updated[index],
+      text: newText,
+    };
+    setImageTextVariations(updated);
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -305,7 +432,7 @@ export const AIContentGenerator: React.FC<AIContentGeneratorProps> = ({
           )}
 
           {/* Generate Button */}
-          {generatedVariations.length === 0 && (
+          {generatedVariations.length === 0 && contentType !== 'Image Text' && (
             <button
               onClick={handleGenerate}
               disabled={isGenerating || !topic.trim()}
@@ -325,8 +452,29 @@ export const AIContentGenerator: React.FC<AIContentGeneratorProps> = ({
             </button>
           )}
 
+          {/* Generate Image Text Button */}
+          {contentType === 'Image Text' && imageTextVariations.length === 0 && (
+            <button
+              onClick={handleGenerateImageText}
+              disabled={isGenerating || !topic.trim()}
+              className="w-full py-3 bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-500 text-white font-semibold rounded-lg hover:shadow-lg hover:shadow-purple-500/30 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
+            >
+              {isGenerating ? (
+                <>
+                  <Loader className="w-4 h-4 animate-spin" />
+                  Generating Image Text...
+                </>
+              ) : (
+                <>
+                  <Image className="w-4 h-4" />
+                  Generate Image Text
+                </>
+              )}
+            </button>
+          )}
+
           {/* Generated Variations */}
-          {generatedVariations.length > 0 && (
+          {generatedVariations.length > 0 && contentType !== 'Image Text' && (
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <h3 className="text-sm font-bold text-gray-700">
@@ -458,6 +606,104 @@ export const AIContentGenerator: React.FC<AIContentGeneratorProps> = ({
               >
                 Generate New Set
               </button>
+            </div>
+          )}
+
+          {/* Image Text Variations */}
+          {imageTextVariations.length > 0 && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-bold text-gray-700 flex items-center gap-2">
+                  <Image size={16} className="text-purple-500" />
+                  Image Text Designs ({imageTextVariations.length})
+                </h3>
+                <button
+                  onClick={handleGenerateImageText}
+                  disabled={isGenerating}
+                  className="flex items-center gap-1.5 text-xs font-semibold text-indigo-600 hover:text-indigo-700 disabled:opacity-50 transition-all"
+                >
+                  <RefreshCw size={14} />
+                  Generate More
+                </button>
+              </div>
+
+              {imageTextVariations.map((variation, index) => (
+                <div
+                  key={variation.id}
+                  className="bg-gradient-to-br from-purple-50 to-white border border-purple-200 rounded-xl p-4 hover:shadow-md transition-all space-y-3"
+                >
+                  {/* Preview Box */}
+                  <div 
+                    className={`
+                      relative h-32 rounded-lg flex items-center justify-center overflow-hidden
+                      ${variation.position === 'center' ? 'items-center' : variation.position === 'top' ? 'items-start' : 'items-end'}
+                      bg-gradient-to-br from-gray-800 to-gray-900
+                    `}
+                    style={{
+                      padding: variation.position === 'center' ? '2rem' : '1rem',
+                    }}
+                  >
+                    <span 
+                      className={`
+                        text-white text-center font-bold
+                        ${variation.fontSize === 'large' ? 'text-xl' : variation.fontSize === 'medium' ? 'text-lg' : 'text-base'}
+                        ${variation.style === 'bold' ? 'font-extrabold' : variation.style === 'minimal' ? 'font-light' : variation.style === 'quote' ? 'italic' : ''}
+                      `}
+                    >
+                      {variation.text}
+                    </span>
+                    
+                    {/* Style indicator */}
+                    <div className="absolute top-2 right-2">
+                      <span className="text-[10px] px-2 py-0.5 bg-white/20 text-white rounded-full">
+                        {variation.style}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Editable Text */}
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Edit3 size={14} className="text-gray-400" />
+                      <span className="text-xs font-semibold text-gray-600">Edit Text</span>
+                    </div>
+                    <textarea
+                      value={variation.text}
+                      onChange={(e) => handleUpdateImageText(index, e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none"
+                      rows={2}
+                      placeholder="Enter your text..."
+                    />
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => handleRegenerateImageText(index)}
+                      disabled={regeneratingImageTextIndex === index}
+                      className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-white border border-purple-200 hover:border-purple-300 rounded-lg text-xs font-semibold text-purple-600 transition-all disabled:opacity-50"
+                    >
+                      {regeneratingImageTextIndex === index ? (
+                        <Loader size={14} className="animate-spin" />
+                      ) : (
+                        <RefreshCw size={14} />
+                      )}
+                      Refresh Text
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(variation.text);
+                        toast?.success('Text copied to clipboard!');
+                      }}
+                      className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-purple-600 hover:bg-purple-700 rounded-lg text-xs font-semibold text-white transition-all"
+                    >
+                      <Copy size={14} />
+                      Copy Text
+                    </button>
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </div>
