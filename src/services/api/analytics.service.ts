@@ -422,15 +422,17 @@ export const analyticsService = {
         });
 
         if (ytSubs?.data) {
-          youtubeActivity.push(...ytSubs.data.map((s: any) => ({
-            type: 'subscriber',
-            user: s.subscriberSnippet.title,
-            occurred_at: s.subscriberSnippet.publishedAt || new Date().toISOString(),
-            platform: 'youtube' as const,
-            time: timeAgo(s.subscriberSnippet.publishedAt || new Date().toISOString()),
-            avatar: s.subscriberSnippet.thumbnails?.default?.url || s.subscriberSnippet.thumbnails?.medium?.url,
-            userUrl: `https://youtube.com/channel/${s.subscriberSnippet.channelId}`
-          })));
+          youtubeActivity.push(...ytSubs.data
+            .filter((s: any) => s?.subscriberSnippet)
+            .map((s: any) => ({
+              type: 'subscriber',
+              user: s.subscriberSnippet.title ?? 'Unknown',
+              occurred_at: s.subscriberSnippet.publishedAt || new Date().toISOString(),
+              platform: 'youtube' as const,
+              time: timeAgo(s.subscriberSnippet.publishedAt || new Date().toISOString()),
+              avatar: s.subscriberSnippet.thumbnails?.default?.url || s.subscriberSnippet.thumbnails?.medium?.url,
+              userUrl: `https://youtube.com/channel/${s.subscriberSnippet.channelId}`
+            })));
         }
       }
     } catch (e) {
