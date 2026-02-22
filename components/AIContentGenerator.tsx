@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   Sparkles,
   X,
@@ -68,6 +68,9 @@ export const AIContentGenerator: React.FC<AIContentGeneratorProps> = ({
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
   const [websiteUrl, setWebsiteUrl] = useState<string>('');
   const [isUploading, setIsUploading] = useState(false);
+  const [textColor, setTextColor] = useState('#ffffff');
+  const [backgroundColor, setBackgroundColor] = useState('rgba(0,0,0,0.5)');
+  const canvasRef = useRef<HTMLCanvasElement>(null);
   const toast = useToast();
 
   const contentTypes = ['Post', 'Caption', 'Ad Copy', 'Description', 'Story', 'Image Text'];
@@ -352,6 +355,119 @@ export const AIContentGenerator: React.FC<AIContentGeneratorProps> = ({
       URL.revokeObjectURL(uploadedImage);
     }
     setUploadedImage(null);
+  };
+
+  // Download image with text overlay using Canvas API (client-side)
+  const handleDownloadImage = async (text: string, position: 'top' | 'center' | 'bottom') => {
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    // Set canvas size
+    canvas.width = 1200;
+    canvas.height = 630;
+
+    try {
+      if (uploadedImage) {
+        // Load uploaded image
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        await new Promise((resolve, reject) => {
+          img.onload = resolve;
+          img.onerror = reject;
+          img.src = uploadedImage;
+        });
+
+        // Draw image scaled to cover canvas
+        const imgRatio = img.width / img.height;
+        const canvasRatio = canvas.width / canvas.height;
+        let sx = 0, sy = 0, sw = img.width, sh = img.height;
+
+        if (imgRatio > canvasRatio) {
+          sw = img.height * canvasRatio;
+          sx = (img.width - sw) / 2;
+        } else {
+          sh = img.width / canvasRatio;
+          sy = (img.height - sh) / 2;
+        }
+
+        ctx.drawImage(img, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
+      } else {
+        // Create gradient background
+        const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
+        gradient.addColorStop(0, '#6366f1');
+        gradient.addColorStop(0.5, '#8b5cf6');
+        gradient.addColorStop(1, '#d946ef');
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+      }
+
+      // Add overlay
+      ctx.fillStyle = backgroundColor;
+      if (position === 'top') {
+        ctx.fillRect(0, 0, canvas.width, 120);
+      } else if (position === 'bottom') {
+        ctx.fillRect(0, canvas.height - 120, canvas.width, 120);
+      } else {
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+      }
+
+      // Configure text
+      const fontSize = 56;
+      ctx.fillStyle = textColor;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.font = `bold ${fontSize}px Inter, system-ui, sans-serif`;
+
+      // Add text shadow
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
+      ctx.shadowBlur = 8;
+      ctx.shadowOffsetX = 2;
+      ctx.shadowOffsetY = 2;
+
+      // Calculate position
+      let y: number;
+      if (position === 'top') y = 60;
+      else if (position === 'bottom') y = canvas.height - 60;
+      else y = canvas.height / 2;
+
+      // Word wrap
+      const maxWidth = canvas.width - 100;
+      const words = text.split(' ');
+      let line = '';
+      const lines: string[] = [];
+
+      for (const word of words) {
+        const testLine = line + word + ' ';
+        const metrics = ctx.measureText(testLine);
+        if (metrics.width > maxWidth && line) {
+          lines.push(line);
+          line = word + ' ';
+        } else {
+          line = testLine;
+        }
+      }
+      lines.push(line);
+
+      // Draw text lines
+      const lineHeight = fontSize * 1.3;
+      const startY = y - ((lines.length - 1) * lineHeight) / 2;
+
+      lines.forEach((l, i) => {
+        ctx.fillText(l.trim(), canvas.width / 2, startY + (i * lineHeight));
+      });
+
+      // Download
+      const link = document.createElement('a');
+      link.download = `image-text-${Date.now()}.png`;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+
+      toast?.success('Image downloaded!');
+    } catch (err) {
+      console.error('Error downloading image:', err);
+      toast?.error('Failed to download image');
+    }
   };
 
   if (!isOpen) return null;
