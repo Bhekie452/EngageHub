@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../src/lib/supabase';
 import { useToast } from '../src/components/common/Toast';
+import { AIImageBlender } from './AIImageBlender';
 
 interface AIContentGeneratorProps {
   isOpen: boolean;
@@ -73,7 +74,7 @@ export const AIContentGenerator: React.FC<AIContentGeneratorProps> = ({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const toast = useToast();
 
-  const contentTypes = ['Post', 'Caption', 'Ad Copy', 'Description', 'Story', 'Image Text'];
+  const contentTypes = ['Post', 'Caption', 'Ad Copy', 'Description', 'Story', 'Image Text', 'AI Image'];
   const tones = ['Engaging', 'Professional', 'Funny', 'Emotional', 'Bold', 'Luxury'];
   const primaryPlatform =
     selectedPlatforms.length > 0
@@ -498,7 +499,8 @@ export const AIContentGenerator: React.FC<AIContentGeneratorProps> = ({
 
         {/* Main Content */}
         <div className="overflow-y-auto flex-1 p-6 space-y-6">
-          {/* Form Section */}
+          {/* Form Section - Hide when AI Image is selected */}
+          {contentType !== 'AI Image' && (
           <div className="space-y-4">
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-2">
@@ -652,6 +654,7 @@ export const AIContentGenerator: React.FC<AIContentGeneratorProps> = ({
               </div>
             )}
           </div>
+          )}
 
           {/* Error State */}
           {error && (
@@ -661,8 +664,8 @@ export const AIContentGenerator: React.FC<AIContentGeneratorProps> = ({
             </div>
           )}
 
-          {/* Generate Button */}
-          {generatedVariations.length === 0 && contentType !== 'Image Text' && (
+          {/* Generate Button - Hide for Image Text and AI Image */}
+          {generatedVariations.length === 0 && contentType !== 'Image Text' && contentType !== 'AI Image' && (
             <button
               onClick={handleGenerate}
               disabled={isGenerating || !topic.trim()}
@@ -703,8 +706,8 @@ export const AIContentGenerator: React.FC<AIContentGeneratorProps> = ({
             </button>
           )}
 
-          {/* Generated Variations */}
-          {generatedVariations.length > 0 && contentType !== 'Image Text' && (
+          {/* Generated Variations - Hide for Image Text and AI Image */}
+          {generatedVariations.length > 0 && contentType !== 'Image Text' && contentType !== 'AI Image' && (
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <h3 className="text-sm font-bold text-gray-700">
@@ -942,6 +945,22 @@ export const AIContentGenerator: React.FC<AIContentGeneratorProps> = ({
                   </div>
                 </div>
               ))}
+            </div>
+          )}
+
+          {/* AI Image Section - Use dedicated AIImageBlender component */}
+          {contentType === 'AI Image' && (
+            <div className="py-4">
+              <div className="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-xl p-4 border border-indigo-100">
+                <div className="flex items-center gap-2 mb-4">
+                  <Image size={20} className="text-indigo-600" />
+                  <h3 className="text-lg font-bold text-gray-900">AI Image Blender</h3>
+                </div>
+                <p className="text-sm text-gray-600 mb-4">
+                  Upload an image and add custom text overlays with AI-powered blending.
+                </p>
+                <AIImageBlender />
+              </div>
             </div>
           )}
         </div>
