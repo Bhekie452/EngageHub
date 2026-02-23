@@ -181,9 +181,11 @@ export const analyticsService = {
     // Fetched actual workspace ID from the post to ensure we use the correct context (and tokens)
     const { data: postData, error: postErr } = await supabase
       .from('posts')
-      .select('workspace_id, link_url, platform_post_id')
+      .select('*')
       .eq('id', postId)
       .single();
+    
+    console.log('[Analytics] Post data:', { postData, postErr });
 
     // Fallback to current user workspace if post lookup fails (shouldn't happen for valid posts)
     let workspace_id = postData?.workspace_id;
@@ -192,7 +194,7 @@ export const analyticsService = {
     }
 
     // Use stored link_url if externalUrl wasn't passed
-    const finalExternalUrl = externalUrl || postData?.link_url;
+    const finalExternalUrl = externalUrl || (postData as any)?.link_url;
 
     let query = supabase
       .from('analytics_events')
