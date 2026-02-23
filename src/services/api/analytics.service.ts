@@ -384,8 +384,8 @@ export const analyticsService = {
             }
           });
 
-          if (ytComments?.data) {
-            const validComments = ytComments.data
+          if (ytComments?.data?.data) {
+            const validComments = ytComments.data.data
               .filter((c: any) => c?.snippet?.topLevelComment?.snippet)  // guard: skip malformed items
               .map((c: any) => ({
                 type: 'comment',
@@ -399,6 +399,7 @@ export const analyticsService = {
               }));
             youtubeActivity.push(...validComments);
           } else {
+            console.log('[Analytics] No YouTube comments in response, ytComments:', ytComments);
             // FALLBACK: Try local /api/app proxy for comments
             try {
               const resp = await fetch(`/api/app?action=engagement&method=list&workspaceId=${workspace_id}&platformPostId=${videoId}&platform=youtube`);
