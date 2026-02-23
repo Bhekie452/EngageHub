@@ -410,6 +410,8 @@ const Content: React.FC = () => {
     const postRef = viewingMetrics?.post ?? viewingVideoAnalytics?.post ?? editingPost;
     const platform = viewingMetrics?.platform ?? (viewingVideoAnalytics ? 'youtube' : null) ?? editingPost?.platform;
 
+    console.log('[Content] 🔥 Fetching engagement for post:', engagementPostIdSource, 'platform:', platform, 'link_url:', postRef?.link_url);
+
     analyticsService
       .getPostEngagementSummary(
         String(engagementPostIdSource),
@@ -418,6 +420,7 @@ const Content: React.FC = () => {
       )
       .then(async (data) => {
         if (!cancelled) {
+          console.log('[Content] Engagement data received:', data);
           setEngagementData({
             metrics: data.metrics,
             recentActivity: data.recentActivity,
@@ -2573,7 +2576,7 @@ const Content: React.FC = () => {
                                       return (
                                         <button
                                           key={`${post.id}-platform-icon-${platformId}-${idx}`}
-                                          onClick={(e) => { e.stopPropagation(); setViewingMetrics({ post, platform: platformId }); }}
+                                          onClick={(e) => { e.stopPropagation(); console.log('[Content] YouTube icon clicked, setting viewingMetrics:', post.id, platformId); setViewingMetrics({ post, platform: platformId }); }}
                                           className="p-1.5 rounded-lg bg-white border border-gray-100 shadow-sm flex items-center justify-center transition-transform hover:scale-110 cursor-pointer active:scale-95"
                                           title={`View ${pData?.label || platformId} metrics`}
                                         >
@@ -2738,7 +2741,7 @@ const Content: React.FC = () => {
                                       return (
                                         <button
                                           key={`${post.id}-platform-icon-${platformId}-${idx}`}
-                                          onClick={() => setViewingMetrics({ post, platform: platformId })}
+                                          onClick={() => { console.log('[Content] YouTube icon clicked (alt), setting viewingMetrics:', post.id, platformId); setViewingMetrics({ post, platform: platformId }) }}
                                           className="p-1.5 rounded-lg bg-white border border-gray-100 shadow-sm flex items-center justify-center transition-transform hover:scale-110"
                                           title={`View ${pData?.label || platformId} metrics`}
                                         >
