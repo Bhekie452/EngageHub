@@ -377,9 +377,28 @@ export const analyticsService = {
           
           // Get the platform_post_id from the post - try multiple fields
           const postPlatformId = postData?.link_url || finalExternalUrl || (postData as any)?.platform_post_id;
-          const fbPostId = postPlatformId?.replace(/.*facebook\.com\/.*?\/(\d+)/, '$1') || 
+          let fbPostId = postPlatformId?.replace(/.*facebook\.com\/.*?\/(\d+)/, '$1') || 
                           postPlatformId?.replace(/.*\/posts\/(\w+)/, '$1') ||
                           postPlatformId;
+
+          // If no fbPostId from URL, check post_publications table
+          if (!fbPostId && postId) {
+            const { data: pubData } = await supabase
+              .from('post_publications')
+              .select('platform_post_id, platform_url')
+              .eq('post_id', postId)
+              .eq('platform', 'facebook')
+              .eq('status', 'published')
+              .single();
+            
+            if (pubData?.platform_post_id) {
+              fbPostId = pubData.platform_post_id;
+              console.log('[Analytics] Found Facebook post ID from post_publications:', fbPostId);
+            } else if (pubData?.platform_url) {
+              fbPostId = pubData.platform_url?.replace(/.*\/(\d+)$/, '$1') || pubData.platform_url?.replace(/.*\/v\/(\w+)/, '$1');
+              console.log('[Analytics] Found Facebook post URL from post_publications:', pubData.platform_url, '-> ID:', fbPostId);
+            }
+          }
 
           console.log('[Analytics] Facebook postId:', { postPlatformId, fbPostId, link_url: postData?.link_url });
 
@@ -531,6 +550,25 @@ export const analyticsService = {
         // Get the platform_post_id from the post
         const postPlatformId = postData?.link_url || finalExternalUrl;
         let fbPostId = postPlatformId?.replace(/.*\/(\d+)$/, '$1') || postPlatformId?.replace(/.*\/v\/(\w+)/, '$1');
+
+        // If no fbPostId from URL, check post_publications table
+        if (!fbPostId && postId) {
+          const { data: pubData } = await supabase
+            .from('post_publications')
+            .select('platform_post_id, platform_url')
+            .eq('post_id', postId)
+            .eq('platform', 'facebook')
+            .eq('status', 'published')
+            .single();
+          
+          if (pubData?.platform_post_id) {
+            fbPostId = pubData.platform_post_id;
+            console.log('[Analytics] Found Facebook post ID from post_publications:', fbPostId);
+          } else if (pubData?.platform_url) {
+            fbPostId = pubData.platform_url?.replace(/.*\/(\d+)$/, '$1') || pubData.platform_url?.replace(/.*\/v\/(\w+)/, '$1');
+            console.log('[Analytics] Found Facebook post URL from post_publications:', pubData.platform_url, '-> ID:', fbPostId);
+          }
+        }
 
         console.log('[Analytics] Facebook postId from URL:', fbPostId);
 
