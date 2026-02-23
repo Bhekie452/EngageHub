@@ -181,7 +181,7 @@ export const analyticsService = {
     // Fetched actual workspace ID from the post to ensure we use the correct context (and tokens)
     const { data: postData, error: postErr } = await supabase
       .from('posts')
-      .select('workspace_id, link_url')
+      .select('workspace_id, link_url, platform_post_id')
       .eq('id', postId)
       .single();
 
@@ -360,20 +360,28 @@ export const analyticsService = {
     try {
       if ((platform || '').toLowerCase() === 'facebook' && workspace_id) {
         // Get Facebook access token from social_accounts
+        // Note: Need to select all fields to avoid issues
         const { data: fbAccount, error: fbErr } = await supabase
           .from('social_accounts')
-          .select('access_token, page_access_token, account_id')
+          .select('*')
           .eq('workspace_id', workspace_id)
           .eq('platform', 'facebook')
           .maybeSingle();
 
+        console.log('[Analytics] Facebook account query:', { fbAccount, fbErr });
+
         if (fbAccount && !fbErr && fbAccount.access_token) {
           fbConnected = true;
-          // Get the platform_post_id from the post
-          const postPlatformId = postData?.link_url || finalExternalUrl;
-          const fbPostId = postPlatformId?.replace(/.*\/(\d+)$/, '$1') || postPlatformId?.replace(/.*\/v\/(\w+)/, '$1');
+          
+          // Get the platform_post_id from the post - try multiple fields
+          const postPlatformId = postData?.link_url || finalExternalUrl || (postData as any)?.platform_post_id;
+          const fbPostId = postPlatformId?.replace(/.*facebook\.com\/.*?\/(\d+)/, '$1') || 
+                          postPlatformId?.replace(/.*\/posts\/(\w+)/, '$1') ||
+                          postPlatformId;
 
-          if (fbPostId) {
+          console.log('[Analytics] Facebook postId:', { postPlatformId, fbPostId, link_url: postData?.link_url });
+
+          if (fbPostId && fbPostId.length > 5) {
             // Call sync-facebook-engagement to get fresh data
             const { data: fbData, error: fbSyncErr } = await supabase.functions.invoke('sync-facebook-engagement', {
               body: {
@@ -382,11 +390,13 @@ export const analyticsService = {
               }
             });
 
+            console.log('[Analytics] Facebook sync result:', { fbData, fbSyncErr });
+
             if (!fbSyncErr && fbData?.success) {
-              // Get comments/likes from database after sync
+              // Get comments from database after sync
               const { data: fbComments } = await supabase
                 .from('engagement_actions')
-                .select('action_data, occurred_at, created_at')
+                .select('action_data, occurred_at, created_at, platform_action_id')
                 .eq('workspace_id', workspace_id)
                 .eq('platform', 'facebook')
                 .eq('platform_post_id', fbPostId)
@@ -414,7 +424,11 @@ export const analyticsService = {
               }
               console.log('[Analytics] Facebook connected, comments:', fbComments?.length || 0, 'likes:', fbLikes?.length || 0);
             }
+          } else {
+            console.log('[Analytics] No valid Facebook post ID found, link_url is:', postPlatformId);
           }
+        } else {
+          console.log('[Analytics] No Facebook account found for workspace:', workspace_id);
         }
       }
     } catch (e) {
