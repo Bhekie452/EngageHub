@@ -398,7 +398,7 @@ export const analyticsService = {
               // Get comments from database after sync
               const { data: fbComments } = await supabase
                 .from('engagement_actions')
-                .select('action_data, occurred_at, created_at, platform_action_id')
+                .select('action_data, created_at, platform_action_id')
                 .eq('workspace_id', workspace_id)
                 .eq('platform', 'facebook')
                 .eq('platform_post_id', fbPostId)
@@ -408,7 +408,7 @@ export const analyticsService = {
 
               const { data: fbLikes } = await supabase
                 .from('engagement_actions')
-                .select('action_data, occurred_at, created_at')
+                .select('action_data, created_at')
                 .eq('workspace_id', workspace_id)
                 .eq('platform', 'facebook')
                 .eq('platform_post_id', fbPostId)
@@ -539,36 +539,42 @@ export const analyticsService = {
           console.log('[Analytics] No Facebook post ID found, querying existing engagement...');
           
           // Get any Facebook comments for this workspace
-          const { data: fbComments } = await supabase
-            .from('engagement_actions')
-            .select('action_data, occurred_at, created_at, platform_post_id')
-            .eq('workspace_id', workspace_id)
-            .eq('platform', 'facebook')
-            .eq('action_type', 'comment')
-            .order('created_at', { ascending: false })
-            .limit(10);
+          try {
+            const { data: fbComments, error: fbError } = await supabase
+              .from('engagement_actions')
+              .select('action_data, created_at, platform_post_id')
+              .eq('workspace_id', workspace_id)
+              .eq('platform', 'facebook')
+              .eq('action_type', 'comment')
+              .order('created_at', { ascending: false })
+              .limit(10);
 
-          if (fbComments && fbComments.length > 0) {
-            console.log('[Analytics] Found existing Facebook comments:', fbComments.length);
-            const validComments = fbComments
-              .filter((c: any) => c?.action_data?.message || c?.action_data?.text)
-              .map((c: any) => ({
-                type: 'comment' as const,
-                user: c.action_data?.user_name || 'Facebook User',
-                text: c.action_data?.message || c.action_data?.text,
-                occurred_at: c.occurred_at || c.created_at,
-                platform: 'facebook' as const,
-                time: timeAgo(c.occurred_at || c.created_at),
-                avatar: c.action_data?.user_avatar
-              }));
-            facebookActivity.push(...validComments);
-            metricsSource = 'facebook';
+            if (fbError) {
+              console.error('[Analytics] Facebook comments query error:', fbError);
+            } else if (fbComments && fbComments.length > 0) {
+              console.log('[Analytics] Found existing Facebook comments:', fbComments.length);
+              const validComments = fbComments
+                .filter((c: any) => c?.action_data?.comment_text || c?.action_data?.message)
+                .map((c: any) => ({
+                  type: 'comment' as const,
+                  user: c.action_data?.user_name || 'Facebook User',
+                  text: c.action_data?.comment_text || c.action_data?.message,
+                  occurred_at: c.created_at,
+                  platform: 'facebook' as const,
+                  time: timeAgo(c.created_at),
+                  avatar: c.action_data?.user_avatar
+                }));
+              facebookActivity.push(...validComments);
+              metricsSource = 'facebook';
+            }
+          } catch (e) {
+            console.error('[Analytics] Facebook comments exception:', e);
           }
 
           // Also get likes
           const { data: fbLikes } = await supabase
             .from('engagement_actions')
-            .select('action_data, occurred_at, created_at')
+            .select('action_data, created_at')
             .eq('workspace_id', workspace_id)
             .eq('platform', 'facebook')
             .eq('action_type', 'like')
@@ -580,9 +586,9 @@ export const analyticsService = {
               .map((l: any) => ({
                 type: 'like' as const,
                 user: l.action_data?.user_name || 'Facebook User',
-                occurred_at: l.occurred_at || l.created_at,
+                occurred_at: l.created_at,
                 platform: 'facebook' as const,
-                time: timeAgo(l.occurred_at || l.created_at),
+                time: timeAgo(l.created_at),
                 avatar: l.action_data?.user_avatar
               }));
             facebookActivity.push(...validLikes);
@@ -596,7 +602,7 @@ export const analyticsService = {
 
           const { data: fbComments } = await supabase
             .from('engagement_actions')
-            .select('action_data, occurred_at, created_at')
+            .select('action_data, created_at')
             .eq('workspace_id', workspace_id)
             .eq('platform', 'facebook')
             .eq('platform_post_id', fbPostId)
@@ -608,10 +614,10 @@ export const analyticsService = {
             const validComments = fbComments.map((c: any) => ({
               type: 'comment' as const,
               user: c.action_data?.user_name || 'Facebook User',
-              text: c.action_data?.message || c.action_data?.text,
-              occurred_at: c.occurred_at || c.created_at,
+              text: c.action_data?.comment_text || c.action_data?.message || c.action_data?.text,
+              occurred_at: c.created_at,
               platform: 'facebook' as const,
-              time: timeAgo(c.occurred_at || c.created_at),
+              time: timeAgo(c.created_at),
               avatar: c.action_data?.user_avatar
             }));
             facebookActivity.push(...validComments);
