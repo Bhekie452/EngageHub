@@ -40,6 +40,8 @@ const CommentsSection: React.FC<CommentsSectionProps> = ({
   platform,
   maxHeight = '400px'
 }) => {
+  console.log('[CommentsSection] 🔥 Component rendered!', { workspaceId, userId, postId, platformPostId, platform });
+  
   const [comments, setComments] = useState<Comment[]>([]);
   const [commentText, setCommentText] = useState('');
   const [loading, setLoading] = useState(false);
