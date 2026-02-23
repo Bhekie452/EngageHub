@@ -530,55 +530,50 @@ export const analyticsService = {
       if ((platform || '').toLowerCase() === 'facebook' && workspace_id) {
         // Get the platform_post_id from the post
         const postPlatformId = postData?.link_url || finalExternalUrl;
-        const fbPostId = postPlatformId?.replace(/.*\/(\d+)$/, '$1') || postPlatformId?.replace(/.*\/v\/(\w+)/, '$1');
+        let fbPostId = postPlatformId?.replace(/.*\/(\d+)$/, '$1') || postPlatformId?.replace(/.*\/v\/(\w+)/, '$1');
 
-        if (fbPostId) {
-          // First trigger sync
-          await supabase.functions.invoke('sync-facebook-engagement', {
-            body: {
-              workspaceId: workspace_id,
-              platformPostId: fbPostId
-            }
-          });
+        console.log('[Analytics] Facebook postId from URL:', fbPostId);
 
-          // Then fetch comments from database
+        // If no post ID, try to find any existing Facebook engagement in DB
+        if (!fbPostId || fbPostId.length < 3) {
+          console.log('[Analytics] No Facebook post ID found, querying existing engagement...');
+          
+          // Get any Facebook comments for this workspace
           const { data: fbComments } = await supabase
             .from('engagement_actions')
-            .select('action_data, occurred_at, created_at, platform_action_id')
+            .select('action_data, occurred_at, created_at, platform_post_id')
             .eq('workspace_id', workspace_id)
             .eq('platform', 'facebook')
-            .eq('platform_post_id', fbPostId)
             .eq('action_type', 'comment')
             .order('created_at', { ascending: false })
-            .limit(20);
+            .limit(10);
 
           if (fbComments && fbComments.length > 0) {
+            console.log('[Analytics] Found existing Facebook comments:', fbComments.length);
             const validComments = fbComments
               .filter((c: any) => c?.action_data?.message || c?.action_data?.text)
               .map((c: any) => ({
                 type: 'comment' as const,
-                user: c.action_data?.user_name || c.action_data?.from?.name || 'Facebook User',
+                user: c.action_data?.user_name || 'Facebook User',
                 text: c.action_data?.message || c.action_data?.text,
                 occurred_at: c.occurred_at || c.created_at,
                 platform: 'facebook' as const,
                 time: timeAgo(c.occurred_at || c.created_at),
-                avatar: c.action_data?.user_avatar,
-                userUrl: c.action_data?.user_id ? `https://facebook.com/${c.action_data.user_id}` : undefined
+                avatar: c.action_data?.user_avatar
               }));
             facebookActivity.push(...validComments);
-            console.log('[Analytics] Found Facebook comments:', validComments.length);
+            metricsSource = 'facebook';
           }
 
-          // Also fetch likes
+          // Also get likes
           const { data: fbLikes } = await supabase
             .from('engagement_actions')
             .select('action_data, occurred_at, created_at')
             .eq('workspace_id', workspace_id)
             .eq('platform', 'facebook')
-            .eq('platform_post_id', fbPostId)
             .eq('action_type', 'like')
             .order('created_at', { ascending: false })
-            .limit(50);
+            .limit(20);
 
           if (fbLikes && fbLikes.length > 0) {
             const validLikes = fbLikes
@@ -588,11 +583,39 @@ export const analyticsService = {
                 occurred_at: l.occurred_at || l.created_at,
                 platform: 'facebook' as const,
                 time: timeAgo(l.occurred_at || l.created_at),
-                avatar: l.action_data?.user_avatar,
-                userUrl: l.action_data?.user_id ? `https://facebook.com/${l.action_data.user_id}` : undefined
+                avatar: l.action_data?.user_avatar
               }));
             facebookActivity.push(...validLikes);
-            console.log('[Analytics] Found Facebook likes:', validLikes.length);
+          }
+        } else if (fbPostId) {
+          // We have a post ID - trigger sync and fetch
+          console.log('[Analytics] Triggering sync for Facebook post:', fbPostId);
+          await supabase.functions.invoke('sync-facebook-engagement', {
+            body: { workspaceId: workspace_id, platformPostId: fbPostId }
+          });
+
+          const { data: fbComments } = await supabase
+            .from('engagement_actions')
+            .select('action_data, occurred_at, created_at')
+            .eq('workspace_id', workspace_id)
+            .eq('platform', 'facebook')
+            .eq('platform_post_id', fbPostId)
+            .eq('action_type', 'comment')
+            .order('created_at', { ascending: false })
+            .limit(20);
+
+          if (fbComments?.length > 0) {
+            const validComments = fbComments.map((c: any) => ({
+              type: 'comment' as const,
+              user: c.action_data?.user_name || 'Facebook User',
+              text: c.action_data?.message || c.action_data?.text,
+              occurred_at: c.occurred_at || c.created_at,
+              platform: 'facebook' as const,
+              time: timeAgo(c.occurred_at || c.created_at),
+              avatar: c.action_data?.user_avatar
+            }));
+            facebookActivity.push(...validComments);
+            metricsSource = 'facebook';
           }
         }
       }
