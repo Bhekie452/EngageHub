@@ -359,6 +359,7 @@ export const analyticsService = {
 
     // Facebook metrics - fetch from sync-facebook-engagement or from database
     let fbConnected = false;
+    let facebookActivity: any[] = [];
     try {
       if ((platform || '').toLowerCase() === 'facebook' && workspace_id) {
         // Get Facebook access token from social_accounts
@@ -435,13 +436,36 @@ export const analyticsService = {
                 .order('created_at', { ascending: false })
                 .limit(50);
 
+              // Add FB comments to activity
               if (fbComments?.length > 0) {
                 metrics.comments = fbComments.length;
                 metricsSource = 'facebook';
+                
+                const fbActivityComments = fbComments.map((c: any) => ({
+                  type: 'comment' as const,
+                  user: c.action_data?.user_name || 'Facebook User',
+                  text: c.action_data?.comment_text || c.action_data?.message || 'Facebook comment',
+                  occurred_at: c.created_at,
+                  platform: 'facebook' as const,
+                  time: timeAgo(c.created_at),
+                  avatar: c.action_data?.user_avatar
+                }));
+                facebookActivity.push(...fbActivityComments);
               }
+              // Add FB likes to activity
               if (fbLikes?.length > 0) {
                 metrics.likes = fbLikes.length;
                 metricsSource = 'facebook';
+                
+                const fbActivityLikes = fbLikes.map((l: any) => ({
+                  type: 'like' as const,
+                  user: l.action_data?.user_name || 'Facebook User',
+                  occurred_at: l.created_at,
+                  platform: 'facebook' as const,
+                  time: timeAgo(l.created_at),
+                  avatar: l.action_data?.user_avatar
+                }));
+                facebookActivity.push(...fbActivityLikes);
               }
               console.log('[Analytics] Facebook connected, comments:', fbComments?.length || 0, 'likes:', fbLikes?.length || 0);
             }
@@ -544,7 +568,6 @@ export const analyticsService = {
     }
 
     // Fetch Facebook activity (comments/likes)
-    let facebookActivity: any[] = [];
     try {
       if ((platform || '').toLowerCase() === 'facebook' && workspace_id) {
         // Get the platform_post_id from the post
