@@ -21,9 +21,9 @@ const handleStripeCheckout: Handler = async (req, res) => {
   }
 
   try {
-    const { priceId, userId, successUrl, cancelUrl, paymentMethod } = req.body;
+    const { priceId, userId, successUrl, cancelUrl } = req.body;
 
-    if (!priceId || !userId || !successUrl || !cancelUrl || !paymentMethod) {
+    if (!priceId || !userId || !successUrl || !cancelUrl) {
       return res.status(400).json({ error: 'Missing required parameters' });
     }
 

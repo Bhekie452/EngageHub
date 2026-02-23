@@ -72,7 +72,7 @@ export const paymentsApi = {
     successUrl: string;
     cancelUrl: string;
   }) {
-    return apiRequest('/api/payments?provider=stripe', {
+    return apiRequest('/api/payments/stripe', {
       method: 'POST',
       body: JSON.stringify(checkoutData),
     });
