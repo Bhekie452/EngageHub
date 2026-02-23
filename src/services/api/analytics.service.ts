@@ -64,8 +64,8 @@ export interface PostEngagementSummary {
     end_screen_clicks?: number;
     device_types?: { label: string; value: number }[];
   };
-  recentActivity: { type: 'like' | 'comment' | 'share' | 'view'; user: string; text?: string; time: string; platform: 'youtube' | 'engagehub'; occurred_at: string }[];
-  metricsSource: 'youtube' | 'engagehub';
+  recentActivity: { type: 'like' | 'comment' | 'share' | 'view' | 'subscriber'; user: string; text?: string; time: string; platform: 'youtube' | 'facebook' | 'engagehub'; occurred_at: string }[];
+  metricsSource: 'youtube' | 'facebook' | 'engagehub';
 }
 
 export interface GlobalSocialSummary {
@@ -226,7 +226,7 @@ export const analyticsService = {
       end_screen_clicks: 0,
       device_types: []
     };
-    let metricsSource: 'youtube' | 'engagehub' = 'engagehub';
+    let metricsSource: 'youtube' | 'facebook' | 'engagehub' = 'engagehub';
     let ytConnected = false; // Track whether YouTube is actually linked
 
     // Sum local metrics with platform metrics (e.g. YouTube)
@@ -355,6 +355,72 @@ export const analyticsService = {
       // silently ignore
     }
 
+    // Facebook metrics - fetch from sync-facebook-engagement or from database
+    let fbConnected = false;
+    try {
+      if ((platform || '').toLowerCase() === 'facebook' && workspace_id) {
+        // Get Facebook access token from social_accounts
+        const { data: fbAccount, error: fbErr } = await supabase
+          .from('social_accounts')
+          .select('access_token, page_access_token, account_id')
+          .eq('workspace_id', workspace_id)
+          .eq('platform', 'facebook')
+          .maybeSingle();
+
+        if (fbAccount && !fbErr && fbAccount.access_token) {
+          fbConnected = true;
+          // Get the platform_post_id from the post
+          const postPlatformId = postData?.link_url || finalExternalUrl;
+          const fbPostId = postPlatformId?.replace(/.*\/(\d+)$/, '$1') || postPlatformId?.replace(/.*\/v\/(\w+)/, '$1');
+
+          if (fbPostId) {
+            // Call sync-facebook-engagement to get fresh data
+            const { data: fbData, error: fbSyncErr } = await supabase.functions.invoke('sync-facebook-engagement', {
+              body: {
+                workspaceId: workspace_id,
+                platformPostId: fbPostId
+              }
+            });
+
+            if (!fbSyncErr && fbData?.success) {
+              // Get comments/likes from database after sync
+              const { data: fbComments } = await supabase
+                .from('engagement_actions')
+                .select('action_data, occurred_at, created_at')
+                .eq('workspace_id', workspace_id)
+                .eq('platform', 'facebook')
+                .eq('platform_post_id', fbPostId)
+                .eq('action_type', 'comment')
+                .order('created_at', { ascending: false })
+                .limit(20);
+
+              const { data: fbLikes } = await supabase
+                .from('engagement_actions')
+                .select('action_data, occurred_at, created_at')
+                .eq('workspace_id', workspace_id)
+                .eq('platform', 'facebook')
+                .eq('platform_post_id', fbPostId)
+                .eq('action_type', 'like')
+                .order('created_at', { ascending: false })
+                .limit(50);
+
+              if (fbComments?.length > 0) {
+                metrics.comments = fbComments.length;
+                metricsSource = 'facebook';
+              }
+              if (fbLikes?.length > 0) {
+                metrics.likes = fbLikes.length;
+                metricsSource = 'facebook';
+              }
+              console.log('[Analytics] Facebook connected, comments:', fbComments?.length || 0, 'likes:', fbLikes?.length || 0);
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.error('Error fetching Facebook metrics:', e);
+    }
+
     // Process local activity
     const mappedLocal = rows
       .filter((r: any) => ['post_like', 'post_comment', 'post_share', 'post_view'].includes(r.event_type))
@@ -442,14 +508,91 @@ export const analyticsService = {
       console.error('Error fetching YouTube details for activity feed:', e);
     }
 
+    // Fetch Facebook activity (comments/likes)
+    let facebookActivity: any[] = [];
+    try {
+      if ((platform || '').toLowerCase() === 'facebook' && workspace_id) {
+        // Get the platform_post_id from the post
+        const postPlatformId = postData?.link_url || finalExternalUrl;
+        const fbPostId = postPlatformId?.replace(/.*\/(\d+)$/, '$1') || postPlatformId?.replace(/.*\/v\/(\w+)/, '$1');
+
+        if (fbPostId) {
+          // First trigger sync
+          await supabase.functions.invoke('sync-facebook-engagement', {
+            body: {
+              workspaceId: workspace_id,
+              platformPostId: fbPostId
+            }
+          });
+
+          // Then fetch comments from database
+          const { data: fbComments } = await supabase
+            .from('engagement_actions')
+            .select('action_data, occurred_at, created_at, platform_action_id')
+            .eq('workspace_id', workspace_id)
+            .eq('platform', 'facebook')
+            .eq('platform_post_id', fbPostId)
+            .eq('action_type', 'comment')
+            .order('created_at', { ascending: false })
+            .limit(20);
+
+          if (fbComments && fbComments.length > 0) {
+            const validComments = fbComments
+              .filter((c: any) => c?.action_data?.message || c?.action_data?.text)
+              .map((c: any) => ({
+                type: 'comment' as const,
+                user: c.action_data?.user_name || c.action_data?.from?.name || 'Facebook User',
+                text: c.action_data?.message || c.action_data?.text,
+                occurred_at: c.occurred_at || c.created_at,
+                platform: 'facebook' as const,
+                time: timeAgo(c.occurred_at || c.created_at),
+                avatar: c.action_data?.user_avatar,
+                userUrl: c.action_data?.user_id ? `https://facebook.com/${c.action_data.user_id}` : undefined
+              }));
+            facebookActivity.push(...validComments);
+            console.log('[Analytics] Found Facebook comments:', validComments.length);
+          }
+
+          // Also fetch likes
+          const { data: fbLikes } = await supabase
+            .from('engagement_actions')
+            .select('action_data, occurred_at, created_at')
+            .eq('workspace_id', workspace_id)
+            .eq('platform', 'facebook')
+            .eq('platform_post_id', fbPostId)
+            .eq('action_type', 'like')
+            .order('created_at', { ascending: false })
+            .limit(50);
+
+          if (fbLikes && fbLikes.length > 0) {
+            const validLikes = fbLikes
+              .map((l: any) => ({
+                type: 'like' as const,
+                user: l.action_data?.user_name || 'Facebook User',
+                occurred_at: l.occurred_at || l.created_at,
+                platform: 'facebook' as const,
+                time: timeAgo(l.occurred_at || l.created_at),
+                avatar: l.action_data?.user_avatar,
+                userUrl: l.action_data?.user_id ? `https://facebook.com/${l.action_data.user_id}` : undefined
+              }));
+            facebookActivity.push(...validLikes);
+            console.log('[Analytics] Found Facebook likes:', validLikes.length);
+          }
+        }
+      }
+    } catch (e) {
+      console.error('Error fetching Facebook activity:', e);
+    }
+
     // Combine, Sort
-    const baseActivity = [...mappedLocal, ...youtubeActivity];
+    const baseActivity = [...mappedLocal, ...youtubeActivity, ...facebookActivity];
 
     // VIRTUAL ITEMS: Add placeholders for native platform stats that aren't individually tracked
     // This ensures the "1 Subscriber" card actually has 1 item in the list even if private.
     const virtualItems: any[] = [];
-    if (metricsSource === 'youtube') {
+    if (metricsSource === 'youtube' || metricsSource === 'facebook') {
       // For each metric type, see if the total count exceeds the number of specific items we already have
+      const platformName = metricsSource === 'youtube' ? 'YouTube' : 'Facebook';
       const types = ['like', 'share', 'view', 'subscriber'] as const;
       for (const t of types) {
         const totalCount = metrics[t === 'view' ? 'views' : t === 'share' ? 'shares' : t === 'subscriber' ? 'subscribers' : 'likes'] || 0;
@@ -458,13 +601,13 @@ export const analyticsService = {
 
         if (diff > 0) {
           // Add virtual items for the difference
-          // Since we don't have usernames for these, we use "YouTube User"
+          // Since we don't have usernames for these, we use "YouTube User" or "Facebook User"
           for (let i = 0; i < Math.min(diff, 50); i++) { // Cap at 50 virtual items per type to avoid bloat
             virtualItems.push({
               type: t,
-              user: 'YouTube User',
+              user: `${platformName} User`,
               occurred_at: new Date(Date.now() - (i + 1) * 3600000).toISOString(), // Staggered times in the past hours
-              platform: 'youtube' as const,
+              platform: metricsSource as 'youtube' | 'facebook',
               time: `${i + 1}h ago`
             });
           }
