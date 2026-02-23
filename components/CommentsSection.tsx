@@ -131,6 +131,34 @@ const CommentsSection: React.FC<CommentsSectionProps> = ({
         }
       }
 
+      // For Facebook, sync comments and likes from Facebook Graph API
+      if (platform === 'facebook' && postId && platformPostId) {
+        try {
+          // Get Facebook pages with access tokens
+          const fbPagesData = localStorage.getItem('facebook_pages');
+          if (fbPagesData) {
+            const fbPages = JSON.parse(fbPagesData);
+            // Use the first page's access token (could be enhanced to match the post's page)
+            const fbPage = fbPages[0];
+            if (fbPage?.access_token) {
+              await supabase.functions.invoke('sync-facebook-engagement', {
+                body: {
+                  postId: postId,
+                  platformPostId: platformPostId,
+                  workspaceId: workspaceId,
+                  userId: userId,
+                  pageId: fbPage.id,
+                  accessToken: fbPage.access_token
+                }
+              });
+            }
+          }
+        } catch (syncError) {
+          console.error('[CommentsSection] Facebook sync failed:', syncError);
+          // Continue to fetch comments even if sync fails
+        }
+      }
+
       const response = await fetch(
         `/api/app?action=engagement&method=list&workspaceId=${workspaceId}&platformPostId=${platformPostId}&platform=${platform}&actionType=comment`
       );
