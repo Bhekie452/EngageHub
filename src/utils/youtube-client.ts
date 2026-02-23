@@ -2,6 +2,7 @@ import { supabase } from '../lib/supabase'
 
 // Client-side function to call YouTube API via Supabase Edge Function
 export async function callYouTubeAPI(endpoint: string, workspaceId: string, options?: Record<string, any>) {
+  console.log('[youtube-client] Calling API:', endpoint, 'workspaceId:', workspaceId, 'options:', options);
   try {
     const { data, error } = await supabase.functions.invoke('youtube-api', {
       body: { 
@@ -11,7 +12,10 @@ export async function callYouTubeAPI(endpoint: string, workspaceId: string, opti
       }
     })
 
-    if (error) throw error
+    if (error) {
+      console.error('[youtube-client] API call error:', error);
+      throw error
+    }
     return data
   } catch (error) {
     console.error('YouTube API call failed:', error)

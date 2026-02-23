@@ -66,15 +66,19 @@ export default function YouTubeEngagement() {
 
   const fetchComments = async (videoId: string) => {
     try {
+      console.log('[YouTubeEngagement] 🔥 Fetching comments for videoId:', videoId);
       setCommentsLoading(true);
       const workspaceId = localStorage.getItem('current_workspace_id') || '';
+      console.log('[YouTubeEngagement] workspaceId:', workspaceId);
       const response = await getYouTubeVideoCommentsClient(workspaceId, videoId, 50);
+      console.log('[YouTubeEngagement] Comments response:', response);
       
       // Handle both response formats: { comments: [...] } or { data: [...] } from youtube-api
       const commentsData = response?.comments || response?.data || [];
+      console.log('[YouTubeEngagement] commentsData:', commentsData);
       setComments(commentsData);
     } catch (error) {
-      console.error('Failed to fetch comments:', error);
+      console.error('[YouTubeEngagement] Failed to fetch comments:', error);
     } finally {
       setCommentsLoading(false);
     }
