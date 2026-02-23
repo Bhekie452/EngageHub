@@ -60,7 +60,11 @@ const handlePayfastNotify: Handler = async (req, res) => {
 
 // Main handler
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  const { provider } = req.query;
+  // Handle both array (catch-all route) and string (query param) cases
+  const providerParam = req.query.provider;
+  const provider = Array.isArray(providerParam) ? providerParam[0] : providerParam;
+
+  console.log('Payment request - provider:', provider, 'query:', req.query);
 
   try {
     switch (provider) {
