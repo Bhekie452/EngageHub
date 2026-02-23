@@ -384,22 +384,24 @@ export const analyticsService = {
             }
           });
 
-          if (ytComments?.data?.data) {
-            const validComments = ytComments.data.data
-              .filter((c: any) => c?.snippet?.topLevelComment?.snippet)  // guard: skip malformed items
+          if (ytComments?.data && Array.isArray(ytComments.data)) {
+            // youtube-api returns {success: true, data: [...]} with already-transformed comments
+            const validComments = ytComments.data
+              .filter((c: any) => c?.text && c?.author)  // guard: check transformed format
               .map((c: any) => ({
                 type: 'comment',
-                user: c.snippet.topLevelComment.snippet.authorDisplayName,
-                text: c.snippet.topLevelComment.snippet.textDisplay,
-                occurred_at: c.snippet.topLevelComment.snippet.publishedAt,
+                user: c.author,
+                text: c.text,
+                occurred_at: c.publishedAt,
                 platform: 'youtube' as const,
-                time: timeAgo(c.snippet.topLevelComment.snippet.publishedAt),
-                avatar: c.snippet.topLevelComment.snippet.authorProfileImageUrl,
-                userUrl: c.snippet.topLevelComment.snippet.authorChannelUrl
+                time: timeAgo(c.publishedAt),
+                avatar: c.authorProfileImageUrl,
+                userUrl: c.authorChannelUrl
               }));
             youtubeActivity.push(...validComments);
+            console.log('[Analytics] Found YouTube comments:', validComments.length);
           } else {
-            console.log('[Analytics] No YouTube comments in response, ytComments:', ytComments);
+            console.log('[Analytics] No YouTube comments in response');
             // FALLBACK: Try local /api/app proxy for comments
             try {
               const resp = await fetch(`/api/app?action=engagement&method=list&workspaceId=${workspace_id}&platformPostId=${videoId}&platform=youtube`);
