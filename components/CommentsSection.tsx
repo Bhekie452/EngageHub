@@ -104,17 +104,25 @@ const CommentsSection: React.FC<CommentsSectionProps> = ({
   const fetchComments = async () => {
     setLoading(true);
     try {
+      console.log('[CommentsSection] fetchComments called', { platform, postId, platformPostId });
+      
       // For YouTube, sync comments from YouTube API first
       if (platform === 'youtube' && postId) {
+        console.log('[CommentsSection] YouTube platform detected, checking token...');
         try {
           // Get YouTube OAuth token from localStorage or session
           const youtubeToken = localStorage.getItem('youtube_access_token');
+          console.log('[CommentsSection] YouTube token exists:', !!youtubeToken);
+          
           if (youtubeToken) {
             // Use external_video_id from post if available, otherwise use platformPostId
             const videoId = platformPostId;
+            console.log('[CommentsSection] VideoId for sync:', videoId);
+            
             if (videoId) {
+              console.log('[CommentsSection] Calling sync-youtube-comments function...');
               // Call sync function - pass the video ID as platformPostId
-              await supabase.functions.invoke('sync-youtube-comments', {
+              const syncResult = await supabase.functions.invoke('sync-youtube-comments', {
                 body: {
                   videoId: videoId,
                   postId: postId,
@@ -123,12 +131,19 @@ const CommentsSection: React.FC<CommentsSectionProps> = ({
                   userId: userId
                 }
               });
+              console.log('[CommentsSection] Sync result:', syncResult);
+            } else {
+              console.warn('[CommentsSection] No videoId - cannot sync YouTube comments');
             }
+          } else {
+            console.warn('[CommentsSection] No YouTube token in localStorage - cannot sync');
           }
         } catch (syncError) {
           console.error('[CommentsSection] YouTube sync failed:', syncError);
           // Continue to fetch comments even if sync fails
         }
+      } else {
+        console.log('[CommentsSection] Not YouTube platform or no postId, skipping sync', { platform, postId });
       }
 
       // For Facebook, sync comments and likes from Facebook Graph API
