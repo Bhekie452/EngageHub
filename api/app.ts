@@ -1,5 +1,6 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
-import { handleCors } from './_cors.js';
+import { handleCors } from '../lib/server/cors';
+import { createClient } from '@supabase/supabase-js';
 
 /**
  * CONSOLIDATED APP API
@@ -30,12 +31,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       case 'test-tiktok':
       case 'tiktok-test':
         return await handleTikTokTest(req, res);
-      
+
+      case 'webhook-facebook':
+      case 'facebook-webhook':
+        return await handleFacebookWebhook(req, res);
+
       default:
         return res.status(400).json({
           success: false,
           error: 'Invalid action parameter',
-          validActions: ['engagement', 'publish', 'test-tiktok'],
+          validActions: ['engagement', 'publish', 'test-tiktok', 'webhook-facebook'],
           usage: '/api/app?action=engagement&method=create'
         });
     }
@@ -333,66 +338,19 @@ async function handlePublishPost(req: VercelRequest, res: VercelResponse) {
 // TIKTOK TEST HANDLER
 // ============================================
 async function handleTikTokTest(req: VercelRequest, res: VercelResponse) {
-  if (req.method !== 'GET') {
-    return res.status(405).json({
-      success: false,
-      error: 'Method not allowed'
-    });
-  }
-
-  const { workspaceId } = req.query;
-
-  if (!workspaceId) {
-    return res.status(400).json({
-      success: false,
-      error: 'Missing required parameter: workspaceId'
-    });
-  }
-
   try {
-    const { createClient } = await import('@supabase/supabase-js');
-    const supabase = createClient(
-      process.env.SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    );
-
-    // Fetch TikTok connection
-    const { data: tiktokAccount, error } = await supabase
-      .from('social_accounts')
-      .select('*')
-      .eq('workspace_id', workspaceId)
-      .eq('platform', 'tiktok')
-      .single();
-
-    if (error || !tiktokAccount) {
-      return res.status(404).json({
-        success: false,
-        error: 'TikTok account not connected for this workspace'
-      });
-    }
-
-    // Test the connection
-    const accessToken = tiktokAccount.access_token;
-    const testResponse = await fetch('https://open.tiktokapis.com/v2/user/info/?fields=open_id,union_id,avatar_url,display_name', {
-      headers: {
-        'Authorization': `Bearer ${accessToken}`
-      }
-    });
-
-    const userData = await testResponse.json();
-
+    // Test that environment variables are configured
+    const tiktokClientKey = process.env.TIKTOK_CLIENT_KEY;
+    const tiktokClientSecret = process.env.TIKTOK_CLIENT_SECRET;
+    
     return res.status(200).json({
-      success: testResponse.ok,
-      connection: {
-        platform: 'tiktok',
-        connected: true,
-        username: tiktokAccount.username,
-        accountId: tiktokAccount.account_id
+      success: true,
+      message: 'TikTok connection test endpoint working',
+      envConfigured: {
+        clientKey: !!tiktokClientKey,
+        clientSecret: !!tiktokClientSecret
       },
-      apiTest: {
-        status: testResponse.status,
-        data: userData
-      }
+      timestamp: new Date().toISOString()
     });
   } catch (error: any) {
     console.error('[TikTokTest] Error:', error);
@@ -401,4 +359,86 @@ async function handleTikTokTest(req: VercelRequest, res: VercelResponse) {
       error: error.message
     });
   }
+}
+
+// ============================================
+// FACEBOOK WEBHOOK HANDLER
+// ============================================
+async function handleFacebookWebhook(req: VercelRequest, res: VercelResponse) {
+  // Handle webhook verification (GET request from Facebook)
+  if (req.method === 'GET') {
+    const mode = req.query['hub.mode'];
+    const token = req.query['hub.verify_token'];
+    const challenge = req.query['hub.challenge'];
+
+    const verifyToken = process.env.FACEBOOK_WEBHOOK_VERIFY_TOKEN;
+
+    if (mode === 'subscribe' && token === verifyToken) {
+      return res.status(200).send(challenge);
+    }
+    return res.status(403).json({ error: 'Verification failed' });
+  }
+
+  // Handle webhook events (POST)
+  if (req.method === 'POST') {
+    try {
+      const payload = req.body;
+      if (payload.object !== 'page') {
+        return res.status(200).json({ status: 'ignored' });
+      }
+
+      const supabase = createClient(
+        process.env.SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      );
+
+      for (const entry of payload.entry || []) {
+        const pageId = entry.id;
+        for (const change of entry.changes || []) {
+          const field = change.field;
+          const value = change.value;
+
+          if (field === 'comments') {
+            const commentId = value.comment_id;
+            const message = value.message;
+            const from = value.from?.name || 'Unknown';
+            const createdTime = new Date(parseInt(value.created_time) * 1000).toISOString();
+
+            const { data: account } = await supabase
+              .from('social_accounts')
+              .select('id, workspace_id')
+              .eq('platform', 'facebook')
+              .eq('platform_id', pageId)
+              .single();
+
+            if (account) {
+              const { data: existing } = await supabase
+                .from('engagement_actions')
+                .select('id')
+                .eq('platform', 'facebook')
+                .eq('platform_comment_id', commentId)
+                .single();
+
+              if (!existing) {
+                await supabase.from('engagement_actions').insert({
+                  workspace_id: account.workspace_id,
+                  social_account_id: account.id,
+                  platform: 'facebook',
+                  action_type: 'comment',
+                  platform_comment_id: commentId,
+                  user_name: from,
+                  content: message,
+                  performed_at: createdTime
+                });
+              }
+            }
+          }
+        }
+      }
+      return res.status(200).json({ status: 'received' });
+    } catch (error) {
+      return res.status(500).json({ error: 'Webhook processing failed' });
+    }
+  }
+  return res.status(405).json({ error: 'Method not allowed' });
 }

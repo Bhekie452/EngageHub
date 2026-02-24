@@ -3,7 +3,7 @@
 // Schedule: runs every hour (at minute 0)
 
 import { VercelRequest, VercelResponse } from '@vercel/node';
-import { handleCors } from '../_cors.js';
+import { handleCors } from '../../lib/server/cors';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Handle CORS

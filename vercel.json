@@ -1,4 +1,18 @@
 {
+  "rewrites": [
+    {
+      "source": "/api/webhook-facebook",
+      "destination": "/api/app?action=webhook-facebook"
+    },
+    {
+      "source": "/api/tiktok/callback",
+      "destination": "/api/tiktok-callback-redirect"
+    },
+    {
+      "source": "/api/utils/:endpoint",
+      "destination": "/api/utils?endpoint=:endpoint"
+    }
+  ],
   "crons": [
     {
       "path": "/api/cron/youtube-token-refresh",

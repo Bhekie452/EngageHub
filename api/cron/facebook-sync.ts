@@ -1,6 +1,6 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
-import { handleCors } from '../_cors.js';
+import { handleCors } from '../../lib/server/cors';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Handle CORS
