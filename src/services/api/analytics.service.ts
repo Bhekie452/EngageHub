@@ -391,7 +391,7 @@ export const analyticsService = {
                 .eq('post_id', postId)
                 .eq('platform', 'facebook')
                 .eq('status', 'published')
-                .single();
+                .maybeSingle();
               
               if (pubErr) {
                 console.log('[Analytics] post_publications query error:', pubErr.message);
@@ -584,12 +584,12 @@ export const analyticsService = {
         if (!fbPostId && postId) {
           try {
             const { data: pubData, error: pubErr } = await supabase
-              .from('post_publications')
-              .select('platform_post_id, platform_url')
-              .eq('post_id', postId)
-              .eq('platform', 'facebook')
-              .eq('status', 'published')
-              .single();
+                .from('post_publications')
+                .select('platform_post_id, platform_url')
+                .eq('post_id', postId)
+                .eq('platform', 'facebook')
+                .eq('status', 'published')
+                .maybeSingle();
             
             if (pubErr) {
               console.log('[Analytics] post_publications query error:', pubErr.message);
