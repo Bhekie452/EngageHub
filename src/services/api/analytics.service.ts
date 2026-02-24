@@ -588,8 +588,6 @@ export const analyticsService = {
               metricsSource = 'facebook';
               console.log('[Analytics] Using post_analytics fallback (no post ID):', cachedFbData);
             }
-          } else {
-            console.log('[Analytics] No valid Facebook post ID found, link_url is:', postPlatformId);
           }
         } else {
           console.log('[Analytics] No Facebook account found for workspace:', workspace_id);
