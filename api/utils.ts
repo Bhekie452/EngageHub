@@ -175,6 +175,32 @@ const handlePublishPost = async (req: VercelRequest, res: VercelResponse) => {
             
             results.facebook = { status: 'published', postId: postResult.id };
             successPlatforms.push('facebook');
+            
+            // Trigger Facebook engagement sync in background
+            if (workspaceId && postId) {
+              try {
+                // Get the FB access token for this account
+                const fbToken = accountTokens?.facebook?.access_token || process.env.FACEBOOK_LONG_TERM_TOKEN;
+                if (fbToken) {
+                  // Call the sync-facebook-engagement function in background
+                  fetch(`${process.env.SUPABASE_URL}/functions/v1/sync-facebook-engagement`, {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      'Authorization': `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`
+                    },
+                    body: JSON.stringify({
+                      workspaceId,
+                      postId,
+                      platformPostId: postResult.id,
+                      accessToken: fbToken
+                    })
+                  }).catch(err => console.log('[publish-post] Background sync triggered:', err.message));
+                }
+              } catch (syncErr) {
+                console.log('[publish-post] Failed to trigger sync:', syncErr);
+              }
+            }
           } else {
             // Instagram logic (simplified redirect/proxy)
             // If accountId missing, try to derive it from a linked Facebook Page (common case when Instagram is connected via Facebook)
