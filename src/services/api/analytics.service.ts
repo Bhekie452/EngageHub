@@ -384,20 +384,26 @@ export const analyticsService = {
 
           // If no fbPostId from URL, check post_publications table
           if (!fbPostId && postId) {
-            const { data: pubData } = await supabase
-              .from('post_publications')
-              .select('platform_post_id, platform_url')
-              .eq('post_id', postId)
-              .eq('platform', 'facebook')
-              .eq('status', 'published')
-              .single();
-            
-            if (pubData?.platform_post_id) {
-              fbPostId = pubData.platform_post_id;
-              console.log('[Analytics] Found Facebook post ID from post_publications:', fbPostId);
-            } else if (pubData?.platform_url) {
-              fbPostId = pubData.platform_url?.replace(/.*\/(\d+)$/, '$1') || pubData.platform_url?.replace(/.*\/v\/(\w+)/, '$1');
-              console.log('[Analytics] Found Facebook post URL from post_publications:', pubData.platform_url, '-> ID:', fbPostId);
+            try {
+              const { data: pubData, error: pubErr } = await supabase
+                .from('post_publications')
+                .select('platform_post_id, platform_url')
+                .eq('post_id', postId)
+                .eq('platform', 'facebook')
+                .eq('status', 'published')
+                .single();
+              
+              if (pubErr) {
+                console.log('[Analytics] post_publications query error:', pubErr.message);
+              } else if (pubData?.platform_post_id) {
+                fbPostId = pubData.platform_post_id;
+                console.log('[Analytics] Found Facebook post ID from post_publications:', fbPostId);
+              } else if (pubData?.platform_url) {
+                fbPostId = pubData.platform_url?.replace(/.*\/(\d+)$/, '$1') || pubData.platform_url?.replace(/.*\/v\/(\w+)/, '$1');
+                console.log('[Analytics] Found Facebook post URL from post_publications:', pubData.platform_url, '-> ID:', fbPostId);
+              }
+            } catch (e) {
+              console.log('[Analytics] post_publications exception:', e);
             }
           }
 
@@ -576,20 +582,26 @@ export const analyticsService = {
 
         // If no fbPostId from URL, check post_publications table
         if (!fbPostId && postId) {
-          const { data: pubData } = await supabase
-            .from('post_publications')
-            .select('platform_post_id, platform_url')
-            .eq('post_id', postId)
-            .eq('platform', 'facebook')
-            .eq('status', 'published')
-            .single();
-          
-          if (pubData?.platform_post_id) {
-            fbPostId = pubData.platform_post_id;
-            console.log('[Analytics] Found Facebook post ID from post_publications:', fbPostId);
-          } else if (pubData?.platform_url) {
-            fbPostId = pubData.platform_url?.replace(/.*\/(\d+)$/, '$1') || pubData.platform_url?.replace(/.*\/v\/(\w+)/, '$1');
-            console.log('[Analytics] Found Facebook post URL from post_publications:', pubData.platform_url, '-> ID:', fbPostId);
+          try {
+            const { data: pubData, error: pubErr } = await supabase
+              .from('post_publications')
+              .select('platform_post_id, platform_url')
+              .eq('post_id', postId)
+              .eq('platform', 'facebook')
+              .eq('status', 'published')
+              .single();
+            
+            if (pubErr) {
+              console.log('[Analytics] post_publications query error:', pubErr.message);
+            } else if (pubData?.platform_post_id) {
+              fbPostId = pubData.platform_post_id;
+              console.log('[Analytics] Found Facebook post ID from post_publications:', fbPostId);
+            } else if (pubData?.platform_url) {
+              fbPostId = pubData.platform_url?.replace(/.*\/(\d+)$/, '$1') || pubData.platform_url?.replace(/.*\/v\/(\w+)/, '$1');
+              console.log('[Analytics] Found Facebook post URL from post_publications:', pubData.platform_url, '-> ID:', fbPostId);
+            }
+          } catch (e) {
+            console.log('[Analytics] post_publications exception:', e);
           }
         }
 

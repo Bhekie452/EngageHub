@@ -1,4 +1,9 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
+import { createClient } from '@supabase/supabase-js';
+
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const supabase = createClient(supabaseUrl || '', supabaseKey || '');
 
 // Handler for getting post engagement metrics
 const handleGetPostEngagement = async (req: VercelRequest, res: VercelResponse) => {
@@ -54,7 +59,7 @@ const handlePublishPost = async (req: VercelRequest, res: VercelResponse) => {
   }
 
   try {
-    const { content, platforms, mediaUrls, workspaceId, accountTokens } = req.body || {};
+    const { content, platforms, mediaUrls, workspaceId, accountTokens, postId } = req.body || {};
     
     console.log('[publish-post] Request received:', { platforms, content, workspaceId });
     
@@ -126,6 +131,47 @@ const handlePublishPost = async (req: VercelRequest, res: VercelResponse) => {
             
             const postResult = await postResponse.json();
             if (postResult.error) throw new Error(postResult.error.message);
+            
+            // 🔥 CRITICAL: Save Facebook post ID to post_publications for engagement sync
+            try {
+              // Get the social_account_id from the tokens or look it up
+              let socialAccountId = accountTokens?.facebook?.id || accountTokens?.facebook?.social_account_id;
+              
+              // If we don't have social_account_id, try to find it
+              if (!socialAccountId && accountId) {
+                const { data: accountData } = await supabase
+                  .from('social_accounts')
+                  .select('id')
+                  .eq('account_id', accountId)
+                  .eq('platform', 'facebook')
+                  .maybeSingle();
+                if (accountData) socialAccountId = accountData.id;
+              }
+              
+              if (socialAccountId && postId) {
+                // Insert or update the post_publications record
+                const { error: pubError } = await supabase
+                  .from('post_publications')
+                  .upsert({
+                    post_id: postId,
+                    social_account_id: socialAccountId,
+                    platform: 'facebook',
+                    platform_post_id: postResult.id,
+                    platform_url: `https://facebook.com/${postResult.id}`,
+                    status: 'published',
+                    published_at: new Date().toISOString()
+                  }, { onConflict: 'post_id,social_account_id' });
+                
+                if (pubError) {
+                  console.error('[publish-post] Failed to save to post_publications:', pubError);
+                } else {
+                  console.log('[publish-post] Saved Facebook post to post_publications:', postResult.id);
+                }
+              }
+            } catch (pubSaveError) {
+              console.error('[publish-post] Error saving post_publications:', pubSaveError);
+              // Don't fail the publish if this fails
+            }
             
             results.facebook = { status: 'published', postId: postResult.id };
             successPlatforms.push('facebook');
@@ -285,9 +331,18 @@ const handlePublishPost = async (req: VercelRequest, res: VercelResponse) => {
       }
     }
 
+    // Build platformPostIds for frontend to save to post_publications
+    const platformPostIds: Record<string, string> = {};
+    for (const [platform, result] of Object.entries(results)) {
+      if (result && typeof result === 'object' && 'postId' in result && typeof (result as any).postId === 'string') {
+        platformPostIds[platform] = (result as any).postId;
+      }
+    }
+
     return res.status(200).json({
       success: successPlatforms.length > 0,
       platforms: results,
+      platformPostIds, // Frontend expects this format
       failed: failedPlatforms
     });
 
