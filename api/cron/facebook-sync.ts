@@ -1,12 +1,18 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
-
-const CORS_HEADERS = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+import { handleCors } from '../_cors.js';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  // Handle CORS
+  if (handleCors(req, res)) return;
+
+  // Only allow cron requests
+  const cronSecret = req.headers['x-vercel-cron'];
+  if (cronSecret !== 'facebook-sync') {
+    console.log('Unauthorized cron request received');
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
   if (req.method !== 'POST' && req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
