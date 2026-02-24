@@ -2327,7 +2327,9 @@ const Content: React.FC = () => {
                             <>
                               {engagementData && engagementPostId === editingPost.id && (
                                 <div className="bg-green-50 border border-green-200 rounded-lg p-2 text-center mb-2">
-                                  <p className="text-[10px] text-green-700 font-bold uppercase">Live from YouTube</p>
+                                  <p className="text-[10px] text-green-700 font-bold uppercase">
+                                    Live from {engagementData.metricsSource === 'facebook' ? 'Facebook' : engagementData.metricsSource === 'youtube' ? 'YouTube' : 'Platform'}
+                                  </p>
                                 </div>
                               )}
                               {selectedPlatforms.length > 1 && !(engagementData && engagementPostId === editingPost.id) && (

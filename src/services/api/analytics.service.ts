@@ -410,7 +410,104 @@ export const analyticsService = {
           console.log('[Analytics] Facebook postId:', { postPlatformId, fbPostId, link_url: postData?.link_url });
 
           if (fbPostId && fbPostId.length > 5) {
-            // Call sync-facebook-engagement to get fresh data
+            // ✅ FIX 1: Call Facebook Graph API DIRECTLY for native metrics
+            try {
+              // Get page access token (may differ from user token)
+              const pageAccessToken = fbAccount.platform_data?.pages?.[0]?.access_token
+                || fbAccount.platform_data?.page_access_token
+                || fbAccount.access_token;
+
+              console.log('[Analytics] Calling Facebook Graph API directly for post:', fbPostId);
+
+              const graphUrl = `https://graph.facebook.com/v21.0/${fbPostId}` +
+                `?fields=reactions.summary(true),comments.summary(true),shares,insights.metric(post_impressions,post_impressions_unique)` +
+                `&access_token=${pageAccessToken}`;
+
+              const graphRes = await fetch(graphUrl);
+              const graphData = await graphRes.json();
+
+              console.log('[Analytics] Facebook Graph API response:', graphData);
+
+              if (!graphData.error) {
+                // ✅ FIX 2: Use native Facebook counts directly
+                const nativeLikes = graphData.reactions?.summary?.total_count ?? 0;
+                const nativeComments = graphData.comments?.summary?.total_count ?? 0;
+                const nativeShares = graphData.shares?.count ?? 0;
+                const nativeViews = graphData.insights?.data?.find(
+                  (d: any) => d.name === 'post_impressions'
+                )?.values?.[0]?.value ?? 0;
+                const nativeUniqueViews = graphData.insights?.data?.find(
+                  (d: any) => d.name === 'post_impressions_unique'
+                )?.values?.[0]?.value ?? 0;
+
+                // ✅ FIX 3: ADD native FB counts to existing EngageHub metrics (not replacing them)
+                metrics.likes += nativeLikes;
+                metrics.comments += nativeComments;
+                metrics.shares += nativeShares;
+                metrics.views += nativeViews || nativeUniqueViews;
+                metricsSource = 'facebook';
+
+                console.log('[Analytics] Native Facebook metrics:', {
+                  likes: nativeLikes,
+                  comments: nativeComments,
+                  shares: nativeShares,
+                  views: nativeViews
+                });
+
+                // ✅ FIX 4: Also upsert to post_analytics for caching
+                await supabase.from('post_analytics').upsert({
+                  post_id: postId,
+                  platform: 'facebook',
+                  likes: nativeLikes,
+                  comments: nativeComments,
+                  shares: nativeShares,
+                  video_views: nativeViews || nativeUniqueViews,
+                  recorded_at: new Date().toISOString()
+                }, { onConflict: 'post_id,platform' });
+
+              } else {
+                console.warn('[Analytics] Facebook Graph API error:', graphData.error);
+
+                // ✅ FIX 5: Fallback to post_analytics cache if Graph API fails
+                const { data: cachedFbData, error: cacheErr } = await supabase
+                  .from('post_analytics')
+                  .select('likes, comments, shares, video_views')
+                  .eq('post_id', postId)
+                  .eq('platform', 'facebook')
+                  .maybeSingle();
+
+                if (!cacheErr && cachedFbData) {
+                  metrics.likes += cachedFbData.likes ?? 0;
+                  metrics.comments += cachedFbData.comments ?? 0;
+                  metrics.shares += cachedFbData.shares ?? 0;
+                  metrics.views += cachedFbData.video_views ?? 0;
+                  metricsSource = 'facebook';
+                  console.log('[Analytics] Using cached Facebook metrics from post_analytics:', cachedFbData);
+                } else {
+                  console.warn('[Analytics] No cached Facebook data, falling back to engagement_actions count');
+                }
+              }
+            } catch (graphErr) {
+              console.error('[Analytics] Facebook Graph API fetch error:', graphErr);
+
+              // ✅ FIX 7: Fallback to post_analytics cache on network error
+              const { data: cachedFbData } = await supabase
+                .from('post_analytics')
+                .select('likes, comments, shares, video_views')
+                .eq('post_id', postId)
+                .eq('platform', 'facebook')
+                .maybeSingle();
+
+              if (cachedFbData) {
+                metrics.likes += cachedFbData.likes ?? 0;
+                metrics.comments += cachedFbData.comments ?? 0;
+                metrics.shares += cachedFbData.shares ?? 0;
+                metrics.views += cachedFbData.video_views ?? 0;
+                metricsSource = 'facebook';
+              }
+            }
+
+            // Call sync-facebook-engagement to sync engagement_actions (activity feed)
             const { data: fbData, error: fbSyncErr } = await supabase.functions.invoke('sync-facebook-engagement', {
               body: {
                 workspaceId: workspace_id,
@@ -420,60 +517,76 @@ export const analyticsService = {
 
             console.log('[Analytics] Facebook sync result:', { fbData, fbSyncErr });
 
-            if (!fbSyncErr && fbData?.success) {
-              // Get comments from database after sync
-              const { data: fbComments } = await supabase
-                .from('engagement_actions')
-                .select('action_data, created_at, platform_action_id')
-                .eq('workspace_id', workspace_id)
-                .eq('platform', 'facebook')
-                .eq('platform_post_id', fbPostId)
-                .eq('action_type', 'comment')
-                .order('created_at', { ascending: false })
-                .limit(20);
+            // Fetch activity feed from engagement_actions (comments + likes)
+            const { data: fbComments } = await supabase
+              .from('engagement_actions')
+              .select('action_data, created_at, platform_action_id')
+              .eq('workspace_id', workspace_id)
+              .eq('platform', 'facebook')
+              .eq('platform_post_id', fbPostId)
+              .eq('action_type', 'comment')
+              .order('created_at', { ascending: false })
+              .limit(20);
 
-              const { data: fbLikes } = await supabase
-                .from('engagement_actions')
-                .select('action_data, created_at')
-                .eq('workspace_id', workspace_id)
-                .eq('platform', 'facebook')
-                .eq('platform_post_id', fbPostId)
-                .eq('action_type', 'like')
-                .order('created_at', { ascending: false })
-                .limit(50);
+            const { data: fbLikes } = await supabase
+              .from('engagement_actions')
+              .select('action_data, created_at')
+              .eq('workspace_id', workspace_id)
+              .eq('platform', 'facebook')
+              .eq('platform_post_id', fbPostId)
+              .eq('action_type', 'like')
+              .order('created_at', { ascending: false })
+              .limit(50);
 
-              // Add FB comments to activity
-              if (fbComments?.length > 0) {
-                metrics.comments = fbComments.length;
-                metricsSource = 'facebook';
-                
-                const fbActivityComments = fbComments.map((c: any) => ({
-                  type: 'comment' as const,
-                  user: c.action_data?.user_name || 'Facebook User',
-                  text: c.action_data?.comment_text || c.action_data?.message || 'Facebook comment',
-                  occurred_at: c.created_at,
-                  platform: 'facebook' as const,
-                  time: timeAgo(c.created_at),
-                  avatar: c.action_data?.user_avatar
-                }));
-                facebookActivity.push(...fbActivityComments);
-              }
-              // Add FB likes to activity
-              if (fbLikes?.length > 0) {
-                metrics.likes = fbLikes.length;
-                metricsSource = 'facebook';
-                
-                const fbActivityLikes = fbLikes.map((l: any) => ({
-                  type: 'like' as const,
-                  user: l.action_data?.user_name || 'Facebook User',
-                  occurred_at: l.created_at,
-                  platform: 'facebook' as const,
-                  time: timeAgo(l.created_at),
-                  avatar: l.action_data?.user_avatar
-                }));
-                facebookActivity.push(...fbActivityLikes);
-              }
-              console.log('[Analytics] Facebook connected, comments:', fbComments?.length || 0, 'likes:', fbLikes?.length || 0);
+            // Add FB comments to activity feed
+            if (fbComments && fbComments.length > 0) {
+              // NOTE: Do NOT override metrics.comments here anymore - we use Graph API counts above
+              const fbActivityComments = fbComments.map((c: any) => ({
+                type: 'comment' as const,
+                user: c.action_data?.user_name || 'Facebook User',
+                text: c.action_data?.comment_text || c.action_data?.message || 'Facebook comment',
+                occurred_at: c.created_at,
+                platform: 'facebook' as const,
+                time: timeAgo(c.created_at),
+                avatar: c.action_data?.user_avatar
+              }));
+              facebookActivity.push(...fbActivityComments);
+            }
+
+            // Add FB likes to activity feed
+            if (fbLikes && fbLikes.length > 0) {
+              // NOTE: Do NOT override metrics.likes here anymore - we use Graph API counts above
+              const fbActivityLikes = fbLikes.map((l: any) => ({
+                type: 'like' as const,
+                user: l.action_data?.user_name || 'Facebook User',
+                occurred_at: l.created_at,
+                platform: 'facebook' as const,
+                time: timeAgo(l.created_at),
+                avatar: l.action_data?.user_avatar
+              }));
+              facebookActivity.push(...fbActivityLikes);
+            }
+
+            console.log('[Analytics] Facebook activity feed - comments:', fbComments?.length || 0, 'likes:', fbLikes?.length || 0);
+
+          } else {
+            console.log('[Analytics] No valid Facebook post ID found, link_url is:', postPlatformId);
+
+            // ✅ FIX 8: Even without post ID, try post_analytics cache
+            const { data: cachedFbData } = await supabase
+              .from('post_analytics')
+              .select('likes, comments, shares, video_views')
+              .eq('post_id', postId)
+              .eq('platform', 'facebook')
+              .maybeSingle();
+
+            if (cachedFbData) {
+              metrics.likes += cachedFbData.likes ?? 0;
+              metrics.comments += cachedFbData.comments ?? 0;
+              metrics.shares += cachedFbData.shares ?? 0;
+              metrics.views += cachedFbData.video_views ?? 0;
+              metricsSource = 'facebook';
+              console.log('[Analytics] Using post_analytics fallback (no post ID):', cachedFbData);
             }
           } else {
             console.log('[Analytics] No valid Facebook post ID found, link_url is:', postPlatformId);
