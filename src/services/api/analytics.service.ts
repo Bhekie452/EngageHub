@@ -385,28 +385,55 @@ export const analyticsService = {
           // If no fbPostId from URL, check post_publications table
           if (!fbPostId && postId) {
             try {
-              const { data: pubData, error: pubErr } = await supabase
+              const { data: pubRows, error: pubErr } = await supabase
                 .from('post_publications')
-                .select('platform_post_id, platform_url')
+                .select('platform_post_id, platform_url, status, published_at, created_at')
                 .eq('post_id', postId)
                 .eq('platform', 'facebook')
-                .eq('status', 'published')
-                .maybeSingle();
+                .order('published_at', { ascending: false, nullsFirst: false })
+                .order('created_at', { ascending: false })
+                .limit(5);
               
               if (pubErr) {
                 console.log('[Analytics] post_publications query error:', pubErr.message);
-              } else if (pubData?.platform_post_id) {
-                fbPostId = pubData.platform_post_id;
-                console.log('[Analytics] Found Facebook post ID from post_publications:', fbPostId);
-              } else if (pubData?.platform_url) {
-                fbPostId = pubData.platform_url?.replace(/.*\/(\d+)$/, '$1') || pubData.platform_url?.replace(/.*\/v\/(\w+)/, '$1');
-                console.log('[Analytics] Found Facebook post URL from post_publications:', pubData.platform_url, '-> ID:', fbPostId);
+              } else {
+                const pubData = (pubRows || []).find((r: any) => r?.platform_post_id) || (pubRows || [])[0];
+                if (pubData?.platform_post_id) {
+                  fbPostId = pubData.platform_post_id;
+                  console.log('[Analytics] Found Facebook post ID from post_publications:', fbPostId, 'status:', pubData.status);
+                } else if (pubData?.platform_url) {
+                  fbPostId = pubData.platform_url?.replace(/.*\/posts\/(\w+)/, '$1') || pubData.platform_url?.replace(/.*\/(\d+)$/, '$1') || pubData.platform_url?.replace(/.*\/v\/(\w+)/, '$1');
+                  console.log('[Analytics] Found Facebook post URL from post_publications:', pubData.platform_url, '-> ID:', fbPostId, 'status:', pubData.status);
+                }
               }
             } catch (e) {
               console.log('[Analytics] post_publications exception:', e);
             }
           }
 
+          // Fallback: try engagement_actions for this exact post
+          if (!fbPostId && postId) {
+            try {
+              const { data: actionRows, error: actionErr } = await supabase
+                .from('engagement_actions')
+                .select('platform_post_id, created_at')
+                .eq('workspace_id', workspace_id)
+                .eq('platform', 'facebook')
+                .eq('post_id', postId)
+                .not('platform_post_id', 'is', null)
+                .order('created_at', { ascending: false })
+                .limit(1);
+
+              if (actionErr) {
+                console.log('[Analytics] engagement_actions postId lookup error:', actionErr.message);
+              } else if (actionRows && actionRows.length > 0 && actionRows[0].platform_post_id) {
+                fbPostId = actionRows[0].platform_post_id;
+                console.log('[Analytics] Found Facebook post ID from engagement_actions:', fbPostId);
+              }
+            } catch (e) {
+              console.log('[Analytics] engagement_actions postId lookup exception:', e);
+            }
+          }
           console.log('[Analytics] Facebook postId:', { postPlatformId, fbPostId, link_url: postData?.link_url });
 
           if (fbPostId && fbPostId.length > 5) {
@@ -694,25 +721,53 @@ export const analyticsService = {
         // If no fbPostId from URL, check post_publications table
         if (!fbPostId && postId) {
           try {
-            const { data: pubData, error: pubErr } = await supabase
+            const { data: pubRows, error: pubErr } = await supabase
                 .from('post_publications')
-                .select('platform_post_id, platform_url')
+                .select('platform_post_id, platform_url, status, published_at, created_at')
                 .eq('post_id', postId)
                 .eq('platform', 'facebook')
-                .eq('status', 'published')
-                .maybeSingle();
+                .order('published_at', { ascending: false, nullsFirst: false })
+                .order('created_at', { ascending: false })
+                .limit(5);
             
             if (pubErr) {
               console.log('[Analytics] post_publications query error:', pubErr.message);
-            } else if (pubData?.platform_post_id) {
-              fbPostId = pubData.platform_post_id;
-              console.log('[Analytics] Found Facebook post ID from post_publications:', fbPostId);
-            } else if (pubData?.platform_url) {
-              fbPostId = pubData.platform_url?.replace(/.*\/(\d+)$/, '$1') || pubData.platform_url?.replace(/.*\/v\/(\w+)/, '$1');
-              console.log('[Analytics] Found Facebook post URL from post_publications:', pubData.platform_url, '-> ID:', fbPostId);
+            } else {
+              const pubData = (pubRows || []).find((r: any) => r?.platform_post_id) || (pubRows || [])[0];
+              if (pubData?.platform_post_id) {
+                fbPostId = pubData.platform_post_id;
+                console.log('[Analytics] Found Facebook post ID from post_publications:', fbPostId, 'status:', pubData.status);
+              } else if (pubData?.platform_url) {
+                fbPostId = pubData.platform_url?.replace(/.*\/posts\/(\w+)/, '$1') || pubData.platform_url?.replace(/.*\/(\d+)$/, '$1') || pubData.platform_url?.replace(/.*\/v\/(\w+)/, '$1');
+                console.log('[Analytics] Found Facebook post URL from post_publications:', pubData.platform_url, '-> ID:', fbPostId, 'status:', pubData.status);
+              }
             }
           } catch (e) {
             console.log('[Analytics] post_publications exception:', e);
+          }
+        }
+
+        // Fallback: try engagement_actions for this exact post
+        if (!fbPostId && postId) {
+          try {
+            const { data: actionRows, error: actionErr } = await supabase
+              .from('engagement_actions')
+              .select('platform_post_id, created_at')
+              .eq('workspace_id', workspace_id)
+              .eq('platform', 'facebook')
+              .eq('post_id', postId)
+              .not('platform_post_id', 'is', null)
+              .order('created_at', { ascending: false })
+              .limit(1);
+
+            if (actionErr) {
+              console.log('[Analytics] engagement_actions postId lookup error:', actionErr.message);
+            } else if (actionRows && actionRows.length > 0 && actionRows[0].platform_post_id) {
+              fbPostId = actionRows[0].platform_post_id;
+              console.log('[Analytics] Found Facebook post ID from engagement_actions:', fbPostId);
+            }
+          } catch (e) {
+            console.log('[Analytics] engagement_actions postId lookup exception:', e);
           }
         }
 
