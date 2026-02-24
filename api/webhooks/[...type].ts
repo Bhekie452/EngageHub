@@ -186,7 +186,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return await handleFacebookWebhook(req, res);
       // Add more webhook types as needed
       default:
-        return res.status(404).json({ error: 'Webhook type not found', received: type });
+        console.log('[Webhook] Unknown type:', type, 'Full query:', JSON.stringify(req.query));
+        return res.status(404).json({ error: 'Webhook type not found', received: type, query: req.query });
     }
   } catch (error) {
     console.error(`Error in webhook handler (${type}):`, error);
