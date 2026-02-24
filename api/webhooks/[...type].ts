@@ -174,7 +174,9 @@ const handleStripeWebhook = async (req: VercelRequest, res: VercelResponse) => {
 
 // Main webhook handler
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  const { type } = req.query;
+  // Handle both array (catch-all route) and string cases
+  const typeParam = req.query.type;
+  const type = Array.isArray(typeParam) ? typeParam[0] : typeParam || '';
 
   try {
     switch (type) {
@@ -184,7 +186,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return await handleFacebookWebhook(req, res);
       // Add more webhook types as needed
       default:
-        return res.status(404).json({ error: 'Webhook type not found' });
+        return res.status(404).json({ error: 'Webhook type not found', received: type });
     }
   } catch (error) {
     console.error(`Error in webhook handler (${type}):`, error);
