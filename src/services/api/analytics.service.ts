@@ -436,6 +436,51 @@ export const analyticsService = {
           }
           console.log('[Analytics] Facebook postId:', { postPlatformId, fbPostId, link_url: postData?.link_url });
 
+          // ── Content-matching fallback ─────────────────────────────────────
+          // If no fbPostId was found from any source, try to match by post
+          // content against recent Facebook page posts.
+          if (!fbPostId && postData?.content && fbAccount.account_id) {
+            try {
+              const pageAccessTokenForMatch = fbAccount.platform_data?.pages?.[0]?.access_token
+                || fbAccount.platform_data?.page_access_token
+                || fbAccount.access_token;
+              const feedUrl = `https://graph.facebook.com/v21.0/${fbAccount.account_id}/posts` +
+                `?fields=id,message,created_time` +
+                `&limit=25&access_token=${pageAccessTokenForMatch}`;
+              const feedRes = await fetch(feedUrl);
+              const feedJson = await feedRes.json();
+              if (!feedJson.error && Array.isArray(feedJson.data)) {
+                const postContent = (postData.content || '').trim().toLowerCase();
+                const matched = feedJson.data.find((fp: any) =>
+                  fp.message && fp.message.trim().toLowerCase() === postContent
+                );
+                if (matched) {
+                  fbPostId = matched.id;
+                  console.log('[Analytics] Matched Facebook post by content:', fbPostId, '"' + (matched.message || '').substring(0, 40) + '"');
+                  // Auto-backfill post_publications so future lookups are instant
+                  try {
+                    await supabase.from('post_publications').upsert({
+                      post_id: postId,
+                      social_account_id: fbAccount.id,
+                      platform: 'facebook',
+                      platform_post_id: fbPostId,
+                      platform_url: `https://facebook.com/${fbPostId}`,
+                      status: 'published',
+                      published_at: matched.created_time || new Date().toISOString()
+                    }, { onConflict: 'post_id,social_account_id' });
+                    console.log('[Analytics] Auto-backfilled post_publications for', postId);
+                  } catch (backfillErr) {
+                    console.warn('[Analytics] post_publications backfill failed:', backfillErr);
+                  }
+                } else {
+                  console.log('[Analytics] No content match found among', feedJson.data.length, 'recent FB posts for:', postContent.substring(0, 40));
+                }
+              }
+            } catch (matchErr) {
+              console.warn('[Analytics] Content-matching fallback error:', matchErr);
+            }
+          }
+
           if (fbPostId && fbPostId.length > 5) {
             // ✅ FIX 1: Call Facebook Graph API DIRECTLY for native metrics
             try {

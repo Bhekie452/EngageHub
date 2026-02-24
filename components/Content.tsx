@@ -1205,14 +1205,18 @@ const Content: React.FC = () => {
                 if (pages.length > 0) {
                   // Use the first page's token (prioritize page tokens over user tokens)
                   console.log('[publish] Using Facebook Page token:', pages[0].pageName);
-                  accountTokens[platform] = {
+                  (accountTokens as any)[platform] = {
+                    id: row.id,               // Supabase row UUID – needed to save post_publications
+                    social_account_id: row.id, // alias so backend can find it easily
                     account_id: pages[0].pageId,
                     access_token: pages[0].pageAccessToken
                   };
                 } else {
                   // Fallback to user token if no pages found
                   console.log('[publish] No pages found, falling back to user token');
-                  accountTokens[platform] = {
+                  (accountTokens as any)[platform] = {
+                    id: row.id,
+                    social_account_id: row.id,
                     account_id: row.account_id || 'me',
                     access_token: accessToken
                   };
@@ -1223,7 +1227,7 @@ const Content: React.FC = () => {
                 if (platform !== 'facebook') {
                   accountTokens[platform] = { account_id: row.account_id || '', access_token: accessToken };
                 } else if (isFacebookPage || !existing) {
-                  accountTokens[platform] = { account_id: row.account_id || '', access_token: accessToken };
+                  (accountTokens as any)[platform] = { id: row.id, social_account_id: row.id, account_id: row.account_id || '', access_token: accessToken };
                 }
               }
             }
