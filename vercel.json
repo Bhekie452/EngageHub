@@ -22,7 +22,11 @@
     },
     {
       "source": "/tiktok/webhook",
-      "destination": "/api/tiktok/webhook"
+      "destination": "/api/app?action=webhook-tiktok"
+    },
+    {
+      "source": "/api/tiktok/webhook",
+      "destination": "/api/app?action=webhook-tiktok"
     },
     {
       "source": "/api/utils/:endpoint",

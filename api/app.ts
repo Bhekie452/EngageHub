@@ -1,6 +1,7 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
 import { handleCors } from '../lib/server/cors';
 import { createClient } from '@supabase/supabase-js';
+import { createHmac, timingSafeEqual } from 'crypto';
 
 /**
  * CONSOLIDATED APP API
@@ -36,11 +37,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       case 'facebook-webhook':
         return await handleFacebookWebhook(req, res);
 
+      case 'webhook-tiktok':
+      case 'tiktok-webhook':
+        return await handleTikTokWebhook(req, res);
+
       default:
         return res.status(400).json({
           success: false,
           error: 'Invalid action parameter',
-          validActions: ['engagement', 'publish', 'test-tiktok', 'webhook-facebook'],
+          validActions: ['engagement', 'publish', 'test-tiktok', 'webhook-facebook', 'webhook-tiktok'],
           usage: '/api/app?action=engagement&method=create'
         });
     }
@@ -359,6 +364,54 @@ async function handleTikTokTest(req: VercelRequest, res: VercelResponse) {
       error: error.message
     });
   }
+}
+
+// ============================================
+// TIKTOK WEBHOOK HANDLER
+// ============================================
+async function handleTikTokWebhook(req: VercelRequest, res: VercelResponse) {
+  if (req.method === 'GET') {
+    const challenge = req.query.challenge || req.query.challenge_code || req.query.echo;
+    if (challenge) {
+      res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+      return res.status(200).send(String(challenge));
+    }
+    return res.status(200).json({ ok: true, message: 'TikTok webhook endpoint active' });
+  }
+
+  if (req.method === 'POST') {
+    try {
+      const secret = process.env.TIKTOK_WEBHOOK_SECRET;
+      if (secret) {
+        const receivedRaw = (req.headers['x-tiktok-signature'] || req.headers['x-tiktok-signature-v1'] || req.headers['x-signature'] || '').toString();
+        const received = receivedRaw.replace(/^sha256=/i, '').trim();
+        if (!received) {
+          return res.status(401).json({ ok: false, error: 'Missing signature' });
+        }
+
+        const payload = typeof req.body === 'string' ? req.body : JSON.stringify(req.body || {});
+        const computed = createHmac('sha256', secret).update(payload).digest('hex');
+        const isValid = received.length === computed.length && timingSafeEqual(Buffer.from(received), Buffer.from(computed));
+        if (!isValid) {
+          return res.status(401).json({ ok: false, error: 'Invalid signature' });
+        }
+      }
+
+      const payload = req.body || {};
+      const eventType = payload.event_type || payload.type || payload.event || 'unknown';
+      console.log('[TikTokWebhook] Event received:', {
+        eventType,
+        hasData: !!payload.data
+      });
+
+      return res.status(200).json({ ok: true, received: true });
+    } catch (error: any) {
+      console.error('[TikTokWebhook] Error:', error);
+      return res.status(500).json({ ok: false, error: 'Webhook processing failed' });
+    }
+  }
+
+  return res.status(405).json({ ok: false, error: 'Method not allowed' });
 }
 
 // ============================================
