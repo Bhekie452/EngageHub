@@ -587,7 +587,7 @@ export const analyticsService = {
                   comments: nativeComments,
                   shares: nativeShares,
                   video_views: nativeViews || nativeUniqueViews,
-                  recorded_at: new Date().toISOString()
+                  last_synced_at: new Date().toISOString()
                 }, { onConflict: 'post_id,social_account_id' });
 
               } else {
@@ -875,7 +875,7 @@ export const analyticsService = {
                   comments: nativeComments,
                   shares: nativeShares,
                   video_views: nativeViews,
-                  recorded_at: new Date().toISOString(),
+                  last_synced_at: new Date().toISOString(),
                 }, { onConflict: 'post_id,social_account_id' });
               } else {
                 console.warn('[Analytics] Instagram media fetch error:', mediaJson.error);
@@ -896,7 +896,7 @@ export const analyticsService = {
                     comments: fallbackComments,
                     shares: 0,
                     video_views: 0,
-                    recorded_at: new Date().toISOString(),
+                    last_synced_at: new Date().toISOString(),
                   }, { onConflict: 'post_id,social_account_id' });
 
                   console.log('[Analytics] Instagram fallback metrics from media list:', {
@@ -1231,7 +1231,7 @@ export const analyticsService = {
                 comments: nativeComments,
                 shares: nativeShares,
                 video_views: nativeViews,
-                recorded_at: new Date().toISOString(),
+                last_synced_at: new Date().toISOString(),
               }, { onConflict: 'post_id,social_account_id' });
 
               console.log('[Analytics] Native TikTok metrics:', {
@@ -1720,7 +1720,7 @@ export const analyticsService = {
       .from('post_analytics')
       .select('post_id, video_views, likes, comments, shares')
       .in('post_id', postIds)
-      .order('recorded_at', { ascending: false });
+      .order('last_synced_at', { ascending: false });
 
     if (anaErr) throw anaErr;
 

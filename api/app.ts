@@ -470,13 +470,18 @@ async function handleTikTokComments(req: VercelRequest, res: VercelResponse) {
     }
 
     const fields = 'id,text,create_date,like_count,parent_comment_id';
-    const url = `https://open.tiktokapis.com/v2/comment/list/?fields=${encodeURIComponent(fields)}&video_id=${videoId}&max_count=50`;
+    const url = `https://open.tiktokapis.com/v2/comment/list/?fields=${encodeURIComponent(fields)}`;
 
     const ttResp = await fetch(url, {
-      method: 'GET',
+      method: 'POST',
       headers: {
         Authorization: `Bearer ${ttAccount.access_token}`,
+        'Content-Type': 'application/json',
       },
+      body: JSON.stringify({
+        video_id: String(videoId),
+        max_count: 50,
+      }),
     });
     const ttJson = await ttResp.json();
     console.log('[TikTokComments] Response:', JSON.stringify(ttJson).slice(0, 500));
