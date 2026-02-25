@@ -1184,43 +1184,17 @@ export const analyticsService = {
                 time: timeAgo(createdAtIso),
               });
 
-              // Fetch actual TikTok comments via backend proxy (avoids CORS)
-              try {
-                const commentsResp = await fetch(`/api/app?action=tiktok-comments&videoId=${tikTokVideoId}&workspaceId=${workspace_id}`);
-                const commentsResult = await commentsResp.json();
-                const commentsJson = commentsResult?.data || commentsResult;
-                console.log('[Analytics] TikTok comment/list raw:', JSON.stringify(commentsJson).slice(0, 500));
-                const commentsHasError = commentsJson?.error && commentsJson.error.code && commentsJson.error.code !== 'ok';
-                if (!commentsHasError) {
-                  const commentContainer = commentsJson?.data || commentsJson;
-                  const commentList = commentContainer?.comments || commentContainer?.comment_list || [];
-                  if (Array.isArray(commentList) && commentList.length > 0) {
-                    // Override comment count with real count if API returned comments
-                    const actualCommentCount = commentList.length;
-                    if (actualCommentCount > nativeComments) {
-                      const diff = actualCommentCount - nativeComments;
-                      metrics.comments += diff;
-                    }
-                    for (const c of commentList) {
-                      const commentTime = c.create_date
-                        ? new Date(Number(c.create_date) * 1000).toISOString()
-                        : new Date().toISOString();
-                      tiktokActivity.push({
-                        type: 'comment' as const,
-                        user: c.user?.display_name || c.user?.unique_id || c.username || 'TikTok User',
-                        text: c.text || '',
-                        occurred_at: commentTime,
-                        platform: 'tiktok' as const,
-                        time: timeAgo(commentTime),
-                      });
-                    }
-                    console.log('[Analytics] TikTok comments fetched:', actualCommentCount);
-                  }
-                } else {
-                  console.warn('[Analytics] TikTok comment/list error:', commentsJson?.error);
-                }
-              } catch (commentErr) {
-                console.warn('[Analytics] TikTok comment/list failed (may need comment.list scope):', commentErr);
+              // Show comment activity based on comment_count from video metrics
+              // (Individual comment text not available — TikTok comment.list scope is restricted)
+              if (nativeComments > 0) {
+                tiktokActivity.push({
+                  type: 'comment' as const,
+                  user: 'TikTok Audience',
+                  text: `${nativeComments} comment${nativeComments !== 1 ? 's' : ''} on this video`,
+                  occurred_at: createdAtIso,
+                  platform: 'tiktok' as const,
+                  time: timeAgo(createdAtIso),
+                });
               }
 
               await supabase.from('post_analytics').upsert({
