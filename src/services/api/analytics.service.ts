@@ -1181,6 +1181,46 @@ export const analyticsService = {
                 time: timeAgo(createdAtIso),
               });
 
+              // Fetch actual TikTok comments via /v2/comment/list/
+              try {
+                const commentsJson = await fetchTikTokJson(
+                  `https://open.tiktokapis.com/v2/comment/list/?fields=id,text,create_date,like_count,parent_comment_id&video_id=${tikTokVideoId}&max_count=50`,
+                  { method: 'GET', headers: {} }
+                );
+                console.log('[Analytics] TikTok comment/list raw:', JSON.stringify(commentsJson).slice(0, 500));
+                const commentsHasError = commentsJson?.error && commentsJson.error.code && commentsJson.error.code !== 'ok';
+                if (!commentsHasError) {
+                  const commentContainer = commentsJson?.data || commentsJson;
+                  const commentList = commentContainer?.comments || commentContainer?.comment_list || [];
+                  if (Array.isArray(commentList) && commentList.length > 0) {
+                    // Override comment count with real count if API returned comments
+                    const actualCommentCount = commentList.length;
+                    if (actualCommentCount > nativeComments) {
+                      const diff = actualCommentCount - nativeComments;
+                      metrics.comments += diff;
+                    }
+                    for (const c of commentList) {
+                      const commentTime = c.create_date
+                        ? new Date(Number(c.create_date) * 1000).toISOString()
+                        : new Date().toISOString();
+                      tiktokActivity.push({
+                        type: 'comment' as const,
+                        user: c.user?.display_name || c.user?.unique_id || c.username || 'TikTok User',
+                        text: c.text || '',
+                        occurred_at: commentTime,
+                        platform: 'tiktok' as const,
+                        time: timeAgo(commentTime),
+                      });
+                    }
+                    console.log('[Analytics] TikTok comments fetched:', actualCommentCount);
+                  }
+                } else {
+                  console.warn('[Analytics] TikTok comment/list error:', commentsJson?.error);
+                }
+              } catch (commentErr) {
+                console.warn('[Analytics] TikTok comment/list failed (may need comment.list scope):', commentErr);
+              }
+
               await supabase.from('post_analytics').upsert({
                 post_id: postId,
                 platform: 'tiktok',
