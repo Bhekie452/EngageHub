@@ -308,7 +308,7 @@ const handlePublishPost = async (req: VercelRequest, res: VercelResponse) => {
           const tiktokPayload = {
             post_info: {
               title: content?.substring(0, 150) || 'Video from EngageHub',
-              privacy_level: 'SELF_ONLY', // Start with private, user can change on TikTok
+              privacy_level: 'PUBLIC_TO_EVERYONE',
               disable_duet: false,
               disable_comment: false,
               disable_stitch: false,
@@ -375,7 +375,7 @@ const handlePublishPost = async (req: VercelRequest, res: VercelResponse) => {
             const buildInitPayload = (size: number, cSize: number, chunkCount: number) => ({
               post_info: {
                 title: content?.substring(0, 150) || 'Video from EngageHub',
-                privacy_level: 'SELF_ONLY',
+                privacy_level: 'PUBLIC_TO_EVERYONE',
                 disable_duet: false,
                 disable_comment: false,
                 disable_stitch: false,
