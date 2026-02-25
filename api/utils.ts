@@ -332,10 +332,12 @@ const handlePublishPost = async (req: VercelRequest, res: VercelResponse) => {
           const tiktokData = await tiktokRes.json();
           console.log('[publish-post] TikTok publish response:', tiktokData);
 
+          const tiktokErrorCode = tiktokData.error?.code || tiktokData.data?.error?.code || '';
           const tiktokErrorMsg = tiktokData.error?.message || tiktokData.data?.error?.message || '';
+          const isError = tiktokErrorCode && tiktokErrorCode !== 'ok';
           const isUrlOwnershipError = /url ownership|pull_from_url|verified domains/i.test(tiktokErrorMsg);
 
-          if ((tiktokData.error || tiktokData.data?.error) && isUrlOwnershipError) {
+          if (isError && isUrlOwnershipError) {
             console.log('[publish-post] TikTok URL ownership failure detected. Retrying via FILE_UPLOAD fallback...');
 
             // Download media server-side and upload directly to TikTok to bypass URL ownership requirements.
@@ -402,7 +404,9 @@ const handlePublishPost = async (req: VercelRequest, res: VercelResponse) => {
             let initUploadData = await initUploadRequest(videoSize, chunkSize, totalChunkCount);
             console.log('[publish-post] TikTok FILE_UPLOAD init response:', initUploadData);
 
-            if (initUploadData.error || initUploadData.data?.error) {
+            // TikTok always includes error object - check code !== 'ok' for actual errors
+            const initErrorCode = initUploadData.error?.code || initUploadData.data?.error?.code;
+            if (initErrorCode && initErrorCode !== 'ok') {
               const initErr = initUploadData.error?.message || initUploadData.data?.error?.message || 'TikTok FILE_UPLOAD init failed';
               throw new Error(initErr);
             }
@@ -441,9 +445,8 @@ const handlePublishPost = async (req: VercelRequest, res: VercelResponse) => {
             continue;
           }
 
-          if (tiktokData.error || tiktokData.data?.error) {
-            const errorMsg = tiktokData.error?.message || tiktokData.data?.error?.message || 'TikTok publish failed';
-            throw new Error(errorMsg);
+          if (isError) {
+            throw new Error(tiktokErrorMsg || 'TikTok publish failed');
           }
           
           const publishId = tiktokData.data?.publish_id;
