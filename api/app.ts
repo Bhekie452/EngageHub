@@ -470,26 +470,45 @@ async function handleTikTokComments(req: VercelRequest, res: VercelResponse) {
     }
 
     const fields = 'id,text,create_date,like_count,parent_comment_id';
-    const url = `https://open.tiktokapis.com/v2/comment/list/?fields=${encodeURIComponent(fields)}`;
+    const apiUrl = `https://open.tiktokapis.com/v2/comment/list/?fields=${encodeURIComponent(fields)}`;
+    const bodyStr = JSON.stringify({ video_id: String(videoId), max_count: 50 });
 
-    const ttResp = await fetch(url, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${ttAccount.access_token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        video_id: String(videoId),
-        max_count: 50,
-      }),
+    // Use Node's built-in https module (guaranteed available, no CORS)
+    const https = await import('https');
+    const ttJson: any = await new Promise((resolve, reject) => {
+      const parsed = new URL(apiUrl);
+      const options = {
+        hostname: parsed.hostname,
+        path: parsed.pathname + parsed.search,
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${ttAccount.access_token}`,
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(bodyStr),
+        },
+      };
+      const request = https.request(options, (response: any) => {
+        let data = '';
+        response.on('data', (chunk: string) => { data += chunk; });
+        response.on('end', () => {
+          try {
+            resolve(JSON.parse(data));
+          } catch {
+            console.error('[TikTokComments] Non-JSON response:', data.slice(0, 300));
+            resolve({ error: { code: 'parse_error', message: 'Non-JSON TikTok response' } });
+          }
+        });
+      });
+      request.on('error', reject);
+      request.write(bodyStr);
+      request.end();
     });
-    const ttJson = await ttResp.json();
-    console.log('[TikTokComments] Response:', JSON.stringify(ttJson).slice(0, 500));
 
+    console.log('[TikTokComments] Response:', JSON.stringify(ttJson).slice(0, 500));
     return res.status(200).json({ success: true, data: ttJson });
   } catch (error: any) {
-    console.error('[TikTokComments] Error:', error);
-    return res.status(500).json({ success: false, error: error.message });
+    console.error('[TikTokComments] Error:', error?.message || error);
+    return res.status(500).json({ success: false, error: error?.message || 'Unknown error' });
   }
 }
 
