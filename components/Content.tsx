@@ -688,14 +688,28 @@ const Content: React.FC = () => {
     const { error } = await supabase.storage.from(BUCKET_POST_MEDIA).upload(path, file, { upsert: false });
     if (error) {
       console.error('Storage upload failed:', error);
-      toast.error(`Failed to upload ${folder === 'images' ? 'image' : 'video'} to storage: ${error.message}. Using temporary preview instead. Instagram posting may not work.`);
+      toast.error(`Failed to upload ${folder === 'images' ? 'image' : 'video'} to storage: ${error.message}. Using temporary preview instead. TikTok posting may not work.`);
       return null;
     }
     const { data } = supabase.storage.from(BUCKET_POST_MEDIA).getPublicUrl(path);
-    if (data?.publicUrl) {
-      toast.success(`${folder === 'images' ? 'Image' : 'Video'} uploaded successfully!`);
+    if (!data?.publicUrl) return null;
+
+    // Verify the file is actually accessible at the public URL (HEAD request)
+    try {
+      const headResp = await fetch(data.publicUrl, { method: 'HEAD' });
+      const ct = headResp.headers.get('content-type') || '';
+      if (!headResp.ok || (folder === 'videos' && !ct.startsWith('video/'))) {
+        console.error(`[upload-verify] File not accessible. Status: ${headResp.status}, CT: ${ct}, URL: ${data.publicUrl}`);
+        toast.error(`Upload may have failed – the file is not accessible at the public URL. Status: ${headResp.status}. Try uploading again.`);
+        // Still return the URL so the user can attempt publish (backend has auth fallback)
+      } else {
+        console.log(`[upload-verify] OK: ${ct}, ${headResp.headers.get('content-length')} bytes`);
+      }
+    } catch (verifyErr) {
+      console.warn('[upload-verify] HEAD check failed:', verifyErr);
     }
-    return data?.publicUrl || null;
+    toast.success(`${folder === 'images' ? 'Image' : 'Video'} uploaded successfully!`);
+    return data.publicUrl;
   };
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {

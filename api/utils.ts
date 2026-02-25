@@ -388,24 +388,65 @@ const handlePublishPost = async (req: VercelRequest, res: VercelResponse) => {
           if (isError && isUrlOwnershipError) {
             console.log('[publish-post] TikTok URL ownership failure detected. Retrying via FILE_UPLOAD fallback...');
 
-            // Download media server-side and upload directly to TikTok to bypass URL ownership requirements.
-            const mediaResp = await fetch(videoUrl);
-            if (!mediaResp.ok) {
-              throw new Error(`TikTok FILE_UPLOAD fallback failed: could not download video (${mediaResp.status})`);
-            }
-            const mediaBuffer = Buffer.from(await mediaResp.arrayBuffer());
+            // --- Robust video download: public URL → authenticated Supabase fallback ---
+            const downloadVideoFromStorage = async (url: string): Promise<Buffer> => {
+              console.log(`[publish-post] Downloading video from: ${url}`);
+
+              // Attempt 1: plain public fetch
+              const resp1 = await fetch(url);
+              const ct1 = resp1.headers.get('content-type') || '';
+              if (resp1.ok && ct1.startsWith('video/')) {
+                console.log(`[publish-post] Public fetch OK. Content-Type: ${ct1}, Status: ${resp1.status}`);
+                return Buffer.from(await resp1.arrayBuffer());
+              }
+
+              // If the public URL didn't return a video, read the body for logging
+              const errBody1 = await resp1.text().catch(() => '');
+              console.error(`[publish-post] Public fetch returned non-video. Status: ${resp1.status}, CT: ${ct1}, body: ${errBody1.substring(0, 300)}`);
+
+              // Attempt 2: extract storage path and download via Supabase service-role client
+              const storagePathMatch = url.match(/\/storage\/v1\/object\/public\/post-media\/(.+)$/);
+              if (storagePathMatch) {
+                const storagePath = decodeURIComponent(storagePathMatch[1]);
+                console.log(`[publish-post] Trying authenticated download for path: ${storagePath}`);
+                const { data, error } = await supabase.storage.from('post-media').download(storagePath);
+                if (error) {
+                  console.error(`[publish-post] Supabase download error:`, error);
+                  throw new Error(`Could not download video from storage: ${error.message}. The file may not exist.`);
+                }
+                if (!data) throw new Error('Supabase download returned empty data.');
+                const buf = Buffer.from(await data.arrayBuffer());
+                console.log(`[publish-post] Authenticated download OK: ${(buf.length / 1024 / 1024).toFixed(1)} MB`);
+                return buf;
+              }
+
+              // Attempt 3: if the URL is not Supabase, try with follow-redirects
+              const resp3 = await fetch(url, { redirect: 'follow' });
+              if (resp3.ok) {
+                const ct3 = resp3.headers.get('content-type') || '';
+                if (ct3.startsWith('video/') || ct3 === 'application/octet-stream') {
+                  return Buffer.from(await resp3.arrayBuffer());
+                }
+              }
+
+              throw new Error(`Could not download video. Public URL returned ${resp1.status} (${ct1}). Ensure the file was uploaded successfully to Supabase Storage.`);
+            };
+
+            const mediaBuffer = await downloadVideoFromStorage(videoUrl);
             const videoSize = mediaBuffer.length;
 
             // Validate the downloaded content is actually a valid video container.
             // MP4/MOV start with ftyp box; check bytes 4-7 for 'ftyp' signature.
             if (videoSize < 12) {
-              throw new Error(`TikTok upload rejected: downloaded file is only ${videoSize} bytes — not a valid video.`);
+              throw new Error(`TikTok upload rejected: downloaded file is only ${videoSize} bytes — not a valid video. URL: ${videoUrl}`);
             }
             const ftyp = String.fromCharCode(mediaBuffer[4], mediaBuffer[5], mediaBuffer[6], mediaBuffer[7]);
             if (ftyp !== 'ftyp') {
-              const contentType = mediaResp.headers.get('content-type') || 'unknown';
-              console.error(`[publish-post] Downloaded content is not MP4/MOV. First 8 bytes: ${mediaBuffer.subarray(0, 8).toString('hex')}, Content-Type: ${contentType}`);
-              throw new Error(`TikTok upload rejected: the file from storage is not a valid MP4/MOV video (Content-Type: ${contentType}). Re-upload a properly encoded MP4 video file.`);
+              const first32hex = mediaBuffer.subarray(0, 32).toString('hex');
+              // Try to detect if it's JSON (error response leaked through)
+              const bodyPreview = mediaBuffer.subarray(0, 200).toString('utf8').replace(/[^\x20-\x7e]/g, '');
+              console.error(`[publish-post] Downloaded content is NOT MP4/MOV. Size: ${videoSize}, First32hex: ${first32hex}, Preview: ${bodyPreview}, URL: ${videoUrl}`);
+              throw new Error(`TikTok upload rejected: the downloaded file (${(videoSize / 1024).toFixed(0)} KB) is not a valid MP4 video. It may be an error page from storage. Try re-uploading the video.`);
             }
             console.log(`[publish-post] Video verified: MP4 container, ${(videoSize / 1024 / 1024).toFixed(1)} MB`);
 
@@ -492,7 +533,7 @@ const handlePublishPost = async (req: VercelRequest, res: VercelResponse) => {
                   'Content-Length': String(chunk.length),
                   'Content-Range': `bytes ${start}-${end - 1}/${videoSize}`
                 },
-                body: chunk
+                body: new Uint8Array(chunk) as any
               });
 
               if (!uploadRes.ok) {
