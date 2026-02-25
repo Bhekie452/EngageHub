@@ -305,6 +305,48 @@ const handlePublishPost = async (req: VercelRequest, res: VercelResponse) => {
           
           // TikTok Content Posting API v2
           const tiktokPublishUrl = 'https://open.tiktokapis.com/v2/post/publish/video/init/';
+          const tiktokPublishStatusUrl = 'https://open.tiktokapis.com/v2/post/publish/status/fetch/';
+          const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+          const checkTikTokPublishStatus = async (publishId: string, attempts = 3) => {
+            let lastStatus = 'UNKNOWN';
+            let lastMessage = '';
+            for (let i = 0; i < attempts; i++) {
+              const statusRes = await fetch(tiktokPublishStatusUrl, {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${token}`,
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ publish_id: publishId })
+              });
+
+              const statusData = await statusRes.json().catch(() => ({}));
+              const statusErrorCode = statusData?.error?.code || statusData?.data?.error?.code;
+              if (statusErrorCode && statusErrorCode !== 'ok') {
+                return {
+                  status: 'FAILED',
+                  message: statusData?.error?.message || statusData?.data?.error?.message || 'TikTok status check failed'
+                };
+              }
+
+              lastStatus = statusData?.data?.status || 'UNKNOWN';
+              lastMessage = statusData?.data?.fail_reason || statusData?.data?.error?.message || '';
+
+              if (lastStatus === 'PUBLISH_COMPLETE') {
+                return { status: lastStatus, message: lastMessage };
+              }
+
+              if (/FAIL|REJECT|DENY|ERROR/i.test(lastStatus)) {
+                return { status: 'FAILED', message: lastMessage || lastStatus };
+              }
+
+              if (i < attempts - 1) {
+                await wait(1500);
+              }
+            }
+
+            return { status: lastStatus, message: lastMessage };
+          };
           const tiktokPayload = {
             post_info: {
               title: content?.substring(0, 150) || 'Video from EngageHub',
@@ -440,7 +482,16 @@ const handlePublishPost = async (req: VercelRequest, res: VercelResponse) => {
               }
             }
 
-            results.tiktok = { status: 'published', postId: publishId };
+            const statusCheck = await checkTikTokPublishStatus(publishId);
+            if (statusCheck.status === 'FAILED') {
+              throw new Error(`TikTok publish failed after upload: ${statusCheck.message || 'unknown failure'}`);
+            }
+
+            if (statusCheck.status === 'PUBLISH_COMPLETE') {
+              results.tiktok = { status: 'published', postId: publishId };
+            } else {
+              results.tiktok = { status: 'processing', postId: publishId, detail: statusCheck.status };
+            }
             successPlatforms.push('tiktok');
             continue;
           }
@@ -453,8 +504,17 @@ const handlePublishPost = async (req: VercelRequest, res: VercelResponse) => {
           if (!publishId) {
             throw new Error('TikTok did not return a publish ID. Your video may still be processing. Note: TikTok only allows video posts, not images or text.');
           }
-          
-          results.tiktok = { status: 'published', postId: publishId };
+
+          const statusCheck = await checkTikTokPublishStatus(publishId);
+          if (statusCheck.status === 'FAILED') {
+            throw new Error(`TikTok publish failed after init: ${statusCheck.message || 'unknown failure'}`);
+          }
+
+          if (statusCheck.status === 'PUBLISH_COMPLETE') {
+            results.tiktok = { status: 'published', postId: publishId };
+          } else {
+            results.tiktok = { status: 'processing', postId: publishId, detail: statusCheck.status };
+          }
           successPlatforms.push('tiktok');
         }
         else {

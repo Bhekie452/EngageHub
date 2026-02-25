@@ -1259,19 +1259,23 @@ const Content: React.FC = () => {
           if (postId && Object.keys(platformPostIds).length > 0 && accountRows?.length) {
             for (const [platform, platformPostId] of Object.entries(platformPostIds)) {
               const row = accountRows.find((r: any) => (r.platform || '').toLowerCase() === platform.toLowerCase());
+              const platformStatus = (payload?.platforms?.[platform]?.status || 'published') as string;
               if (row?.id && platformPostId) {
                 await supabase.from('post_publications').upsert({
                   post_id: postId,
                   social_account_id: row.id,
                   platform: platform.toLowerCase(),
                   platform_post_id: platformPostId,
-                  status: 'published',
+                  status: platformStatus,
                   published_at: new Date().toISOString(),
                 }, { onConflict: 'post_id,social_account_id' });
               }
             }
           }
           const failed = payload.failed || [];
+          const processing = Object.entries(payload?.platforms || {})
+            .filter(([, v]: any) => (v?.status || '').toLowerCase() === 'processing')
+            .map(([k]) => k);
           if (failed.length > 0) {
             const names = [...new Set(failed.map((f: any) => f?.platform).filter(Boolean))];
             const firstError = failed.find((f: any) => f?.error)?.error;
@@ -1282,6 +1286,8 @@ const Content: React.FC = () => {
                 ? ' YouTube video upload is not yet supported.'
                 : ' Check your connected accounts.';
             toast.error(`Post saved. Failed to publish to: ${names.join(', ')}.${hint}`);
+          } else if (processing.length > 0) {
+            toast.success(`Post saved. TikTok is still processing: ${processing.join(', ')}. It can take a short while before videos appear.`);
           } else {
             let successMsg = `Post ${editingPost ? 'updated' : scheduleMode === 'now' ? 'published' : 'scheduled'} successfully! 🎉`;
             if (skippedLarge > 0) successMsg += ` Large media (e.g. video) was not saved to the database; upload to Storage for publishing.`;
