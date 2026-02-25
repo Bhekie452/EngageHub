@@ -64,8 +64,8 @@ export interface PostEngagementSummary {
     end_screen_clicks?: number;
     device_types?: { label: string; value: number }[];
   };
-  recentActivity: { type: 'like' | 'comment' | 'share' | 'view' | 'subscriber'; user: string; text?: string; time: string; platform: 'youtube' | 'facebook' | 'instagram' | 'engagehub'; occurred_at: string }[];
-  metricsSource: 'youtube' | 'facebook' | 'instagram' | 'engagehub';
+  recentActivity: { type: 'like' | 'comment' | 'share' | 'view' | 'subscriber'; user: string; text?: string; time: string; platform: 'youtube' | 'facebook' | 'instagram' | 'tiktok' | 'engagehub'; occurred_at: string }[];
+  metricsSource: 'youtube' | 'facebook' | 'instagram' | 'tiktok' | 'engagehub';
 }
 
 export interface GlobalSocialSummary {
@@ -134,6 +134,12 @@ function extractYouTubeVideoId(url: string | null | undefined): string | null {
 function extractInstagramShortcode(url: string | null | undefined): string | null {
   if (!url) return null;
   const match = url.match(/instagram\.com\/(?:p|reel|tv)\/([^/?#]+)/i);
+  return match?.[1] || null;
+}
+
+function extractTikTokVideoId(url: string | null | undefined): string | null {
+  if (!url) return null;
+  const match = url.match(/tiktok\.com\/@[^/]+\/video\/(\d+)/i);
   return match?.[1] || null;
 }
 
@@ -242,7 +248,7 @@ export const analyticsService = {
       end_screen_clicks: 0,
       device_types: []
     };
-    let metricsSource: 'youtube' | 'facebook' | 'instagram' | 'engagehub' = 'engagehub';
+    let metricsSource: 'youtube' | 'facebook' | 'instagram' | 'tiktok' | 'engagehub' = 'engagehub';
     let ytConnected = false; // Track whether YouTube is actually linked
 
     // Sum local metrics with platform metrics (e.g. YouTube)
@@ -375,6 +381,7 @@ export const analyticsService = {
     let fbConnected = false;
     let facebookActivity: any[] = [];
     let instagramActivity: any[] = [];
+    let tiktokActivity: any[] = [];
     try {
       if ((platform || '').toLowerCase() === 'facebook' && workspace_id) {
         // Get Facebook access token from social_accounts
@@ -907,6 +914,270 @@ export const analyticsService = {
       console.error('Error fetching Instagram metrics:', e);
     }
 
+    // TikTok metrics + activity (native TikTok API + local EngageHub events)
+    try {
+      if ((platform || '').toLowerCase() === 'tiktok' && workspace_id) {
+        const { data: ttAccount, error: ttErr } = await supabase
+          .from('social_accounts')
+          .select('*')
+          .eq('workspace_id', workspace_id)
+          .eq('platform', 'tiktok')
+          .maybeSingle();
+
+        if (ttErr) {
+          console.warn('[Analytics] TikTok social_accounts query error:', ttErr.message);
+        }
+
+        if (ttAccount?.access_token) {
+          let accessToken = ttAccount.access_token;
+
+          const refreshTikTokToken = async (force = false): Promise<string> => {
+            const expiresAt = ttAccount?.token_expires_at ? new Date(ttAccount.token_expires_at).getTime() : 0;
+            const shouldRefresh = force || (ttAccount?.refresh_token && expiresAt > 0 && expiresAt <= Date.now() + 120000);
+            if (!shouldRefresh || !ttAccount?.refresh_token) return accessToken;
+
+            try {
+              const refreshResp = await fetch('/api/oauth?provider=tiktok&action=refresh', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  refresh_token: ttAccount.refresh_token,
+                  workspaceId: workspace_id,
+                  accountId: ttAccount.account_id,
+                }),
+              });
+              const refreshJson = await refreshResp.json().catch(() => ({}));
+              if (refreshResp.ok && refreshJson?.access_token) {
+                accessToken = refreshJson.access_token;
+                return accessToken;
+              }
+            } catch (refreshErr) {
+              console.warn('[Analytics] TikTok token refresh failed:', refreshErr);
+            }
+            return accessToken;
+          };
+
+          const fetchTikTokJson = async (url: string, init: RequestInit, retry = true): Promise<any> => {
+            const doFetch = async () => {
+              const headers = {
+                ...(init.headers || {}),
+                Authorization: `Bearer ${accessToken}`,
+              } as Record<string, string>;
+              const resp = await fetch(url, { ...init, headers });
+              return resp.json();
+            };
+
+            const json = await doFetch();
+            if (retry && json?.error?.code === 'access_token_invalid') {
+              await refreshTikTokToken(true);
+              return doFetch();
+            }
+            return json;
+          };
+
+          await refreshTikTokToken(false);
+          let tikTokVideoId: string | null = extractTikTokVideoId(postData?.link_url || finalExternalUrl);
+          let publishId: string | null = null;
+
+          if (!tikTokVideoId && postId) {
+            const { data: ttPubRows } = await supabase
+              .from('post_publications')
+              .select('platform_post_id, platform_url, created_at')
+              .eq('post_id', postId)
+              .eq('platform', 'tiktok')
+              .order('created_at', { ascending: false })
+              .limit(5);
+
+            const ttPub = (ttPubRows || []).find((r: any) => r?.platform_post_id) || (ttPubRows || [])[0];
+            if (ttPub?.platform_url && !tikTokVideoId) {
+              tikTokVideoId = extractTikTokVideoId(ttPub.platform_url);
+            }
+
+            if (ttPub?.platform_post_id && !tikTokVideoId) {
+              const candidate = String(ttPub.platform_post_id);
+              if (/^\d{10,}$/.test(candidate)) {
+                tikTokVideoId = candidate;
+              } else {
+                publishId = candidate;
+              }
+            }
+          }
+
+          if (!tikTokVideoId && publishId) {
+            try {
+              const statusJson = await fetchTikTokJson('https://open.tiktokapis.com/v2/post/publish/status/fetch/', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ publish_id: publishId })
+              });
+
+              const statusData = statusJson?.data || statusJson;
+              tikTokVideoId = statusData?.publicly_available_post_id
+                || statusData?.public_post_id
+                || statusData?.video_id
+                || statusData?.item_id
+                || statusData?.post_id
+                || null;
+
+              console.log('[Analytics] TikTok publish status result:', {
+                publishId,
+                tikTokVideoId,
+                status: statusData?.status,
+                failReason: statusData?.fail_reason,
+              });
+            } catch (statusErr) {
+              console.warn('[Analytics] TikTok publish status fetch failed:', statusErr);
+            }
+          }
+
+          if (!tikTokVideoId && postData?.content) {
+            try {
+              const fields = 'id,title,create_time,share_url,view_count,like_count,comment_count,share_count';
+              const listJson = await fetchTikTokJson(`https://open.tiktokapis.com/v2/video/query/?fields=${encodeURIComponent(fields)}`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ max_count: 20 })
+              });
+              if (!listJson?.error) {
+                const dataContainer = listJson?.data || listJson;
+                const list = dataContainer?.videos || dataContainer?.video_list || dataContainer?.items || [];
+                if (Array.isArray(list) && list.length > 0) {
+                  const target = normalizeSocialText(postData.content);
+                  const matched = list.find((item: any) => {
+                    const title = normalizeSocialText(item?.title || item?.video_description || '');
+                    return target && title && (title === target || title.includes(target) || target.includes(title));
+                  });
+                  if (matched?.id) {
+                    tikTokVideoId = matched.id;
+                    console.log('[Analytics] Matched TikTok video by title/content:', tikTokVideoId);
+                  }
+                }
+              }
+            } catch (listErr) {
+              console.warn('[Analytics] TikTok recent video matching failed:', listErr);
+            }
+          }
+
+          if (tikTokVideoId) {
+            let videoData: any = null;
+
+            const fields = 'id,title,create_time,share_url,view_count,like_count,comment_count,share_count';
+            const videoQueryAttempts = [
+              async () => {
+                return fetchTikTokJson(`https://open.tiktokapis.com/v2/video/query/?fields=${encodeURIComponent(fields)}`, {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json'
+                  },
+                  body: JSON.stringify({ filters: { video_ids: [tikTokVideoId] }, max_count: 1 })
+                });
+              },
+              async () => {
+                return fetchTikTokJson(`https://open.tiktokapis.com/v2/video/query/?fields=${encodeURIComponent(fields)}&video_ids=${encodeURIComponent(tikTokVideoId)}`, {
+                  method: 'GET',
+                  headers: {}
+                });
+              },
+            ];
+
+            for (const attempt of videoQueryAttempts) {
+              try {
+                const result = await attempt();
+                if (!result?.error) {
+                  const dataContainer = result?.data || result;
+                  const list = dataContainer?.videos || dataContainer?.video_list || dataContainer?.items || [];
+                  if (Array.isArray(list) && list.length > 0) {
+                    videoData = list[0];
+                    break;
+                  }
+                }
+              } catch (queryErr) {
+                console.warn('[Analytics] TikTok video query attempt failed:', queryErr);
+              }
+            }
+
+            if (videoData) {
+              const nativeLikes = Number(videoData.like_count || 0);
+              const nativeComments = Number(videoData.comment_count || 0);
+              const nativeShares = Number(videoData.share_count || 0);
+              const nativeViews = Number(videoData.view_count || 0);
+
+              metrics.likes += nativeLikes;
+              metrics.comments += nativeComments;
+              metrics.shares += nativeShares;
+              metrics.views += nativeViews;
+              metricsSource = 'tiktok';
+
+              const createdAtIso = videoData.create_time
+                ? new Date(Number(videoData.create_time) * 1000).toISOString()
+                : new Date().toISOString();
+
+              tiktokActivity.push({
+                type: 'view' as const,
+                user: ttAccount.display_name || ttAccount.username || 'TikTok Audience',
+                occurred_at: createdAtIso,
+                platform: 'tiktok' as const,
+                time: timeAgo(createdAtIso),
+              });
+
+              await supabase.from('post_analytics').upsert({
+                post_id: postId,
+                platform: 'tiktok',
+                likes: nativeLikes,
+                comments: nativeComments,
+                shares: nativeShares,
+                video_views: nativeViews,
+                recorded_at: new Date().toISOString(),
+              }, { onConflict: 'post_id,platform' });
+
+              console.log('[Analytics] Native TikTok metrics:', {
+                likes: nativeLikes,
+                comments: nativeComments,
+                shares: nativeShares,
+                views: nativeViews,
+              });
+            } else {
+              const { data: cachedTtData } = await supabase
+                .from('post_analytics')
+                .select('likes, comments, shares, video_views')
+                .eq('post_id', postId)
+                .eq('platform', 'tiktok')
+                .maybeSingle();
+
+              if (cachedTtData) {
+                metrics.likes += cachedTtData.likes ?? 0;
+                metrics.comments += cachedTtData.comments ?? 0;
+                metrics.shares += cachedTtData.shares ?? 0;
+                metrics.views += cachedTtData.video_views ?? 0;
+                metricsSource = 'tiktok';
+              }
+            }
+          } else {
+            const { data: cachedTtData } = await supabase
+              .from('post_analytics')
+              .select('likes, comments, shares, video_views')
+              .eq('post_id', postId)
+              .eq('platform', 'tiktok')
+              .maybeSingle();
+
+            if (cachedTtData) {
+              metrics.likes += cachedTtData.likes ?? 0;
+              metrics.comments += cachedTtData.comments ?? 0;
+              metrics.shares += cachedTtData.shares ?? 0;
+              metrics.views += cachedTtData.video_views ?? 0;
+              metricsSource = 'tiktok';
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.error('Error fetching TikTok metrics:', e);
+    }
+
     // Process local activity
     const mappedLocal = rows
       .filter((r: any) => ['post_like', 'post_comment', 'post_share', 'post_view'].includes(r.event_type))
@@ -1152,14 +1423,14 @@ export const analyticsService = {
     }
 
     // Combine, Sort
-    const baseActivity = [...mappedLocal, ...youtubeActivity, ...facebookActivity, ...instagramActivity];
+    const baseActivity = [...mappedLocal, ...youtubeActivity, ...facebookActivity, ...instagramActivity, ...tiktokActivity];
 
     // VIRTUAL ITEMS: Add placeholders for native platform stats that aren't individually tracked
     // This ensures the "1 Subscriber" card actually has 1 item in the list even if private.
     const virtualItems: any[] = [];
-    if (metricsSource === 'youtube' || metricsSource === 'facebook' || metricsSource === 'instagram') {
+    if (metricsSource === 'youtube' || metricsSource === 'facebook' || metricsSource === 'instagram' || metricsSource === 'tiktok') {
       // For each metric type, see if the total count exceeds the number of specific items we already have
-      const platformName = metricsSource === 'youtube' ? 'YouTube' : metricsSource === 'facebook' ? 'Facebook' : 'Instagram';
+      const platformName = metricsSource === 'youtube' ? 'YouTube' : metricsSource === 'facebook' ? 'Facebook' : metricsSource === 'instagram' ? 'Instagram' : 'TikTok';
       const types = metricsSource === 'youtube' ? (['like', 'share', 'view', 'subscriber'] as const) : (['like', 'share', 'view'] as const);
       for (const t of types) {
         const totalCount = metrics[t === 'view' ? 'views' : t === 'share' ? 'shares' : t === 'subscriber' ? 'subscribers' : 'likes'] || 0;
@@ -1174,7 +1445,7 @@ export const analyticsService = {
               type: t,
               user: `${platformName} User`,
               occurred_at: new Date(Date.now() - (i + 1) * 3600000).toISOString(), // Staggered times in the past hours
-              platform: metricsSource as 'youtube' | 'facebook' | 'instagram',
+              platform: metricsSource as 'youtube' | 'facebook' | 'instagram' | 'tiktok',
               time: `${i + 1}h ago`
             });
           }

@@ -377,7 +377,7 @@ const Content: React.FC = () => {
       avatar?: string;
       userUrl?: string;
     }[];
-    metricsSource?: 'youtube' | 'facebook' | 'instagram' | 'engagehub';
+    metricsSource?: 'youtube' | 'facebook' | 'instagram' | 'tiktok' | 'engagehub';
   } | null>(null);
   const [connectedAccountDetail, setConnectedAccountDetail] = useState<{
     display_name?: string;
@@ -2332,7 +2332,7 @@ const Content: React.FC = () => {
                               {engagementData && engagementPostId === editingPost.id && (
                                 <div className="bg-green-50 border border-green-200 rounded-lg p-2 text-center mb-2">
                                   <p className="text-[10px] text-green-700 font-bold uppercase">
-                                    Live from {engagementData.metricsSource === 'facebook' ? 'Facebook' : engagementData.metricsSource === 'instagram' ? 'Instagram' : engagementData.metricsSource === 'youtube' ? 'YouTube' : 'Platform'}
+                                    Live from {engagementData.metricsSource === 'facebook' ? 'Facebook' : engagementData.metricsSource === 'instagram' ? 'Instagram' : engagementData.metricsSource === 'tiktok' ? 'TikTok' : engagementData.metricsSource === 'youtube' ? 'YouTube' : 'Platform'}
                                   </p>
                                 </div>
                               )}
@@ -3163,6 +3163,8 @@ const Content: React.FC = () => {
                                 <Youtube size={10} className="text-[#FF0000]" />
                               ) : activity.platform === 'instagram' ? (
                                 <Instagram size={10} className="text-pink-600" />
+                              ) : activity.platform === 'tiktok' ? (
+                                <Music size={10} className="text-black" />
                               ) : activity.platform === 'facebook' ? (
                                 <div className="w-2.5 h-2.5 bg-[#1877F2] rounded-full flex items-center justify-center text-[5px] text-white font-bold">f</div>
                               ) : (

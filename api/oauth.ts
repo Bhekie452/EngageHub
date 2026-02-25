@@ -28,6 +28,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (action === 'token') {
         return await handleTikTokToken(req, res);
       }
+      if (action === 'refresh') {
+        return await handleTikTokRefresh(req, res);
+      }
       if (action === 'profile') {
         return await handleTikTokProfile(req, res);
       }
@@ -376,6 +379,90 @@ async function handleTikTokToken(req: VercelRequest, res: VercelResponse) {
       error: 'Token exchange failed',
       details: error.message 
     });
+  }
+}
+
+// TikTok Refresh Token
+async function handleTikTokRefresh(req: VercelRequest, res: VercelResponse) {
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  const { refresh_token, workspaceId, accountId } = req.body || {};
+  if (!refresh_token) {
+    return res.status(400).json({ error: 'refresh_token required' });
+  }
+
+  try {
+    const clientKey = process.env.TIKTOK_CLIENT_KEY || 'sbawvd31u17vw8ajd3';
+    const clientSecret = process.env.TIKTOK_CLIENT_SECRET;
+
+    if (!clientSecret || clientSecret === 'your_tiktok_client_secret_here' || clientSecret.startsWith('your_')) {
+      return res.status(500).json({
+        error: 'TikTok client secret not configured',
+        details: 'Please set TIKTOK_CLIENT_SECRET in Vercel environment variables.'
+      });
+    }
+
+    const tokenResponse = await fetch('https://open.tiktokapis.com/v2/oauth/token/', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: new URLSearchParams({
+        client_key: clientKey,
+        client_secret: clientSecret,
+        grant_type: 'refresh_token',
+        refresh_token,
+      })
+    });
+
+    const tokenData = await tokenResponse.json().catch(() => ({}));
+    if (!tokenResponse.ok || tokenData?.error) {
+      return res.status(400).json({
+        error: 'TikTok refresh failed',
+        details: tokenData?.error_description || tokenData?.error || 'Unknown error',
+        raw: tokenData,
+      });
+    }
+
+    const newAccessToken = tokenData?.access_token;
+    const newRefreshToken = tokenData?.refresh_token || refresh_token;
+    const expiresIn = Number(tokenData?.expires_in || 0);
+
+    if (newAccessToken && supabaseKey) {
+      const updatePayload: any = {
+        access_token: newAccessToken,
+        refresh_token: newRefreshToken,
+        ...(expiresIn > 0 ? { token_expires_at: new Date(Date.now() + expiresIn * 1000).toISOString() } : {}),
+      };
+
+      let updateQuery = supabase
+        .from('social_accounts')
+        .update(updatePayload)
+        .eq('platform', 'tiktok')
+        .eq('is_active', true);
+
+      if (workspaceId) updateQuery = updateQuery.eq('workspace_id', workspaceId);
+      if (accountId) updateQuery = updateQuery.eq('account_id', accountId);
+      if (!workspaceId && !accountId) updateQuery = updateQuery.eq('refresh_token', refresh_token);
+
+      const { error: updateErr } = await updateQuery;
+      if (updateErr) {
+        console.warn('[tiktok-refresh] Failed to persist refreshed tokens:', updateErr.message);
+      }
+    }
+
+    return res.status(200).json({
+      success: true,
+      access_token: newAccessToken,
+      refresh_token: newRefreshToken,
+      expires_in: tokenData?.expires_in,
+      scope: tokenData?.scope,
+    });
+  } catch (error: any) {
+    console.error('[tiktok-refresh] Error:', error);
+    return res.status(500).json({ error: 'TikTok refresh failed', details: error?.message || String(error) });
   }
 }
 
