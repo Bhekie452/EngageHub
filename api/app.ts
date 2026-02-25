@@ -1,5 +1,4 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
-import { handleCors } from '../lib/server/cors';
 import { createClient } from '@supabase/supabase-js';
 import { createHmac, timingSafeEqual } from 'crypto';
 
@@ -13,6 +12,33 @@ import { createHmac, timingSafeEqual } from 'crypto';
  * - /api/app?action=publish
  * - /api/app?action=test-tiktok
  */
+
+function handleCors(req: VercelRequest, res: VercelResponse): boolean {
+  const allowedOrigins = [
+    'https://engage-hub-ten.vercel.app',
+    'https://www.engagehub.co.za',
+    'http://localhost:3000',
+    'http://localhost:5173'
+  ];
+
+  const origin = (req.headers.origin || '').toString();
+  if (allowedOrigins.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  } else {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+  }
+
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.setHeader('Access-Control-Max-Age', '86400');
+
+  if (req.method === 'OPTIONS') {
+    res.status(200).end();
+    return true;
+  }
+
+  return false;
+}
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (handleCors(req, res)) return;
