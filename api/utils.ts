@@ -307,6 +307,12 @@ const handlePublishPost = async (req: VercelRequest, res: VercelResponse) => {
           const tiktokPublishUrl = 'https://open.tiktokapis.com/v2/post/publish/video/init/';
           const tiktokPublishStatusUrl = 'https://open.tiktokapis.com/v2/post/publish/status/fetch/';
           const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+          const formatTikTokError = (message: string) => {
+            if (/file_format_check_failed/i.test(message)) {
+              return `${message}. TikTok requires MP4 (H.264 video + AAC audio). Re-export your video as MP4 H.264/AAC and try again.`;
+            }
+            return message;
+          };
           const checkTikTokPublishStatus = async (publishId: string, attempts = 3) => {
             let lastStatus = 'UNKNOWN';
             let lastMessage = '';
@@ -484,7 +490,8 @@ const handlePublishPost = async (req: VercelRequest, res: VercelResponse) => {
 
             const statusCheck = await checkTikTokPublishStatus(publishId);
             if (statusCheck.status === 'FAILED') {
-              throw new Error(`TikTok publish failed after upload: ${statusCheck.message || 'unknown failure'}`);
+              const message = statusCheck.message || 'unknown failure';
+              throw new Error(`TikTok publish failed after upload: ${formatTikTokError(message)}`);
             }
 
             if (statusCheck.status === 'PUBLISH_COMPLETE') {
@@ -507,7 +514,8 @@ const handlePublishPost = async (req: VercelRequest, res: VercelResponse) => {
 
           const statusCheck = await checkTikTokPublishStatus(publishId);
           if (statusCheck.status === 'FAILED') {
-            throw new Error(`TikTok publish failed after init: ${statusCheck.message || 'unknown failure'}`);
+            const message = statusCheck.message || 'unknown failure';
+            throw new Error(`TikTok publish failed after init: ${formatTikTokError(message)}`);
           }
 
           if (statusCheck.status === 'PUBLISH_COMPLETE') {
