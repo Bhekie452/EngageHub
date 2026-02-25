@@ -1040,7 +1040,7 @@ export const analyticsService = {
                 headers: {
                   'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({ max_count: 20 })
+                body: JSON.stringify({ filters: {}, max_count: 20 })
               });
               if (!listJson?.error) {
                 const dataContainer = listJson?.data || listJson;
