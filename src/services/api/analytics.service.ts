@@ -492,7 +492,7 @@ export const analyticsService = {
               console.log('[Analytics] Calling Facebook Graph API directly for post:', fbPostId);
 
               const graphUrl = `https://graph.facebook.com/v21.0/${fbPostId}` +
-                `?fields=reactions.summary(true),comments{message,from,created_time},comments.summary(true),shares,insights.metric(post_impressions,post_impressions_unique)` +
+                `?fields=reactions.summary(true),comments.limit(50).summary(true){message,from,created_time},shares,insights.metric(post_impressions,post_impressions_unique)` +
                 `&access_token=${pageAccessToken}`;
 
               const graphRes = await fetch(graphUrl);
@@ -657,7 +657,7 @@ export const analyticsService = {
               facebookActivity.push(...fbActivityLikes);
             }
 
-            console.log('[Analytics] Facebook activity feed - comments:', fbComments?.length || 0, 'likes:', fbLikes?.length || 0);
+            console.log('[Analytics] Facebook activity feed - facebookActivity:', facebookActivity.length, 'likes:', fbLikes?.length || 0);
 
           } else {
             console.log('[Analytics] No valid Facebook post ID found, link_url is:', postPlatformId);
