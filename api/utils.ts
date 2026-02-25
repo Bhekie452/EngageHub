@@ -352,10 +352,11 @@ const handlePublishPost = async (req: VercelRequest, res: VercelResponse) => {
               throw new Error('TikTok upload failed: video is too large for fallback upload. Use a smaller video or configure TikTok verified URL domains.');
             }
 
-            const chunkSize = Math.min(5 * 1024 * 1024, videoSize); // 5MB chunks
-            const totalChunkCount = Math.ceil(videoSize / chunkSize);
+            const preferredChunkSize = Math.min(10 * 1024 * 1024, videoSize); // 10MB chunks
+            let chunkSize = preferredChunkSize;
+            let totalChunkCount = Math.ceil(videoSize / chunkSize);
 
-            const initUploadPayload = {
+            const buildInitPayload = (size: number, cSize: number, chunkCount: number) => ({
               post_info: {
                 title: content?.substring(0, 150) || 'Video from EngageHub',
                 privacy_level: 'SELF_ONLY',
@@ -366,26 +367,42 @@ const handlePublishPost = async (req: VercelRequest, res: VercelResponse) => {
               },
               source_info: {
                 source: 'FILE_UPLOAD',
-                video_size: videoSize,
-                chunk_size: chunkSize,
-                total_chunk_count: totalChunkCount
+                video_size: size,
+                chunk_size: cSize,
+                total_chunk_count: chunkCount
               }
+            });
+
+            const initUploadRequest = async (size: number, cSize: number, chunkCount: number) => {
+              const initUploadRes = await fetch(tiktokPublishUrl, {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${token}`,
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(buildInitPayload(size, cSize, chunkCount))
+              });
+              return initUploadRes.json();
             };
 
-            const initUploadRes = await fetch(tiktokPublishUrl, {
-              method: 'POST',
-              headers: {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json'
-              },
-              body: JSON.stringify(initUploadPayload)
-            });
-            const initUploadData = await initUploadRes.json();
+            let initUploadData = await initUploadRequest(videoSize, chunkSize, totalChunkCount);
             console.log('[publish-post] TikTok FILE_UPLOAD init response:', initUploadData);
 
             if (initUploadData.error || initUploadData.data?.error) {
               const initErr = initUploadData.error?.message || initUploadData.data?.error?.message || 'TikTok FILE_UPLOAD init failed';
-              throw new Error(initErr);
+
+              // Retry with single chunk if TikTok rejects chunk count parameters.
+              if (/total chunk count is invalid/i.test(initErr) && totalChunkCount > 1) {
+                chunkSize = videoSize;
+                totalChunkCount = 1;
+                initUploadData = await initUploadRequest(videoSize, chunkSize, totalChunkCount);
+                console.log('[publish-post] TikTok FILE_UPLOAD single-chunk retry response:', initUploadData);
+              }
+
+              if (initUploadData.error || initUploadData.data?.error) {
+                const retryErr = initUploadData.error?.message || initUploadData.data?.error?.message || initErr;
+                throw new Error(retryErr);
+              }
             }
 
             const uploadUrl = initUploadData.data?.upload_url;
