@@ -64,8 +64,8 @@ export interface PostEngagementSummary {
     end_screen_clicks?: number;
     device_types?: { label: string; value: number }[];
   };
-  recentActivity: { type: 'like' | 'comment' | 'share' | 'view' | 'subscriber'; user: string; text?: string; time: string; platform: 'youtube' | 'facebook' | 'engagehub'; occurred_at: string }[];
-  metricsSource: 'youtube' | 'facebook' | 'engagehub';
+  recentActivity: { type: 'like' | 'comment' | 'share' | 'view' | 'subscriber'; user: string; text?: string; time: string; platform: 'youtube' | 'facebook' | 'instagram' | 'engagehub'; occurred_at: string }[];
+  metricsSource: 'youtube' | 'facebook' | 'instagram' | 'engagehub';
 }
 
 export interface GlobalSocialSummary {
@@ -129,6 +129,12 @@ function extractYouTubeVideoId(url: string | null | undefined): string | null {
     if (m) return m[1];
   }
   return null;
+}
+
+function extractInstagramShortcode(url: string | null | undefined): string | null {
+  if (!url) return null;
+  const match = url.match(/instagram\.com\/(?:p|reel|tv)\/([^/?#]+)/i);
+  return match?.[1] || null;
 }
 
 export const analyticsService = {
@@ -228,7 +234,7 @@ export const analyticsService = {
       end_screen_clicks: 0,
       device_types: []
     };
-    let metricsSource: 'youtube' | 'facebook' | 'engagehub' = 'engagehub';
+    let metricsSource: 'youtube' | 'facebook' | 'instagram' | 'engagehub' = 'engagehub';
     let ytConnected = false; // Track whether YouTube is actually linked
 
     // Sum local metrics with platform metrics (e.g. YouTube)
@@ -360,6 +366,7 @@ export const analyticsService = {
     // Facebook metrics - fetch from sync-facebook-engagement or from database
     let fbConnected = false;
     let facebookActivity: any[] = [];
+    let instagramActivity: any[] = [];
     try {
       if ((platform || '').toLowerCase() === 'facebook' && workspace_id) {
         // Get Facebook access token from social_accounts
@@ -459,7 +466,7 @@ export const analyticsService = {
                   console.log('[Analytics] Matched Facebook post by content:', fbPostId, '"' + (matched.message || '').substring(0, 40) + '"');
                   // Auto-backfill post_publications so future lookups are instant
                   try {
-                    await supabase.from('post_publications').upsert({
+                    const { error: backfillError } = await supabase.from('post_publications').upsert({
                       post_id: postId,
                       social_account_id: fbAccount.id,
                       platform: 'facebook',
@@ -468,7 +475,11 @@ export const analyticsService = {
                       status: 'published',
                       published_at: matched.created_time || new Date().toISOString()
                     }, { onConflict: 'post_id,social_account_id' });
-                    console.log('[Analytics] Auto-backfilled post_publications for', postId);
+                    if (backfillError) {
+                      console.warn('[Analytics] post_publications backfill failed:', backfillError.message);
+                    } else {
+                      console.log('[Analytics] Auto-backfilled post_publications for', postId);
+                    }
                   } catch (backfillErr) {
                     console.warn('[Analytics] post_publications backfill failed:', backfillErr);
                   }
@@ -685,6 +696,181 @@ export const analyticsService = {
       }
     } catch (e) {
       console.error('Error fetching Facebook metrics:', e);
+    }
+
+    // Instagram metrics + activity (native Graph API + local EngageHub events)
+    try {
+      if ((platform || '').toLowerCase() === 'instagram' && workspace_id) {
+        const { data: socialRows, error: socialErr } = await supabase
+          .from('social_accounts')
+          .select('*')
+          .eq('workspace_id', workspace_id)
+          .in('platform', ['instagram', 'facebook']);
+
+        if (socialErr) {
+          console.warn('[Analytics] Instagram social_accounts query error:', socialErr.message);
+        } else {
+          const instagramAccount = (socialRows || []).find((r: any) => (r.platform || '').toLowerCase() === 'instagram');
+          const facebookAccount = (socialRows || []).find((r: any) => (r.platform || '').toLowerCase() === 'facebook');
+
+          const instagramBusinessId = instagramAccount?.account_id
+            || instagramAccount?.platform_data?.instagram_business_account_id
+            || instagramAccount?.platform_data?.instagram_business_account?.id
+            || facebookAccount?.platform_data?.instagram_business_account_id
+            || facebookAccount?.platform_data?.instagram_business_account?.id;
+
+          const instagramToken = instagramAccount?.access_token || facebookAccount?.access_token;
+
+          console.log('[Analytics] Instagram account context:', {
+            hasInstagramAccount: !!instagramAccount,
+            hasFacebookAccount: !!facebookAccount,
+            instagramBusinessId,
+            hasToken: !!instagramToken,
+          });
+
+          if (instagramBusinessId && instagramToken) {
+            let igMediaId: string | null = null;
+
+            if (postId) {
+              const { data: igPubRows } = await supabase
+                .from('post_publications')
+                .select('platform_post_id, platform_url, created_at')
+                .eq('post_id', postId)
+                .eq('platform', 'instagram')
+                .order('created_at', { ascending: false })
+                .limit(3);
+
+              const igPub = (igPubRows || []).find((r: any) => r?.platform_post_id) || (igPubRows || [])[0];
+              if (igPub?.platform_post_id) {
+                igMediaId = igPub.platform_post_id;
+              }
+            }
+
+            if (!igMediaId && postData?.content) {
+              const mediaListUrl = `https://graph.facebook.com/v21.0/${instagramBusinessId}/media` +
+                `?fields=id,caption,timestamp,permalink,media_type,media_product_type,like_count,comments_count,video_view_count` +
+                `&limit=25&access_token=${instagramToken}`;
+
+              const mediaListRes = await fetch(mediaListUrl);
+              const mediaListJson = await mediaListRes.json();
+
+              if (!mediaListJson.error && Array.isArray(mediaListJson.data)) {
+                const normalizedContent = (postData.content || '').trim().toLowerCase();
+                const shortcodeFromLink = extractInstagramShortcode(postData?.link_url || finalExternalUrl);
+
+                const matchedByCaption = mediaListJson.data.find((item: any) => {
+                  const caption = (item.caption || '').trim().toLowerCase();
+                  return caption && (caption === normalizedContent || caption.includes(normalizedContent));
+                });
+
+                const matchedByShortcode = shortcodeFromLink
+                  ? mediaListJson.data.find((item: any) => (item.permalink || '').includes(`/${shortcodeFromLink}`))
+                  : null;
+
+                const matchedIgPost = matchedByCaption || matchedByShortcode;
+                if (matchedIgPost?.id) {
+                  igMediaId = matchedIgPost.id;
+                  console.log('[Analytics] Matched Instagram media ID:', igMediaId);
+                }
+              }
+            }
+
+            if (igMediaId) {
+              const mediaUrl = `https://graph.facebook.com/v21.0/${igMediaId}` +
+                `?fields=id,caption,timestamp,permalink,media_type,media_product_type,like_count,comments_count,video_view_count` +
+                `&access_token=${instagramToken}`;
+              const mediaRes = await fetch(mediaUrl);
+              const mediaJson = await mediaRes.json();
+
+              if (!mediaJson.error) {
+                let nativeLikes = Number(mediaJson.like_count || 0);
+                let nativeComments = Number(mediaJson.comments_count || 0);
+                let nativeViews = Number(mediaJson.video_view_count || 0);
+                let nativeShares = 0;
+
+                try {
+                  const insightsUrl = `https://graph.facebook.com/v21.0/${igMediaId}/insights` +
+                    `?metric=shares,impressions,reach,saved,views,video_views,plays` +
+                    `&access_token=${instagramToken}`;
+                  const insightsRes = await fetch(insightsUrl);
+                  const insightsJson = await insightsRes.json();
+                  if (!insightsJson.error && Array.isArray(insightsJson.data)) {
+                    const getMetric = (name: string) => {
+                      const metric = insightsJson.data.find((m: any) => m?.name === name);
+                      return Number(metric?.values?.[0]?.value || 0);
+                    };
+                    nativeShares = getMetric('shares') || nativeShares;
+                    nativeViews = nativeViews || getMetric('video_views') || getMetric('plays') || getMetric('views') || getMetric('impressions') || getMetric('reach');
+                  }
+                } catch (insightsErr) {
+                  console.warn('[Analytics] Instagram insights fetch skipped:', insightsErr);
+                }
+
+                metrics.likes += nativeLikes;
+                metrics.comments += nativeComments;
+                metrics.shares += nativeShares;
+                metrics.views += nativeViews;
+                metricsSource = 'instagram';
+
+                console.log('[Analytics] Native Instagram metrics:', {
+                  likes: nativeLikes,
+                  comments: nativeComments,
+                  shares: nativeShares,
+                  views: nativeViews,
+                });
+
+                const commentsUrl = `https://graph.facebook.com/v21.0/${igMediaId}/comments` +
+                  `?fields=id,text,username,timestamp` +
+                  `&limit=50&access_token=${instagramToken}`;
+                const commentsRes = await fetch(commentsUrl);
+                const commentsJson = await commentsRes.json();
+                if (!commentsJson.error && Array.isArray(commentsJson.data)) {
+                  const nativeIgComments = commentsJson.data
+                    .filter((c: any) => c?.text)
+                    .map((c: any) => ({
+                      type: 'comment' as const,
+                      user: c.username || 'Instagram User',
+                      text: c.text,
+                      occurred_at: c.timestamp || new Date().toISOString(),
+                      platform: 'instagram' as const,
+                      time: timeAgo(c.timestamp || new Date().toISOString()),
+                    }));
+                  instagramActivity.push(...nativeIgComments);
+                }
+
+                await supabase.from('post_analytics').upsert({
+                  post_id: postId,
+                  platform: 'instagram',
+                  likes: nativeLikes,
+                  comments: nativeComments,
+                  shares: nativeShares,
+                  video_views: nativeViews,
+                  recorded_at: new Date().toISOString(),
+                }, { onConflict: 'post_id,platform' });
+              } else {
+                console.warn('[Analytics] Instagram media fetch error:', mediaJson.error);
+              }
+            } else {
+              const { data: cachedIgData } = await supabase
+                .from('post_analytics')
+                .select('likes, comments, shares, video_views')
+                .eq('post_id', postId)
+                .eq('platform', 'instagram')
+                .maybeSingle();
+
+              if (cachedIgData) {
+                metrics.likes += cachedIgData.likes ?? 0;
+                metrics.comments += cachedIgData.comments ?? 0;
+                metrics.shares += cachedIgData.shares ?? 0;
+                metrics.views += cachedIgData.video_views ?? 0;
+                metricsSource = 'instagram';
+              }
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.error('Error fetching Instagram metrics:', e);
     }
 
     // Process local activity
@@ -932,15 +1118,15 @@ export const analyticsService = {
     }
 
     // Combine, Sort
-    const baseActivity = [...mappedLocal, ...youtubeActivity, ...facebookActivity];
+    const baseActivity = [...mappedLocal, ...youtubeActivity, ...facebookActivity, ...instagramActivity];
 
     // VIRTUAL ITEMS: Add placeholders for native platform stats that aren't individually tracked
     // This ensures the "1 Subscriber" card actually has 1 item in the list even if private.
     const virtualItems: any[] = [];
-    if (metricsSource === 'youtube' || metricsSource === 'facebook') {
+    if (metricsSource === 'youtube' || metricsSource === 'facebook' || metricsSource === 'instagram') {
       // For each metric type, see if the total count exceeds the number of specific items we already have
-      const platformName = metricsSource === 'youtube' ? 'YouTube' : 'Facebook';
-      const types = ['like', 'share', 'view', 'subscriber'] as const;
+      const platformName = metricsSource === 'youtube' ? 'YouTube' : metricsSource === 'facebook' ? 'Facebook' : 'Instagram';
+      const types = metricsSource === 'youtube' ? (['like', 'share', 'view', 'subscriber'] as const) : (['like', 'share', 'view'] as const);
       for (const t of types) {
         const totalCount = metrics[t === 'view' ? 'views' : t === 'share' ? 'shares' : t === 'subscriber' ? 'subscribers' : 'likes'] || 0;
         const existingCount = baseActivity.filter(a => a.type === t).length;
@@ -954,7 +1140,7 @@ export const analyticsService = {
               type: t,
               user: `${platformName} User`,
               occurred_at: new Date(Date.now() - (i + 1) * 3600000).toISOString(), // Staggered times in the past hours
-              platform: metricsSource as 'youtube' | 'facebook',
+              platform: metricsSource as 'youtube' | 'facebook' | 'instagram',
               time: `${i + 1}h ago`
             });
           }
