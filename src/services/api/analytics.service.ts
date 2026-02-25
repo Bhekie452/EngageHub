@@ -748,7 +748,7 @@ export const analyticsService = {
 
             if (!igMediaId && postData?.content) {
               const mediaListUrl = `https://graph.facebook.com/v21.0/${instagramBusinessId}/media` +
-                `?fields=id,caption,timestamp,permalink,media_type,media_product_type,like_count,comments_count,video_view_count` +
+                `?fields=id,caption,timestamp,permalink,media_type,media_product_type,like_count,comments_count` +
                 `&limit=25&access_token=${instagramToken}`;
 
               const mediaListRes = await fetch(mediaListUrl);
@@ -777,7 +777,7 @@ export const analyticsService = {
 
             if (igMediaId) {
               const mediaUrl = `https://graph.facebook.com/v21.0/${igMediaId}` +
-                `?fields=id,caption,timestamp,permalink,media_type,media_product_type,like_count,comments_count,video_view_count` +
+                `?fields=id,caption,timestamp,permalink,media_type,media_product_type,like_count,comments_count` +
                 `&access_token=${instagramToken}`;
               const mediaRes = await fetch(mediaUrl);
               const mediaJson = await mediaRes.json();
@@ -785,7 +785,7 @@ export const analyticsService = {
               if (!mediaJson.error) {
                 let nativeLikes = Number(mediaJson.like_count || 0);
                 let nativeComments = Number(mediaJson.comments_count || 0);
-                let nativeViews = Number(mediaJson.video_view_count || 0);
+                let nativeViews = 0;
                 let nativeShares = 0;
 
                 try {
