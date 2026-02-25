@@ -87,7 +87,7 @@ export const LandingFooter: React.FC = () => {
                         <ul className="space-y-3">
                             <li><a href="/support" className="text-sm hover:text-white hover:translate-x-1 inline-block transition-all duration-200">Help Center</a></li>
                             <li><a href="mailto:info@engagehub.co" className="text-sm hover:text-white hover:translate-x-1 inline-block transition-all duration-200">Contact Support</a></li>
-                            <li><a href="/privacy" className="text-sm hover:text-white hover:translate-x-1 inline-block transition-all duration-200">Privacy Policy</a></li>
+                            <li><a href="/privacy-policy" className="text-sm hover:text-white hover:translate-x-1 inline-block transition-all duration-200">Privacy Policy</a></li>
                             <li><a href="/terms" className="text-sm hover:text-white hover:translate-x-1 inline-block transition-all duration-200">Terms of Service</a></li>
                             <li><a href="/about" className="text-sm hover:text-white hover:translate-x-1 inline-block transition-all duration-200">About Us</a></li>
                         </ul>
@@ -127,7 +127,7 @@ export const LandingFooter: React.FC = () => {
                         &copy; {currentYear} EngageHub. All rights reserved.
                     </p>
                     <div className="flex gap-6">
-                        <a href="/privacy" className="text-sm text-gray-500 hover:text-white transition-colors">Privacy Policy</a>
+                        <a href="/privacy-policy" className="text-sm text-gray-500 hover:text-white transition-colors">Privacy Policy</a>
                         <a href="/terms" className="text-sm text-gray-500 hover:text-white transition-colors">Terms of Service</a>
                         <a href="mailto:info@engagehub.co" className="text-sm text-gray-500 hover:text-white transition-colors">Contact</a>
                     </div>
