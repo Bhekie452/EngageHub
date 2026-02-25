@@ -1348,6 +1348,8 @@ const Content: React.FC = () => {
             }
           }
           const failed = payload.failed || [];
+          const tiktokPrivacy = String(payload?.platforms?.tiktok?.privacyLevel || '').toUpperCase();
+          const tiktokPrivateOnly = tiktokPrivacy === 'SELF_ONLY';
           const processing = Object.entries(payload?.platforms || {})
             .filter(([, v]: any) => (v?.status || '').toLowerCase() === 'processing')
             .map(([k]) => k);
@@ -1362,10 +1364,12 @@ const Content: React.FC = () => {
                 : ' Check your connected accounts.';
             toast.error(`Post saved. Failed to publish to: ${names.join(', ')}.${hint}`);
           } else if (processing.length > 0) {
-            toast.success(`Post saved. TikTok is still processing: ${processing.join(', ')}. It can take a short while before videos appear.`);
+            const privacyHint = tiktokPrivateOnly ? ' TikTok privacy is currently SELF_ONLY, so only you can view/comment.' : '';
+            toast.success(`Post saved. TikTok is still processing: ${processing.join(', ')}. It can take a short while before videos appear.${privacyHint}`);
           } else {
             let successMsg = `Post ${editingPost ? 'updated' : scheduleMode === 'now' ? 'published' : 'scheduled'} successfully! 🎉`;
             if (skippedLarge > 0) successMsg += ` Large media (e.g. video) was not saved to the database; upload to Storage for publishing.`;
+            if (tiktokPrivateOnly) successMsg += ' TikTok post is private (SELF_ONLY), so other users cannot comment.';
             toast.success(successMsg);
           }
         } catch (e) {

@@ -60,6 +60,7 @@ const handlePublishPost = async (req: VercelRequest, res: VercelResponse) => {
 
   try {
     const { content, platforms, mediaUrls, workspaceId, accountTokens, postId } = req.body || {};
+    const configuredTikTokPrivacy = String(process.env.TIKTOK_PRIVACY_LEVEL || 'SELF_ONLY').toUpperCase();
     
     console.log('[publish-post] Request received:', { platforms, content, workspaceId });
     
@@ -356,7 +357,7 @@ const handlePublishPost = async (req: VercelRequest, res: VercelResponse) => {
           const tiktokPayload = {
             post_info: {
               title: content?.substring(0, 150) || 'Video from EngageHub',
-              privacy_level: 'SELF_ONLY', // Sandbox mode requires private. User can change on TikTok after posting.
+              privacy_level: configuredTikTokPrivacy,
               disable_duet: false,
               disable_comment: false,
               disable_stitch: false,
@@ -504,7 +505,7 @@ const handlePublishPost = async (req: VercelRequest, res: VercelResponse) => {
             const buildInitPayload = (size: number, cSize: number, chunkCount: number) => ({
               post_info: {
                 title: content?.substring(0, 150) || 'Video from EngageHub',
-                privacy_level: 'SELF_ONLY', // Sandbox mode requires private
+                privacy_level: configuredTikTokPrivacy,
                 disable_duet: false,
                 disable_comment: false,
                 disable_stitch: false,
@@ -577,9 +578,9 @@ const handlePublishPost = async (req: VercelRequest, res: VercelResponse) => {
             }
 
             if (statusCheck.status === 'PUBLISH_COMPLETE') {
-              results.tiktok = { status: 'published', postId: publishId };
+              results.tiktok = { status: 'published', postId: publishId, privacyLevel: configuredTikTokPrivacy };
             } else {
-              results.tiktok = { status: 'processing', postId: publishId, detail: statusCheck.status };
+              results.tiktok = { status: 'processing', postId: publishId, detail: statusCheck.status, privacyLevel: configuredTikTokPrivacy };
             }
             successPlatforms.push('tiktok');
             continue;
@@ -601,9 +602,9 @@ const handlePublishPost = async (req: VercelRequest, res: VercelResponse) => {
           }
 
           if (statusCheck.status === 'PUBLISH_COMPLETE') {
-            results.tiktok = { status: 'published', postId: publishId };
+            results.tiktok = { status: 'published', postId: publishId, privacyLevel: configuredTikTokPrivacy };
           } else {
-            results.tiktok = { status: 'processing', postId: publishId, detail: statusCheck.status };
+            results.tiktok = { status: 'processing', postId: publishId, detail: statusCheck.status, privacyLevel: configuredTikTokPrivacy };
           }
           successPlatforms.push('tiktok');
         }
