@@ -432,7 +432,34 @@ const handlePublishPost = async (req: VercelRequest, res: VercelResponse) => {
               throw new Error(`Could not download video. Public URL returned ${resp1.status} (${ct1}). Ensure the file was uploaded successfully to Supabase Storage.`);
             };
 
-            const mediaBuffer = await downloadVideoFromStorage(videoUrl);
+            const downloadedBuffer = await downloadVideoFromStorage(videoUrl);
+
+            // Some uploads may be stored as multipart/form-data payloads instead of raw bytes.
+            // Detect and unwrap to the actual video bytes when possible.
+            const unwrapMultipartVideo = (buf: Buffer): Buffer => {
+              const headerProbe = buf.subarray(0, Math.min(buf.length, 8192)).toString('utf8');
+              const boundaryMatch = headerProbe.match(/^(--[^\r\n]+)/);
+              const isMultipart = !!boundaryMatch && /content-disposition:/i.test(headerProbe);
+              if (!isMultipart) return buf;
+
+              const boundary = boundaryMatch![1];
+              const contentTypeIdx = buf.indexOf(Buffer.from('Content-Type: video/'));
+              if (contentTypeIdx < 0) return buf;
+
+              const bodyStartIdx = buf.indexOf(Buffer.from('\r\n\r\n'), contentTypeIdx);
+              if (bodyStartIdx < 0) return buf;
+              const payloadStart = bodyStartIdx + 4;
+
+              const boundaryNeedle = Buffer.from(`\r\n${boundary}`);
+              const payloadEnd = buf.indexOf(boundaryNeedle, payloadStart);
+              if (payloadEnd <= payloadStart) return buf;
+
+              const extracted = buf.subarray(payloadStart, payloadEnd);
+              console.log(`[publish-post] Detected multipart-wrapped upload. Extracted raw video payload: ${(extracted.length / 1024 / 1024).toFixed(1)} MB`);
+              return extracted;
+            };
+
+            const mediaBuffer = unwrapMultipartVideo(downloadedBuffer);
             const videoSize = mediaBuffer.length;
 
             // Validate the downloaded content is actually a valid video container.
