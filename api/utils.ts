@@ -352,9 +352,23 @@ const handlePublishPost = async (req: VercelRequest, res: VercelResponse) => {
               throw new Error('TikTok upload failed: video is too large for fallback upload. Use a smaller video or configure TikTok verified URL domains.');
             }
 
-            const preferredChunkSize = Math.min(10 * 1024 * 1024, videoSize); // 10MB chunks
-            let chunkSize = preferredChunkSize;
-            let totalChunkCount = Math.ceil(videoSize / chunkSize);
+            const MIN_CHUNK = 5 * 1024 * 1024;
+            const MAX_CHUNK = 64 * 1024 * 1024;
+            let chunkSize = videoSize;
+            let totalChunkCount = 1;
+
+            // TikTok chunk rules:
+            // - <5MB => whole upload (single chunk)
+            // - >64MB => multi-chunk, chunk_size between 5MB and 64MB
+            // - total_chunk_count uses floor(video_size / chunk_size)
+            if (videoSize > MAX_CHUNK) {
+              chunkSize = MAX_CHUNK;
+              totalChunkCount = Math.floor(videoSize / chunkSize);
+              if (totalChunkCount < 1) totalChunkCount = 1;
+            } else if (videoSize >= MIN_CHUNK) {
+              chunkSize = videoSize;
+              totalChunkCount = 1;
+            }
 
             const buildInitPayload = (size: number, cSize: number, chunkCount: number) => ({
               post_info: {
@@ -390,19 +404,7 @@ const handlePublishPost = async (req: VercelRequest, res: VercelResponse) => {
 
             if (initUploadData.error || initUploadData.data?.error) {
               const initErr = initUploadData.error?.message || initUploadData.data?.error?.message || 'TikTok FILE_UPLOAD init failed';
-
-              // Retry with single chunk if TikTok rejects chunk count parameters.
-              if (/total chunk count is invalid/i.test(initErr) && totalChunkCount > 1) {
-                chunkSize = videoSize;
-                totalChunkCount = 1;
-                initUploadData = await initUploadRequest(videoSize, chunkSize, totalChunkCount);
-                console.log('[publish-post] TikTok FILE_UPLOAD single-chunk retry response:', initUploadData);
-              }
-
-              if (initUploadData.error || initUploadData.data?.error) {
-                const retryErr = initUploadData.error?.message || initUploadData.data?.error?.message || initErr;
-                throw new Error(retryErr);
-              }
+              throw new Error(initErr);
             }
 
             const uploadUrl = initUploadData.data?.upload_url;
@@ -413,7 +415,9 @@ const handlePublishPost = async (req: VercelRequest, res: VercelResponse) => {
 
             for (let chunkIndex = 0; chunkIndex < totalChunkCount; chunkIndex++) {
               const start = chunkIndex * chunkSize;
-              const end = Math.min(start + chunkSize, videoSize);
+              const end = chunkIndex === totalChunkCount - 1
+                ? videoSize
+                : Math.min(start + chunkSize, videoSize);
               const chunk = mediaBuffer.subarray(start, end);
 
               const uploadRes = await fetch(uploadUrl, {
