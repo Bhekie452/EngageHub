@@ -581,13 +581,14 @@ export const analyticsService = {
                 // ✅ FIX 4: Also upsert to post_analytics for caching
                 await supabase.from('post_analytics').upsert({
                   post_id: postId,
+                  social_account_id: fbAccount.id,
                   platform: 'facebook',
                   likes: nativeLikes,
                   comments: nativeComments,
                   shares: nativeShares,
                   video_views: nativeViews || nativeUniqueViews,
                   recorded_at: new Date().toISOString()
-                }, { onConflict: 'post_id,platform' });
+                }, { onConflict: 'post_id,social_account_id' });
 
               } else {
                 console.warn('[Analytics] Facebook Graph API error:', graphData.error);
@@ -868,13 +869,14 @@ export const analyticsService = {
 
                 await supabase.from('post_analytics').upsert({
                   post_id: postId,
+                  social_account_id: (instagramAccount || facebookAccount)?.id,
                   platform: 'instagram',
                   likes: nativeLikes,
                   comments: nativeComments,
                   shares: nativeShares,
                   video_views: nativeViews,
                   recorded_at: new Date().toISOString(),
-                }, { onConflict: 'post_id,platform' });
+                }, { onConflict: 'post_id,social_account_id' });
               } else {
                 console.warn('[Analytics] Instagram media fetch error:', mediaJson.error);
 
@@ -888,13 +890,14 @@ export const analyticsService = {
 
                   await supabase.from('post_analytics').upsert({
                     post_id: postId,
+                    social_account_id: (instagramAccount || facebookAccount)?.id,
                     platform: 'instagram',
                     likes: fallbackLikes,
                     comments: fallbackComments,
                     shares: 0,
                     video_views: 0,
                     recorded_at: new Date().toISOString(),
-                  }, { onConflict: 'post_id,platform' });
+                  }, { onConflict: 'post_id,social_account_id' });
 
                   console.log('[Analytics] Instagram fallback metrics from media list:', {
                     likes: fallbackLikes,
@@ -1181,12 +1184,11 @@ export const analyticsService = {
                 time: timeAgo(createdAtIso),
               });
 
-              // Fetch actual TikTok comments via /v2/comment/list/
+              // Fetch actual TikTok comments via backend proxy (avoids CORS)
               try {
-                const commentsJson = await fetchTikTokJson(
-                  `https://open.tiktokapis.com/v2/comment/list/?fields=id,text,create_date,like_count,parent_comment_id&video_id=${tikTokVideoId}&max_count=50`,
-                  { method: 'GET', headers: {} }
-                );
+                const commentsResp = await fetch(`/api/app?action=tiktok-comments&videoId=${tikTokVideoId}&workspaceId=${workspace_id}`);
+                const commentsResult = await commentsResp.json();
+                const commentsJson = commentsResult?.data || commentsResult;
                 console.log('[Analytics] TikTok comment/list raw:', JSON.stringify(commentsJson).slice(0, 500));
                 const commentsHasError = commentsJson?.error && commentsJson.error.code && commentsJson.error.code !== 'ok';
                 if (!commentsHasError) {
@@ -1223,13 +1225,14 @@ export const analyticsService = {
 
               await supabase.from('post_analytics').upsert({
                 post_id: postId,
+                social_account_id: ttAccount.id,
                 platform: 'tiktok',
                 likes: nativeLikes,
                 comments: nativeComments,
                 shares: nativeShares,
                 video_views: nativeViews,
                 recorded_at: new Date().toISOString(),
-              }, { onConflict: 'post_id,platform' });
+              }, { onConflict: 'post_id,social_account_id' });
 
               console.log('[Analytics] Native TikTok metrics:', {
                 likes: nativeLikes,
@@ -1572,20 +1575,7 @@ export const analyticsService = {
       }
     };
 
-    // Persist combined totals for EngageHub app analytics (best effort).
-    try {
-      await supabase.from('post_analytics').upsert({
-        post_id: postId,
-        platform: 'engagehub',
-        likes: metrics.likes,
-        comments: metrics.comments,
-        shares: metrics.shares,
-        video_views: metrics.views,
-        recorded_at: new Date().toISOString(),
-      }, { onConflict: 'post_id,platform' });
-    } catch (persistErr) {
-      console.warn('[Analytics] Unable to persist aggregated EngageHub metrics:', persistErr);
-    }
+    // (Skipping combined engagehub upsert - post_analytics requires social_account_id)
 
     return { metrics, metricsBreakdown, recentActivity: finalActivity, metricsSource };
   },

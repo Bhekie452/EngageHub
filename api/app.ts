@@ -67,11 +67,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       case 'tiktok-webhook':
         return await handleTikTokWebhook(req, res);
 
+      case 'tiktok-comments':
+        return await handleTikTokComments(req, res);
+
       default:
         return res.status(400).json({
           success: false,
           error: 'Invalid action parameter',
-          validActions: ['engagement', 'publish', 'test-tiktok', 'webhook-facebook', 'webhook-tiktok'],
+          validActions: ['engagement', 'publish', 'test-tiktok', 'webhook-facebook', 'webhook-tiktok', 'tiktok-comments'],
           usage: '/api/app?action=engagement&method=create'
         });
     }
@@ -438,6 +441,51 @@ async function handleTikTokWebhook(req: VercelRequest, res: VercelResponse) {
   }
 
   return res.status(405).json({ ok: false, error: 'Method not allowed' });
+}
+
+// ============================================
+// TIKTOK COMMENTS PROXY (avoids CORS)
+// ============================================
+async function handleTikTokComments(req: VercelRequest, res: VercelResponse) {
+  const { videoId, workspaceId } = req.query;
+  if (!videoId || !workspaceId) {
+    return res.status(400).json({ success: false, error: 'Missing videoId or workspaceId' });
+  }
+
+  try {
+    const supabase = createClient(
+      process.env.SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
+
+    const { data: ttAccount } = await supabase
+      .from('social_accounts')
+      .select('access_token, refresh_token, token_expires_at')
+      .eq('workspace_id', workspaceId)
+      .eq('platform', 'tiktok')
+      .maybeSingle();
+
+    if (!ttAccount?.access_token) {
+      return res.status(404).json({ success: false, error: 'No TikTok account found' });
+    }
+
+    const fields = 'id,text,create_date,like_count,parent_comment_id';
+    const url = `https://open.tiktokapis.com/v2/comment/list/?fields=${encodeURIComponent(fields)}&video_id=${videoId}&max_count=50`;
+
+    const ttResp = await fetch(url, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${ttAccount.access_token}`,
+      },
+    });
+    const ttJson = await ttResp.json();
+    console.log('[TikTokComments] Response:', JSON.stringify(ttJson).slice(0, 500));
+
+    return res.status(200).json({ success: true, data: ttJson });
+  } catch (error: any) {
+    console.error('[TikTokComments] Error:', error);
+    return res.status(500).json({ success: false, error: error.message });
+  }
 }
 
 // ============================================
