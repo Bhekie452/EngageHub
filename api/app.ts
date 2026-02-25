@@ -1,6 +1,7 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
 import { createHmac, timingSafeEqual } from 'crypto';
+import https from 'https';
 
 /**
  * CONSOLIDATED APP API
@@ -447,7 +448,10 @@ async function handleTikTokWebhook(req: VercelRequest, res: VercelResponse) {
 // TIKTOK COMMENTS PROXY (avoids CORS)
 // ============================================
 async function handleTikTokComments(req: VercelRequest, res: VercelResponse) {
-  const { videoId, workspaceId } = req.query;
+  const videoId = req.query.videoId;
+  const workspaceId = req.query.workspaceId;
+  console.log('[TikTokComments] Called with videoId:', videoId, 'workspaceId:', workspaceId);
+
   if (!videoId || !workspaceId) {
     return res.status(400).json({ success: false, error: 'Missing videoId or workspaceId' });
   }
@@ -458,12 +462,14 @@ async function handleTikTokComments(req: VercelRequest, res: VercelResponse) {
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     );
 
-    const { data: ttAccount } = await supabase
+    const { data: ttAccount, error: ttErr } = await supabase
       .from('social_accounts')
       .select('access_token, refresh_token, token_expires_at')
-      .eq('workspace_id', workspaceId)
+      .eq('workspace_id', String(workspaceId))
       .eq('platform', 'tiktok')
       .maybeSingle();
+
+    console.log('[TikTokComments] Account lookup:', { found: !!ttAccount, err: ttErr?.message });
 
     if (!ttAccount?.access_token) {
       return res.status(404).json({ success: false, error: 'No TikTok account found' });
@@ -473,42 +479,47 @@ async function handleTikTokComments(req: VercelRequest, res: VercelResponse) {
     const apiUrl = `https://open.tiktokapis.com/v2/comment/list/?fields=${encodeURIComponent(fields)}`;
     const bodyStr = JSON.stringify({ video_id: String(videoId), max_count: 50 });
 
-    // Use Node's built-in https module (guaranteed available, no CORS)
-    const https = await import('https');
     const ttJson: any = await new Promise((resolve, reject) => {
-      const parsed = new URL(apiUrl);
-      const options = {
-        hostname: parsed.hostname,
-        path: parsed.pathname + parsed.search,
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${ttAccount.access_token}`,
-          'Content-Type': 'application/json',
-          'Content-Length': Buffer.byteLength(bodyStr),
-        },
-      };
-      const request = https.request(options, (response: any) => {
-        let data = '';
-        response.on('data', (chunk: string) => { data += chunk; });
-        response.on('end', () => {
-          try {
-            resolve(JSON.parse(data));
-          } catch {
-            console.error('[TikTokComments] Non-JSON response:', data.slice(0, 300));
-            resolve({ error: { code: 'parse_error', message: 'Non-JSON TikTok response' } });
-          }
+      try {
+        const parsed = new URL(apiUrl);
+        const options: https.RequestOptions = {
+          hostname: parsed.hostname,
+          path: parsed.pathname + parsed.search,
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${ttAccount.access_token}`,
+            'Content-Type': 'application/json',
+            'Content-Length': String(Buffer.byteLength(bodyStr)),
+          },
+        };
+        const request = https.request(options, (response) => {
+          let body = '';
+          response.on('data', (chunk: Buffer | string) => { body += chunk; });
+          response.on('end', () => {
+            try {
+              resolve(JSON.parse(body));
+            } catch {
+              console.error('[TikTokComments] Non-JSON from TikTok:', body.slice(0, 300));
+              resolve({ error: { code: 'parse_error', message: 'Non-JSON TikTok response', status: response.statusCode } });
+            }
+          });
         });
-      });
-      request.on('error', reject);
-      request.write(bodyStr);
-      request.end();
+        request.on('error', (err) => {
+          console.error('[TikTokComments] Request error:', err.message);
+          reject(err);
+        });
+        request.write(bodyStr);
+        request.end();
+      } catch (innerErr) {
+        reject(innerErr);
+      }
     });
 
-    console.log('[TikTokComments] Response:', JSON.stringify(ttJson).slice(0, 500));
+    console.log('[TikTokComments] TikTok response:', JSON.stringify(ttJson).slice(0, 500));
     return res.status(200).json({ success: true, data: ttJson });
   } catch (error: any) {
-    console.error('[TikTokComments] Error:', error?.message || error);
-    return res.status(500).json({ success: false, error: error?.message || 'Unknown error' });
+    console.error('[TikTokComments] Handler error:', error?.message || error);
+    return res.status(500).json({ success: false, error: String(error?.message || 'Unknown error') });
   }
 }
 
