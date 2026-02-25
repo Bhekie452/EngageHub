@@ -714,10 +714,71 @@ const Content: React.FC = () => {
     e.target.value = '';
   };
 
+  /** Probe a video file's dimensions using a temporary <video> element. */
+  const probeVideoDimensions = (file: File): Promise<{ width: number; height: number; duration: number }> =>
+    new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(file);
+      const video = document.createElement('video');
+      video.preload = 'metadata';
+      video.onloadedmetadata = () => {
+        const w = video.videoWidth;
+        const h = video.videoHeight;
+        const d = video.duration;
+        URL.revokeObjectURL(url);
+        resolve({ width: w, height: h, duration: d });
+      };
+      video.onerror = () => {
+        URL.revokeObjectURL(url);
+        reject(new Error('Could not read video metadata'));
+      };
+      video.src = url;
+    });
+
   const handleVideoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files) return;
     for (const file of Array.from(files) as File[]) {
+      // --- TikTok pre-upload validation ---
+      const isTikTokSelected = selectedPlatforms.some((p) => (p || '').toLowerCase() === 'tiktok');
+      if (isTikTokSelected) {
+        try {
+          const { width, height, duration } = await probeVideoDimensions(file);
+          const shortSide = Math.min(width, height);
+          console.log(`[video-check] ${file.name}: ${width}x${height}, ${duration.toFixed(1)}s, ${(file.size / 1024 / 1024).toFixed(1)}MB`);
+
+          if (shortSide < 360) {
+            toast.error(
+              `Video too small for TikTok (${width}×${height}). Minimum resolution is 360p. ` +
+              `Re-encode with ffmpeg: ffmpeg -i input.mp4 -vf "scale=720:1280" -c:v libx264 -c:a aac output.mp4`
+            );
+            e.target.value = '';
+            return;
+          }
+          if (duration < 1) {
+            toast.error('Video is too short for TikTok (min 1 second).');
+            e.target.value = '';
+            return;
+          }
+          if (duration > 600) {
+            toast.error('Video is too long for TikTok (max 10 minutes).');
+            e.target.value = '';
+            return;
+          }
+          if (file.size > 4 * 1024 * 1024 * 1024) {
+            toast.error('Video is too large for TikTok (max 4 GB).');
+            e.target.value = '';
+            return;
+          }
+          // Warn (non-blocking) if short side < 720
+          if (shortSide < 720) {
+            toast.error(`⚠️ Video resolution (${width}×${height}) is below TikTok's recommended 720p. It may still work but quality could be poor.`);
+          }
+        } catch {
+          // Non-fatal — continue with upload even if we can't probe
+          console.warn('[video-check] Unable to probe video dimensions; uploading anyway.');
+        }
+      }
+
       const publicUrl = await uploadFileToStorage(file, 'videos');
       if (publicUrl) {
         setUploadedVideos(prev => [...prev, publicUrl]);

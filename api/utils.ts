@@ -307,9 +307,9 @@ const handlePublishPost = async (req: VercelRequest, res: VercelResponse) => {
           const tiktokPublishUrl = 'https://open.tiktokapis.com/v2/post/publish/video/init/';
           const tiktokPublishStatusUrl = 'https://open.tiktokapis.com/v2/post/publish/status/fetch/';
           const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-          const formatTikTokError = (message: string) => {
+          const formatTikTokError = (message: string, extraCtx?: string) => {
             if (/file_format_check_failed/i.test(message)) {
-              return `${message}. TikTok requires MP4 (H.264 video + AAC audio). Re-export your video as MP4 H.264/AAC and try again.`;
+              return `${message}. TikTok requires MP4 (H.264 video + AAC audio), min 360p, 1s–10min.${extraCtx ? ' ' + extraCtx : ''} Re-encode: ffmpeg -i input.mp4 -vf "scale=720:1280" -c:v libx264 -c:a aac output.mp4`;
             }
             return message;
           };
@@ -395,6 +395,19 @@ const handlePublishPost = async (req: VercelRequest, res: VercelResponse) => {
             }
             const mediaBuffer = Buffer.from(await mediaResp.arrayBuffer());
             const videoSize = mediaBuffer.length;
+
+            // Validate the downloaded content is actually a valid video container.
+            // MP4/MOV start with ftyp box; check bytes 4-7 for 'ftyp' signature.
+            if (videoSize < 12) {
+              throw new Error(`TikTok upload rejected: downloaded file is only ${videoSize} bytes — not a valid video.`);
+            }
+            const ftyp = String.fromCharCode(mediaBuffer[4], mediaBuffer[5], mediaBuffer[6], mediaBuffer[7]);
+            if (ftyp !== 'ftyp') {
+              const contentType = mediaResp.headers.get('content-type') || 'unknown';
+              console.error(`[publish-post] Downloaded content is not MP4/MOV. First 8 bytes: ${mediaBuffer.subarray(0, 8).toString('hex')}, Content-Type: ${contentType}`);
+              throw new Error(`TikTok upload rejected: the file from storage is not a valid MP4/MOV video (Content-Type: ${contentType}). Re-upload a properly encoded MP4 video file.`);
+            }
+            console.log(`[publish-post] Video verified: MP4 container, ${(videoSize / 1024 / 1024).toFixed(1)} MB`);
 
             // Guard to avoid oversized in-memory uploads in serverless runtime.
             const MAX_FILE_UPLOAD_BYTES = 200 * 1024 * 1024; // ~200MB
@@ -491,7 +504,8 @@ const handlePublishPost = async (req: VercelRequest, res: VercelResponse) => {
             const statusCheck = await checkTikTokPublishStatus(publishId);
             if (statusCheck.status === 'FAILED') {
               const message = statusCheck.message || 'unknown failure';
-              throw new Error(`TikTok publish failed after upload: ${formatTikTokError(message)}`);
+              const sizeInfo = `Uploaded file: ${(videoSize / 1024 / 1024).toFixed(1)} MB.`;
+              throw new Error(`TikTok publish failed after upload: ${formatTikTokError(message, sizeInfo)}`);
             }
 
             if (statusCheck.status === 'PUBLISH_COMPLETE') {
