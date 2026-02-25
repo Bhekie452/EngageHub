@@ -21,6 +21,10 @@
       "destination": "/api/tiktok-callback-redirect"
     },
     {
+      "source": "/tiktok/webhook",
+      "destination": "/api/tiktok/webhook"
+    },
+    {
       "source": "/api/utils/:endpoint",
       "destination": "/api/utils?endpoint=:endpoint"
     }
