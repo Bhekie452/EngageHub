@@ -347,10 +347,13 @@ const handlePublishPost = async (req: VercelRequest, res: VercelResponse) => {
             const videoSize = mediaBuffer.length;
 
             // Guard to avoid oversized in-memory uploads in serverless runtime.
-            const MAX_FILE_UPLOAD_BYTES = 45 * 1024 * 1024; // ~45MB
+            const MAX_FILE_UPLOAD_BYTES = 200 * 1024 * 1024; // ~200MB
             if (videoSize <= 0 || videoSize > MAX_FILE_UPLOAD_BYTES) {
               throw new Error('TikTok upload failed: video is too large for fallback upload. Use a smaller video or configure TikTok verified URL domains.');
             }
+
+            const chunkSize = Math.min(5 * 1024 * 1024, videoSize); // 5MB chunks
+            const totalChunkCount = Math.ceil(videoSize / chunkSize);
 
             const initUploadPayload = {
               post_info: {
@@ -364,8 +367,8 @@ const handlePublishPost = async (req: VercelRequest, res: VercelResponse) => {
               source_info: {
                 source: 'FILE_UPLOAD',
                 video_size: videoSize,
-                chunk_size: videoSize,
-                total_chunk_count: 1
+                chunk_size: chunkSize,
+                total_chunk_count: totalChunkCount
               }
             };
 
@@ -391,19 +394,25 @@ const handlePublishPost = async (req: VercelRequest, res: VercelResponse) => {
               throw new Error('TikTok FILE_UPLOAD init did not return upload_url/publish_id.');
             }
 
-            const uploadRes = await fetch(uploadUrl, {
-              method: 'PUT',
-              headers: {
-                'Content-Type': 'video/mp4',
-                'Content-Length': String(videoSize),
-                'Content-Range': `bytes 0-${videoSize - 1}/${videoSize}`
-              },
-              body: mediaBuffer
-            });
+            for (let chunkIndex = 0; chunkIndex < totalChunkCount; chunkIndex++) {
+              const start = chunkIndex * chunkSize;
+              const end = Math.min(start + chunkSize, videoSize);
+              const chunk = mediaBuffer.subarray(start, end);
 
-            if (!uploadRes.ok) {
-              const uploadErrText = await uploadRes.text().catch(() => '');
-              throw new Error(`TikTok FILE_UPLOAD transfer failed (${uploadRes.status}): ${uploadErrText || 'unknown upload error'}`);
+              const uploadRes = await fetch(uploadUrl, {
+                method: 'PUT',
+                headers: {
+                  'Content-Type': 'video/mp4',
+                  'Content-Length': String(chunk.length),
+                  'Content-Range': `bytes ${start}-${end - 1}/${videoSize}`
+                },
+                body: chunk
+              });
+
+              if (!uploadRes.ok) {
+                const uploadErrText = await uploadRes.text().catch(() => '');
+                throw new Error(`TikTok FILE_UPLOAD transfer failed on chunk ${chunkIndex + 1}/${totalChunkCount} (${uploadRes.status}): ${uploadErrText || 'unknown upload error'}`);
+              }
             }
 
             results.tiktok = { status: 'published', postId: publishId };
