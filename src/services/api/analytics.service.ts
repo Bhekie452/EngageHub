@@ -1024,13 +1024,20 @@ export const analyticsService = {
                 body: JSON.stringify({ publish_id: publishId })
               });
 
+              console.log('[Analytics] TikTok publish status raw response:', JSON.stringify(statusJson).slice(0, 500));
+
               const statusData = statusJson?.data || statusJson;
-              tikTokVideoId = statusData?.publicly_available_post_id
-                || statusData?.public_post_id
+              // TikTok returns publicaly_available_post_id (their typo) as an ARRAY
+              const pubPostId = statusData?.publicaly_available_post_id
+                || statusData?.publicly_available_post_id
+                || statusData?.public_post_id;
+              tikTokVideoId = (Array.isArray(pubPostId) ? pubPostId[0] : pubPostId)
                 || statusData?.video_id
                 || statusData?.item_id
                 || statusData?.post_id
                 || null;
+              // Ensure it's a string
+              if (tikTokVideoId) tikTokVideoId = String(tikTokVideoId);
 
               console.log('[Analytics] TikTok publish status result:', {
                 publishId,
@@ -1046,14 +1053,16 @@ export const analyticsService = {
           if (!tikTokVideoId && postData?.content) {
             try {
               const fields = 'id,title,create_time,share_url,view_count,like_count,comment_count,share_count';
-              const listJson = await fetchTikTokJson(`https://open.tiktokapis.com/v2/video/query/?fields=${encodeURIComponent(fields)}`, {
+              // Use video/list endpoint (video/query requires video_ids)
+              const listJson = await fetchTikTokJson(`https://open.tiktokapis.com/v2/video/list/?fields=${encodeURIComponent(fields)}`, {
                 method: 'POST',
                 headers: {
                   'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({ filters: {}, max_count: 20 })
+                body: JSON.stringify({ max_count: 20 })
               });
-              if (!listJson?.error) {
+              console.log('[Analytics] TikTok video/list raw response:', JSON.stringify(listJson).slice(0, 500));
+              if (!listJson?.error || listJson?.error?.code === 'ok') {
                 const dataContainer = listJson?.data || listJson;
                 const list = dataContainer?.videos || dataContainer?.video_list || dataContainer?.items || [];
                 if (Array.isArray(list) && list.length > 0) {
@@ -1077,7 +1086,18 @@ export const analyticsService = {
             let videoData: any = null;
 
             const fields = 'id,title,create_time,share_url,view_count,like_count,comment_count,share_count';
+            // TikTok API: POST /v2/video/query/ with video_ids in filters
             const videoQueryAttempts = [
+              async () => {
+                return fetchTikTokJson(`https://open.tiktokapis.com/v2/video/query/?fields=${encodeURIComponent(fields)}`, {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json'
+                  },
+                  body: JSON.stringify({ filters: { video_ids: [tikTokVideoId] } })
+                });
+              },
+              // Fallback: try with max_count param
               async () => {
                 return fetchTikTokJson(`https://open.tiktokapis.com/v2/video/query/?fields=${encodeURIComponent(fields)}`, {
                   method: 'POST',
@@ -1087,27 +1107,53 @@ export const analyticsService = {
                   body: JSON.stringify({ filters: { video_ids: [tikTokVideoId] }, max_count: 1 })
                 });
               },
-              async () => {
-                return fetchTikTokJson(`https://open.tiktokapis.com/v2/video/query/?fields=${encodeURIComponent(fields)}&video_ids=${encodeURIComponent(tikTokVideoId)}`, {
-                  method: 'GET',
-                  headers: {}
-                });
-              },
             ];
 
             for (const attempt of videoQueryAttempts) {
               try {
                 const result = await attempt();
-                if (!result?.error) {
+                console.log('[Analytics] TikTok video/query raw response:', JSON.stringify(result).slice(0, 500));
+                // TikTok returns error: {code: 'ok'} on success — check for actual errors
+                const hasError = result?.error && result.error.code && result.error.code !== 'ok';
+                if (!hasError) {
                   const dataContainer = result?.data || result;
                   const list = dataContainer?.videos || dataContainer?.video_list || dataContainer?.items || [];
                   if (Array.isArray(list) && list.length > 0) {
                     videoData = list[0];
+                    console.log('[Analytics] TikTok video data found:', JSON.stringify(videoData).slice(0, 300));
                     break;
                   }
+                } else {
+                  console.warn('[Analytics] TikTok video/query error response:', result?.error);
                 }
               } catch (queryErr) {
                 console.warn('[Analytics] TikTok video query attempt failed:', queryErr);
+              }
+            }
+
+            // Fallback: if video/query returned nothing, try video/list and match by ID
+            if (!videoData) {
+              try {
+                const listFields = 'id,title,create_time,share_url,view_count,like_count,comment_count,share_count';
+                const listResult = await fetchTikTokJson(`https://open.tiktokapis.com/v2/video/list/?fields=${encodeURIComponent(listFields)}`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ max_count: 20 })
+                });
+                console.log('[Analytics] TikTok video/list fallback response:', JSON.stringify(listResult).slice(0, 500));
+                const listHasError = listResult?.error && listResult.error.code && listResult.error.code !== 'ok';
+                if (!listHasError) {
+                  const listContainer = listResult?.data || listResult;
+                  const videoArr = listContainer?.videos || listContainer?.video_list || listContainer?.items || [];
+                  if (Array.isArray(videoArr)) {
+                    videoData = videoArr.find((v: any) => String(v?.id) === String(tikTokVideoId)) || null;
+                    if (videoData) {
+                      console.log('[Analytics] Matched TikTok video from video/list by ID:', tikTokVideoId);
+                    }
+                  }
+                }
+              } catch (listFallbackErr) {
+                console.warn('[Analytics] TikTok video/list fallback failed:', listFallbackErr);
               }
             }
 
@@ -1152,6 +1198,7 @@ export const analyticsService = {
                 views: nativeViews,
               });
             } else {
+              console.warn('[Analytics] No TikTok video data found for videoId:', tikTokVideoId, '- falling back to cached data');
               const { data: cachedTtData } = await supabase
                 .from('post_analytics')
                 .select('likes, comments, shares, video_views')
