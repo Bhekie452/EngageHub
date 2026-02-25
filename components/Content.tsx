@@ -367,6 +367,11 @@ const Content: React.FC = () => {
   const [selectedMetricFilter, setSelectedMetricFilter] = useState<string | null>(null);
   const [engagementData, setEngagementData] = useState<{
     metrics: { likes: number; comments: number; views: number; shares: number; subscribers?: number };
+    metricsBreakdown?: {
+      engagehub: { likes: number; comments: number; shares: number; views: number };
+      platform: { likes: number; comments: number; shares: number; views: number };
+      total: { likes: number; comments: number; shares: number; views: number };
+    };
     recentActivity: {
       type: string;
       user: string;
@@ -423,6 +428,7 @@ const Content: React.FC = () => {
           console.log('[Content] Engagement data received:', data);
           setEngagementData({
             metrics: data.metrics,
+            metricsBreakdown: (data as any).metricsBreakdown,
             recentActivity: data.recentActivity,
             metricsSource: (data as any).metricsSource,
           });
@@ -3123,6 +3129,14 @@ const Content: React.FC = () => {
               {engagementLoading && engagementPostId === viewingMetrics.post?.id ? (
                 <div className="py-8 text-center text-gray-500">Loading engagement…</div>
               ) : (
+                <>
+                  {engagementData && engagementPostId === viewingMetrics.post?.id && engagementData.metricsBreakdown && (
+                    <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl px-4 py-2">
+                      <p className="text-[11px] font-bold text-blue-700 dark:text-blue-300">
+                        Totals = EngageHub + {viewingMetrics.platform.toUpperCase()} (e.g. Likes {engagementData.metricsBreakdown.engagehub.likes} + {engagementData.metricsBreakdown.platform.likes} = {engagementData.metricsBreakdown.total.likes})
+                      </p>
+                    </div>
+                  )}
                 <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
                   <button
                     onClick={() => setSelectedMetricFilter(selectedMetricFilter === 'like' ? null : 'like')}
@@ -3137,6 +3151,11 @@ const Content: React.FC = () => {
                     <p className="text-3xl font-black text-blue-900 dark:text-blue-100">
                       {(engagementData && engagementPostId === viewingMetrics.post?.id ? engagementData.metrics.likes : 0).toLocaleString()}
                     </p>
+                    {engagementData && engagementPostId === viewingMetrics.post?.id && engagementData.metricsBreakdown && (
+                      <p className="text-[10px] text-blue-700 dark:text-blue-300 mt-1 font-semibold">
+                        EH {engagementData.metricsBreakdown.engagehub.likes} + {engagementData.metricsBreakdown.platform.likes}
+                      </p>
+                    )}
                   </button>
 
                   <button
@@ -3152,6 +3171,11 @@ const Content: React.FC = () => {
                     <p className="text-3xl font-black text-green-900 dark:text-green-100">
                       {(engagementData && engagementPostId === viewingMetrics.post?.id ? engagementData.metrics.shares : 0).toLocaleString()}
                     </p>
+                    {engagementData && engagementPostId === viewingMetrics.post?.id && engagementData.metricsBreakdown && (
+                      <p className="text-[10px] text-green-700 dark:text-green-300 mt-1 font-semibold">
+                        EH {engagementData.metricsBreakdown.engagehub.shares} + {engagementData.metricsBreakdown.platform.shares}
+                      </p>
+                    )}
                   </button>
 
                   <button
@@ -3167,6 +3191,11 @@ const Content: React.FC = () => {
                     <p className="text-3xl font-black text-purple-900 dark:text-purple-100">
                       {(engagementData && engagementPostId === viewingMetrics.post?.id ? engagementData.metrics.comments : 0).toLocaleString()}
                     </p>
+                    {engagementData && engagementPostId === viewingMetrics.post?.id && engagementData.metricsBreakdown && (
+                      <p className="text-[10px] text-purple-700 dark:text-purple-300 mt-1 font-semibold">
+                        EH {engagementData.metricsBreakdown.engagehub.comments} + {engagementData.metricsBreakdown.platform.comments}
+                      </p>
+                    )}
                   </button>
 
                   <button
@@ -3182,6 +3211,11 @@ const Content: React.FC = () => {
                     <p className="text-3xl font-black text-orange-900 dark:text-orange-100">
                       {(engagementData && engagementPostId === viewingMetrics.post?.id ? engagementData.metrics.views : 0).toLocaleString()}
                     </p>
+                    {engagementData && engagementPostId === viewingMetrics.post?.id && engagementData.metricsBreakdown && (
+                      <p className="text-[10px] text-orange-700 dark:text-orange-300 mt-1 font-semibold">
+                        EH {engagementData.metricsBreakdown.engagehub.views} + {engagementData.metricsBreakdown.platform.views}
+                      </p>
+                    )}
                   </button>
 
                   {viewingMetrics.platform === 'youtube' && (
@@ -3201,6 +3235,7 @@ const Content: React.FC = () => {
                     </button>
                   )}
                 </div>
+                </>
               )}
 
               {/* Engagement Timeline - real activity from API when available (e.g. YouTube comments/likes) */}

@@ -64,6 +64,11 @@ export interface PostEngagementSummary {
     end_screen_clicks?: number;
     device_types?: { label: string; value: number }[];
   };
+  metricsBreakdown?: {
+    engagehub: { likes: number; comments: number; shares: number; views: number };
+    platform: { likes: number; comments: number; shares: number; views: number };
+    total: { likes: number; comments: number; shares: number; views: number };
+  };
   recentActivity: { type: 'like' | 'comment' | 'share' | 'view' | 'subscriber'; user: string; text?: string; time: string; platform: 'youtube' | 'facebook' | 'instagram' | 'tiktok' | 'engagehub'; occurred_at: string }[];
   metricsSource: 'youtube' | 'facebook' | 'instagram' | 'tiktok' | 'engagehub';
 }
@@ -231,11 +236,17 @@ export const analyticsService = {
 
     const rows = data || [];
     // These are counts of local events tracked in EngageHub (now across all platforms for this post)
-    const metrics: PostEngagementSummary['metrics'] = {
+    const localMetrics = {
       likes: rows.filter((r: any) => r.event_type === 'post_like').length,
       comments: rows.filter((r: any) => r.event_type === 'post_comment').length,
       shares: rows.filter((r: any) => r.event_type === 'post_share').length,
       views: rows.filter((r: any) => r.event_type === 'post_view').length,
+    };
+    const metrics: PostEngagementSummary['metrics'] = {
+      likes: localMetrics.likes,
+      comments: localMetrics.comments,
+      shares: localMetrics.shares,
+      views: localMetrics.views,
       impressions: 0,
       ctr: 0,
       unique_viewers: 0,
@@ -1456,7 +1467,40 @@ export const analyticsService = {
     const finalActivity = [...baseActivity, ...virtualItems]
       .sort((a, b) => new Date(b.occurred_at).getTime() - new Date(a.occurred_at).getTime());
 
-    return { metrics, recentActivity: finalActivity, metricsSource };
+    const platformMetrics = {
+      likes: Math.max(0, metrics.likes - localMetrics.likes),
+      comments: Math.max(0, metrics.comments - localMetrics.comments),
+      shares: Math.max(0, metrics.shares - localMetrics.shares),
+      views: Math.max(0, metrics.views - localMetrics.views),
+    };
+
+    const metricsBreakdown: PostEngagementSummary['metricsBreakdown'] = {
+      engagehub: localMetrics,
+      platform: platformMetrics,
+      total: {
+        likes: metrics.likes,
+        comments: metrics.comments,
+        shares: metrics.shares,
+        views: metrics.views,
+      }
+    };
+
+    // Persist combined totals for EngageHub app analytics (best effort).
+    try {
+      await supabase.from('post_analytics').upsert({
+        post_id: postId,
+        platform: 'engagehub',
+        likes: metrics.likes,
+        comments: metrics.comments,
+        shares: metrics.shares,
+        video_views: metrics.views,
+        recorded_at: new Date().toISOString(),
+      }, { onConflict: 'post_id,platform' });
+    } catch (persistErr) {
+      console.warn('[Analytics] Unable to persist aggregated EngageHub metrics:', persistErr);
+    }
+
+    return { metrics, metricsBreakdown, recentActivity: finalActivity, metricsSource };
   },
 
   async hasUserLiked(postId: string): Promise<boolean> {
