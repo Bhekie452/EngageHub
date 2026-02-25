@@ -331,7 +331,86 @@ const handlePublishPost = async (req: VercelRequest, res: VercelResponse) => {
           
           const tiktokData = await tiktokRes.json();
           console.log('[publish-post] TikTok publish response:', tiktokData);
-          
+
+          const tiktokErrorMsg = tiktokData.error?.message || tiktokData.data?.error?.message || '';
+          const isUrlOwnershipError = /url ownership|pull_from_url|verified domains/i.test(tiktokErrorMsg);
+
+          if ((tiktokData.error || tiktokData.data?.error) && isUrlOwnershipError) {
+            console.log('[publish-post] TikTok URL ownership failure detected. Retrying via FILE_UPLOAD fallback...');
+
+            // Download media server-side and upload directly to TikTok to bypass URL ownership requirements.
+            const mediaResp = await fetch(videoUrl);
+            if (!mediaResp.ok) {
+              throw new Error(`TikTok FILE_UPLOAD fallback failed: could not download video (${mediaResp.status})`);
+            }
+            const mediaBuffer = Buffer.from(await mediaResp.arrayBuffer());
+            const videoSize = mediaBuffer.length;
+
+            // Guard to avoid oversized in-memory uploads in serverless runtime.
+            const MAX_FILE_UPLOAD_BYTES = 45 * 1024 * 1024; // ~45MB
+            if (videoSize <= 0 || videoSize > MAX_FILE_UPLOAD_BYTES) {
+              throw new Error('TikTok upload failed: video is too large for fallback upload. Use a smaller video or configure TikTok verified URL domains.');
+            }
+
+            const initUploadPayload = {
+              post_info: {
+                title: content?.substring(0, 150) || 'Video from EngageHub',
+                privacy_level: 'SELF_ONLY',
+                disable_duet: false,
+                disable_comment: false,
+                disable_stitch: false,
+                video_cover_timestamp_ms: 1000
+              },
+              source_info: {
+                source: 'FILE_UPLOAD',
+                video_size: videoSize,
+                chunk_size: videoSize,
+                total_chunk_count: 1
+              }
+            };
+
+            const initUploadRes = await fetch(tiktokPublishUrl, {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify(initUploadPayload)
+            });
+            const initUploadData = await initUploadRes.json();
+            console.log('[publish-post] TikTok FILE_UPLOAD init response:', initUploadData);
+
+            if (initUploadData.error || initUploadData.data?.error) {
+              const initErr = initUploadData.error?.message || initUploadData.data?.error?.message || 'TikTok FILE_UPLOAD init failed';
+              throw new Error(initErr);
+            }
+
+            const uploadUrl = initUploadData.data?.upload_url;
+            const publishId = initUploadData.data?.publish_id;
+            if (!uploadUrl || !publishId) {
+              throw new Error('TikTok FILE_UPLOAD init did not return upload_url/publish_id.');
+            }
+
+            const uploadRes = await fetch(uploadUrl, {
+              method: 'PUT',
+              headers: {
+                'Content-Type': 'video/mp4',
+                'Content-Length': String(videoSize),
+                'Content-Range': `bytes 0-${videoSize - 1}/${videoSize}`
+              },
+              body: mediaBuffer
+            });
+
+            if (!uploadRes.ok) {
+              const uploadErrText = await uploadRes.text().catch(() => '');
+              throw new Error(`TikTok FILE_UPLOAD transfer failed (${uploadRes.status}): ${uploadErrText || 'unknown upload error'}`);
+            }
+
+            results.tiktok = { status: 'published', postId: publishId };
+            successPlatforms.push('tiktok');
+            continue;
+          }
+
           if (tiktokData.error || tiktokData.data?.error) {
             const errorMsg = tiktokData.error?.message || tiktokData.data?.error?.message || 'TikTok publish failed';
             throw new Error(errorMsg);
