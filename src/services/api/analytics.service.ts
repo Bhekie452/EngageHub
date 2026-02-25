@@ -137,6 +137,14 @@ function extractInstagramShortcode(url: string | null | undefined): string | nul
   return match?.[1] || null;
 }
 
+function normalizeSocialText(value: string | null | undefined): string {
+  return String(value || '')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .replace(/[^\p{L}\p{N}\s]/gu, '')
+    .trim();
+}
+
 export const analyticsService = {
   async track(event: Omit<AnalyticsEventInput, 'workspace_id'> & { workspace_id?: string }): Promise<void> {
     const workspace_id = event.workspace_id ?? await getWorkspaceIdForCurrentUser();
@@ -730,6 +738,7 @@ export const analyticsService = {
 
           if (instagramBusinessId && instagramToken) {
             let igMediaId: string | null = null;
+            let matchedIgFromList: any = null;
 
             if (postId) {
               const { data: igPubRows } = await supabase
@@ -755,12 +764,12 @@ export const analyticsService = {
               const mediaListJson = await mediaListRes.json();
 
               if (!mediaListJson.error && Array.isArray(mediaListJson.data)) {
-                const normalizedContent = (postData.content || '').trim().toLowerCase();
+                const normalizedContent = normalizeSocialText(postData.content || '');
                 const shortcodeFromLink = extractInstagramShortcode(postData?.link_url || finalExternalUrl);
 
                 const matchedByCaption = mediaListJson.data.find((item: any) => {
-                  const caption = (item.caption || '').trim().toLowerCase();
-                  return caption && (caption === normalizedContent || caption.includes(normalizedContent));
+                  const caption = normalizeSocialText(item.caption || '');
+                  return normalizedContent && caption && (caption === normalizedContent || caption.includes(normalizedContent) || normalizedContent.includes(caption));
                 });
 
                 const matchedByShortcode = shortcodeFromLink
@@ -769,6 +778,7 @@ export const analyticsService = {
 
                 const matchedIgPost = matchedByCaption || matchedByShortcode;
                 if (matchedIgPost?.id) {
+                  matchedIgFromList = matchedIgPost;
                   igMediaId = matchedIgPost.id;
                   console.log('[Analytics] Matched Instagram media ID:', igMediaId);
                 }
@@ -849,6 +859,30 @@ export const analyticsService = {
                 }, { onConflict: 'post_id,platform' });
               } else {
                 console.warn('[Analytics] Instagram media fetch error:', mediaJson.error);
+
+                // Fallback to data already returned from media list match
+                if (matchedIgFromList) {
+                  const fallbackLikes = Number(matchedIgFromList.like_count || 0);
+                  const fallbackComments = Number(matchedIgFromList.comments_count || 0);
+                  metrics.likes += fallbackLikes;
+                  metrics.comments += fallbackComments;
+                  metricsSource = 'instagram';
+
+                  await supabase.from('post_analytics').upsert({
+                    post_id: postId,
+                    platform: 'instagram',
+                    likes: fallbackLikes,
+                    comments: fallbackComments,
+                    shares: 0,
+                    video_views: 0,
+                    recorded_at: new Date().toISOString(),
+                  }, { onConflict: 'post_id,platform' });
+
+                  console.log('[Analytics] Instagram fallback metrics from media list:', {
+                    likes: fallbackLikes,
+                    comments: fallbackComments,
+                  });
+                }
               }
             } else {
               const { data: cachedIgData } = await supabase
