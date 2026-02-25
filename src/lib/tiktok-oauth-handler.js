@@ -44,7 +44,7 @@ class TikTokOAuthHandler {
       // Build authorization URL
       const authUrl = new URL('https://www.tiktok.com/v2/auth/authorize/');
       authUrl.searchParams.append('client_key', this.clientKey);
-      authUrl.searchParams.append('scope', 'user.info.basic,video.list');
+      authUrl.searchParams.append('scope', 'user.info.basic,video.list,video.publish');
       authUrl.searchParams.append('response_type', 'code');
       authUrl.searchParams.append('redirect_uri', this.redirectUri);
       authUrl.searchParams.append('state', 'tiktok_oauth');
