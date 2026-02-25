@@ -3161,6 +3161,8 @@ const Content: React.FC = () => {
                             <div className="absolute -bottom-1 -right-1 bg-white dark:bg-slate-800 rounded-full p-0.5 shadow-sm">
                               {activity.platform === 'youtube' ? (
                                 <Youtube size={10} className="text-[#FF0000]" />
+                              ) : activity.platform === 'facebook' ? (
+                                <div className="w-2.5 h-2.5 bg-[#1877F2] rounded-full flex items-center justify-center text-[5px] text-white font-bold">f</div>
                               ) : (
                                 <div className="w-2.5 h-2.5 bg-blue-600 rounded-full flex items-center justify-center text-[5px] text-white font-bold uppercase">E</div>
                               )}

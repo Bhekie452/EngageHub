@@ -492,7 +492,7 @@ export const analyticsService = {
               console.log('[Analytics] Calling Facebook Graph API directly for post:', fbPostId);
 
               const graphUrl = `https://graph.facebook.com/v21.0/${fbPostId}` +
-                `?fields=reactions.summary(true),comments.summary(true),shares,insights.metric(post_impressions,post_impressions_unique)` +
+                `?fields=reactions.summary(true),comments{message,from,created_time},comments.summary(true),shares,insights.metric(post_impressions,post_impressions_unique)` +
                 `&access_token=${pageAccessToken}`;
 
               const graphRes = await fetch(graphUrl);
@@ -525,6 +525,21 @@ export const analyticsService = {
                   shares: nativeShares,
                   views: nativeViews
                 });
+
+                // ✅ Push native Facebook comments into facebookActivity for the activity feed
+                if (graphData.comments?.data && Array.isArray(graphData.comments.data)) {
+                  const nativeFbComments = graphData.comments.data.map((c: any) => ({
+                    type: 'comment' as const,
+                    user: c.from?.name || 'Facebook User',
+                    text: c.message || '',
+                    occurred_at: c.created_time || new Date().toISOString(),
+                    platform: 'facebook' as const,
+                    time: timeAgo(c.created_time || new Date().toISOString()),
+                    avatar: c.from?.id ? `https://graph.facebook.com/${c.from.id}/picture?type=square` : undefined
+                  }));
+                  facebookActivity.push(...nativeFbComments);
+                  console.log('[Analytics] Added', nativeFbComments.length, 'native FB comments to activity feed');
+                }
 
                 // ✅ FIX 4: Also upsert to post_analytics for caching
                 await supabase.from('post_analytics').upsert({
@@ -589,16 +604,34 @@ export const analyticsService = {
 
             console.log('[Analytics] Facebook sync result:', { fbData, fbSyncErr });
 
-            // Fetch activity feed from engagement_actions (comments + likes)
-            const { data: fbComments } = await supabase
-              .from('engagement_actions')
-              .select('action_data, created_at, platform_action_id')
-              .eq('workspace_id', workspace_id)
-              .eq('platform', 'facebook')
-              .eq('platform_post_id', fbPostId)
-              .eq('action_type', 'comment')
-              .order('created_at', { ascending: false })
-              .limit(20);
+            // Only fetch from engagement_actions if we didn't already get native comments from Graph API
+            const alreadyHaveNativeComments = facebookActivity.some(a => a.type === 'comment');
+            if (!alreadyHaveNativeComments) {
+              // Fetch activity feed from engagement_actions (comments + likes)
+              const { data: fbComments } = await supabase
+                .from('engagement_actions')
+                .select('action_data, created_at, platform_action_id')
+                .eq('workspace_id', workspace_id)
+                .eq('platform', 'facebook')
+                .eq('platform_post_id', fbPostId)
+                .eq('action_type', 'comment')
+                .order('created_at', { ascending: false })
+                .limit(20);
+
+              // Add FB comments to activity feed
+              if (fbComments && fbComments.length > 0) {
+                const fbActivityComments = fbComments.map((c: any) => ({
+                  type: 'comment' as const,
+                  user: c.action_data?.user_name || 'Facebook User',
+                  text: c.action_data?.comment_text || c.action_data?.message || 'Facebook comment',
+                  occurred_at: c.created_at,
+                  platform: 'facebook' as const,
+                  time: timeAgo(c.created_at),
+                  avatar: c.action_data?.user_avatar
+                }));
+                facebookActivity.push(...fbActivityComments);
+              }
+            }
 
             const { data: fbLikes } = await supabase
               .from('engagement_actions')
@@ -609,21 +642,6 @@ export const analyticsService = {
               .eq('action_type', 'like')
               .order('created_at', { ascending: false })
               .limit(50);
-
-            // Add FB comments to activity feed
-            if (fbComments && fbComments.length > 0) {
-              // NOTE: Do NOT override metrics.comments here anymore - we use Graph API counts above
-              const fbActivityComments = fbComments.map((c: any) => ({
-                type: 'comment' as const,
-                user: c.action_data?.user_name || 'Facebook User',
-                text: c.action_data?.comment_text || c.action_data?.message || 'Facebook comment',
-                occurred_at: c.created_at,
-                platform: 'facebook' as const,
-                time: timeAgo(c.created_at),
-                avatar: c.action_data?.user_avatar
-              }));
-              facebookActivity.push(...fbActivityComments);
-            }
 
             // Add FB likes to activity feed
             if (fbLikes && fbLikes.length > 0) {
