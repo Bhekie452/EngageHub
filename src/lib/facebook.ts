@@ -529,7 +529,7 @@ export const getConnectedInstagramAccounts = async (): Promise<any[]> => {
     for (const page of pages) {
         try {
             const igResponse = await fetch(
-                `https://graph.facebook.com/v19.0/${page.id}?fields=instagram_business_account{id,username,profile_picture_url}&access_token=${page.access_token}`
+                `https://graph.facebook.com/v21.0/${page.id}?fields=instagram_business_account{id,username,profile_picture_url}&access_token=${page.access_token}`
             );
             const igData = await igResponse.json();
             if (igData.instagram_business_account) {

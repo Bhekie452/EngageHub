@@ -44,7 +44,7 @@ async function handleFacebookAuth(req: VercelRequest, res: VercelResponse) {
   const scopes = 'public_profile,email,pages_show_list,pages_read_engagement,pages_manage_posts,instagram_basic,instagram_content_publish';
   const state = JSON.stringify({ workspaceId: workspaceId || 'c9a454c5-a5f3-42dd-9fbd-cedd4c1c49a9' });
   
-  const facebookAuthUrl = new URL('https://www.facebook.com/v19.0/dialog/oauth');
+  const facebookAuthUrl = new URL('https://www.facebook.com/v21.0/dialog/oauth');
   facebookAuthUrl.searchParams.set('client_id', clientId);
   facebookAuthUrl.searchParams.set('redirect_uri', redirectUri);
   facebookAuthUrl.searchParams.set('scope', scopes);
@@ -73,7 +73,7 @@ async function handleFacebookToken(req: VercelRequest, res: VercelResponse) {
 
   try {
     const tokenResponse = await fetch(
-      `https://graph.facebook.com/v19.0/oauth/access_token?` +
+      `https://graph.facebook.com/v21.0/oauth/access_token?` +
       `client_id=${clientId}&` +
       `client_secret=${clientSecret}&` +
       `redirect_uri=${encodeURIComponent(redirectUri)}&` +
@@ -87,7 +87,7 @@ async function handleFacebookToken(req: VercelRequest, res: VercelResponse) {
     }
 
     const longTermResponse = await fetch(
-      `https://graph.facebook.com/v19.0/oauth/access_token?` +
+      `https://graph.facebook.com/v21.0/oauth/access_token?` +
       `grant_type=fb_exchange_token&` +
       `client_id=${clientId}&` +
       `client_secret=${clientSecret}&` +
@@ -101,7 +101,7 @@ async function handleFacebookToken(req: VercelRequest, res: VercelResponse) {
     }
 
     const pagesResponse = await fetch(
-      `https://graph.facebook.com/v19.0/me/accounts?` +
+      `https://graph.facebook.com/v21.0/me/accounts?` +
       `fields=id,name,access_token,instagram_business_account&` +
       `access_token=${longTermData.access_token}&` +
       `limit=100`
@@ -126,7 +126,7 @@ async function handleFacebookToken(req: VercelRequest, res: VercelResponse) {
         const ig = p.instagramBusinessAccount;
         const igId = ig?.id || ig?.instagram_business_account_id || null;
         if (igId && p.accessToken) {
-          const igResp = await fetch(`https://graph.facebook.com/v19.0/${encodeURIComponent(igId)}?fields=id,username,profile_picture_url&access_token=${encodeURIComponent(p.accessToken)}`);
+          const igResp = await fetch(`https://graph.facebook.com/v21.0/${encodeURIComponent(igId)}?fields=id,username,profile_picture_url&access_token=${encodeURIComponent(p.accessToken)}`);
           const igData = await igResp.json();
           if (igData && !igData.error) {
             p.instagramBusinessAccountId = igId;
@@ -142,7 +142,7 @@ async function handleFacebookToken(req: VercelRequest, res: VercelResponse) {
     }
 
     const profileResponse = await fetch(
-      `https://graph.facebook.com/v19.0/me?` +
+      `https://graph.facebook.com/v21.0/me?` +
       `fields=id,name,email&` +
       `access_token=${longTermData.access_token}`
     );
@@ -366,7 +366,7 @@ async function handleFacebookSimple(req: VercelRequest, res: VercelResponse) {
   try {
     // Exchange code for access token
     const tokenResponse = await fetch(
-      `https://graph.facebook.com/v19.0/oauth/access_token?` +
+      `https://graph.facebook.com/v21.0/oauth/access_token?` +
       `client_id=${clientId}&` +
       `client_secret=${clientSecret}&` +
       `redirect_uri=${encodeURIComponent(redirectUri)}&` +
@@ -381,7 +381,7 @@ async function handleFacebookSimple(req: VercelRequest, res: VercelResponse) {
 
     // Get long-lived token
     const longTermResponse = await fetch(
-      `https://graph.facebook.com/v19.0/oauth/access_token?` +
+      `https://graph.facebook.com/v21.0/oauth/access_token?` +
       `grant_type=fb_exchange_token&` +
       `client_id=${clientId}&` +
       `client_secret=${clientSecret}&` +
@@ -396,7 +396,7 @@ async function handleFacebookSimple(req: VercelRequest, res: VercelResponse) {
 
     // Get user's pages - add page_id field
     const pagesResponse = await fetch(
-      `https://graph.facebook.com/v19.0/me/accounts?` +
+      `https://graph.facebook.com/v21.0/me/accounts?` +
       `fields=id,page_id,name,access_token,instagram_business_account&` +
       `access_token=${longTermData.access_token}&` +
       `limit=100`
@@ -415,7 +415,7 @@ async function handleFacebookSimple(req: VercelRequest, res: VercelResponse) {
 
     // Get user profile
     const profileResponse = await fetch(
-      `https://graph.facebook.com/v19.0/me?` +
+      `https://graph.facebook.com/v21.0/me?` +
       `fields=id,name,email&` +
       `access_token=${longTermData.access_token}`
     );

@@ -220,7 +220,7 @@ async function handleFacebookAuth(req: VercelRequest, res: VercelResponse) {
   const scopes = 'public_profile,email,pages_show_list,pages_read_engagement,pages_manage_posts,instagram_basic,instagram_content_publish';
   const state = JSON.stringify({ workspaceId: workspaceId || 'c9a454c5-a5f3-42dd-9fbd-cedd4c1c49a9' });
   
-  const facebookAuthUrl = new URL('https://www.facebook.com/v19.0/dialog/oauth');
+  const facebookAuthUrl = new URL('https://www.facebook.com/v21.0/dialog/oauth');
   facebookAuthUrl.searchParams.set('client_id', clientId);
   facebookAuthUrl.searchParams.set('redirect_uri', redirectUri);
   facebookAuthUrl.searchParams.set('scope', scopes);
@@ -248,7 +248,7 @@ async function handleFacebookToken(req: VercelRequest, res: VercelResponse) {
   try {
     // Exchange authorization code for access token
     const tokenResponse = await fetch(
-      `https://graph.facebook.com/v19.0/oauth/access_token?` +
+      `https://graph.facebook.com/v21.0/oauth/access_token?` +
       `client_id=${process.env.FACEBOOK_APP_ID}&` +
       `client_secret=${process.env.FACEBOOK_APP_SECRET}&` +
       `redirect_uri=${encodeURIComponent('https://engage-hub-ten.vercel.app/auth/facebook/callback')}&` +
@@ -263,7 +263,7 @@ async function handleFacebookToken(req: VercelRequest, res: VercelResponse) {
 
     // Exchange short-lived token for long-lived token
     const longTermResponse = await fetch(
-      `https://graph.facebook.com/v19.0/oauth/access_token?` +
+      `https://graph.facebook.com/v21.0/oauth/access_token?` +
       `grant_type=fb_exchange_token&` +
       `client_id=${process.env.FACEBOOK_APP_ID}&` +
       `client_secret=${process.env.FACEBOOK_APP_SECRET}&` +
@@ -278,7 +278,7 @@ async function handleFacebookToken(req: VercelRequest, res: VercelResponse) {
 
     // Get Facebook Pages
     const pagesResponse = await fetch(
-      `https://graph.facebook.com/v19.0/me/accounts?` +
+      `https://graph.facebook.com/v21.0/me/accounts?` +
       `fields=id,name,access_token,instagram_business_account&` +
       `access_token=${longTermData.access_token}`
     );
@@ -330,3 +330,4 @@ async function handleFacebookCallback(req: VercelRequest, res: VercelResponse) {
   console.log('[facebook-callback] Redirecting with code');
   return res.redirect(`/social-media?facebook_code=${code}&workspaceId=${workspaceId}`);
 }
+
