@@ -1,8 +1,7 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   Search, 
-  Filter, 
   MessageSquare, 
   Mail, 
   Instagram, 
@@ -15,35 +14,24 @@ import {
   Archive,
   MoreVertical,
   CheckCircle2,
-  Trash2
+  Trash2,
+  Loader2
 } from 'lucide-react';
+import { useInbox } from '../src/hooks/useInbox';
+import { useWorkspace } from '../src/hooks/useWorkspace';
+import { inboxService, InboxMessage } from '../src/services/api/inbox.service';
 
 type InboxCategory = 'all' | 'email' | 'whatsapp' | 'comments' | 'dms' | 'webchat' | 'missed' | 'archived';
 
-interface MessageData {
-  id: string;
-  sender: string;
-  text: string;
-  time: string;
-  platform: 'email' | 'whatsapp' | 'instagram' | 'linkedin' | 'webchat' | 'missed';
-  category: InboxCategory;
-  unread: boolean;
-  archived?: boolean;
-}
-
-const MESSAGES: MessageData[] = [
-  { id: '1', sender: 'Sarah Miller', text: 'Hi, I saw your latest post on LinkedIn. Do you offer consulting for small teams?', platform: 'linkedin', category: 'dms', time: '10m ago', unread: true },
-  { id: '2', sender: 'Marcus Chen', text: 'Payment confirmed for the Q3 audit. Looking forward to the results!', platform: 'email', category: 'email', time: '1h ago', unread: false },
-  { id: '3', sender: 'Emma Watson', text: 'Hey! Loved the new video. Would love to collab on a reel soon.', platform: 'instagram', category: 'comments', time: '3h ago', unread: true },
-  { id: '4', sender: 'WhatsApp Lead', text: 'Is the early bird pricing still available for the course?', platform: 'whatsapp', category: 'whatsapp', time: '5h ago', unread: false },
-  { id: '5', sender: 'Web Guest #402', text: 'Where can I find your pricing page?', platform: 'webchat', category: 'webchat', time: 'Yesterday', unread: false },
-  { id: '6', sender: '+1 (555) 0123', text: 'Missed call from unknown number', platform: 'missed', category: 'missed', time: 'Yesterday', unread: true },
-  { id: '7', sender: 'Old Client', text: 'Archived project discussion from last year.', platform: 'email', category: 'archived', time: '2 mo ago', unread: false, archived: true },
-];
-
 const Inbox: React.FC = () => {
+  const { workspaceId, loading: workspaceLoading } = useWorkspace();
+  const { messages, loading, error, refresh, sendReply, markAsRead } = useInbox(workspaceId);
+  
   const [currentCategory, setCurrentCategory] = useState<InboxCategory>('all');
-  const [selectedId, setSelectedId] = useState<string>(MESSAGES[0].id);
+  const [selectedId, setSelectedId] = useState<string>('');
+  const [replyText, setReplyText] = useState('');
+  const [sendingReply, setSendingReply] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   const categories: { id: InboxCategory; label: string; icon: React.ReactNode }[] = [
     { id: 'all', label: 'All messages', icon: <LayoutGrid size={18} /> },
@@ -56,13 +44,69 @@ const Inbox: React.FC = () => {
     { id: 'archived', label: 'Archived', icon: <Archive size={18} /> },
   ];
 
+  // Filter messages based on category and search
   const filteredMessages = useMemo(() => {
-    if (currentCategory === 'all') return MESSAGES.filter(m => !m.archived);
-    if (currentCategory === 'archived') return MESSAGES.filter(m => m.archived || m.category === 'archived');
-    return MESSAGES.filter(m => m.category === currentCategory);
-  }, [currentCategory]);
+    let filtered = messages;
+    
+    // Filter by category
+    if (currentCategory === 'all') {
+      filtered = messages.filter(m => !m.archived);
+    } else if (currentCategory === 'archived') {
+      filtered = messages.filter(m => m.archived || m.category === 'archived');
+    } else {
+      filtered = messages.filter(m => m.category === currentCategory);
+    }
+    
+    // Filter by search query
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(m => 
+        m.sender.toLowerCase().includes(query) || 
+        m.text.toLowerCase().includes(query)
+      );
+    }
+    
+    return filtered;
+  }, [messages, currentCategory, searchQuery]);
 
-  const selectedMessage = MESSAGES.find(m => m.id === selectedId);
+  // Set initial selected message
+  useEffect(() => {
+    if (filteredMessages.length > 0 && !selectedId) {
+      setSelectedId(filteredMessages[0].id);
+    }
+  }, [filteredMessages, selectedId]);
+
+  const selectedMessage = messages.find(m => m.id === selectedId);
+
+  // Mark as read when selecting a message
+  const handleSelectMessage = async (msg: InboxMessage) => {
+    setSelectedId(msg.id);
+    if (msg.unread && msg.source) {
+      await markAsRead(msg.id, msg.source);
+    }
+  };
+
+  // Send reply
+  const handleSendReply = async () => {
+    if (!selectedMessage || !replyText.trim() || !workspaceId) return;
+
+    setSendingReply(true);
+    try {
+      await sendReply(
+        selectedMessage.id,
+        replyText,
+        selectedMessage.platform,
+        selectedMessage.source || 'messages',
+        selectedMessage.platformPostId
+      );
+      setReplyText('');
+    } catch (err) {
+      console.error('Failed to send reply:', err);
+      alert('Failed to send reply. Please try again.');
+    } finally {
+      setSendingReply(false);
+    }
+  };
 
   const getPlatformIcon = (p: string) => {
     switch(p) {
@@ -75,6 +119,39 @@ const Inbox: React.FC = () => {
       default: return <MessageSquare size={14} />;
     }
   };
+
+  const formatTime = (timeString: string) => {
+    return inboxService.formatTime(timeString);
+  };
+
+  // Loading state
+  if (workspaceLoading || loading) {
+    return (
+      <div className="h-[calc(100vh-10rem)] bg-white rounded-2xl border border-gray-200 shadow-sm flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="w-8 h-8 animate-spin text-blue-600 mx-auto mb-2" />
+          <p className="text-gray-500 text-sm">Loading inbox...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <div className="h-[calc(100vh-10rem)] bg-white rounded-2xl border border-gray-200 shadow-sm flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-red-500 text-sm mb-2">Error loading inbox</p>
+          <button 
+            onClick={() => refresh()}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="h-[calc(100vh-10rem)] bg-white rounded-2xl border border-gray-200 shadow-sm flex overflow-hidden">
@@ -117,6 +194,8 @@ const Inbox: React.FC = () => {
             <input 
               type="text" 
               placeholder="Filter..." 
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-100 rounded-lg text-sm focus:bg-white focus:ring-2 focus:ring-blue-100 transition-all outline-none"
             />
           </div>
@@ -130,7 +209,7 @@ const Inbox: React.FC = () => {
             filteredMessages.map((msg) => (
               <button
                 key={msg.id}
-                onClick={() => setSelectedId(msg.id)}
+                onClick={() => handleSelectMessage(msg)}
                 className={`w-full text-left p-4 transition-all hover:bg-gray-50 relative ${
                   selectedId === msg.id ? 'bg-blue-50/50' : ''
                 }`}
@@ -140,7 +219,7 @@ const Inbox: React.FC = () => {
                   <span className={`text-sm truncate pr-2 ${msg.unread ? 'font-black text-gray-900' : 'font-medium text-gray-600'}`}>
                     {msg.sender}
                   </span>
-                  <span className="text-[10px] text-gray-400 whitespace-nowrap font-medium uppercase">{msg.time}</span>
+                  <span className="text-[10px] text-gray-400 whitespace-nowrap font-medium uppercase">{formatTime(msg.time)}</span>
                 </div>
                 <p className="text-xs text-gray-500 line-clamp-1 mb-2 font-medium">{msg.text}</p>
                 <div className="flex items-center justify-between">
@@ -200,7 +279,7 @@ const Inbox: React.FC = () => {
                   <div className="w-8 h-8 rounded-full bg-gray-200 flex-shrink-0" />
                   <div className="bg-white p-4 rounded-2xl rounded-tl-none border border-gray-100 max-w-[75%] shadow-sm">
                     <p className="text-sm text-gray-800 leading-relaxed font-medium">{selectedMessage.text}</p>
-                    <span className="text-[10px] text-gray-400 mt-2 block font-bold uppercase">{selectedMessage.time}</span>
+                    <span className="text-[10px] text-gray-400 mt-2 block font-bold uppercase">{formatTime(selectedMessage.time)}</span>
                   </div>
                 </div>
 
@@ -226,11 +305,22 @@ const Inbox: React.FC = () => {
                 </button>
                 <input 
                   type="text" 
-                  placeholder={`Reply via ${selectedMessage.platform}...`} 
+                  placeholder={`Reply via ${selectedMessage.platform}...`}
+                  value={replyText}
+                  onChange={(e) => setReplyText(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSendReply()}
                   className="flex-1 px-2 py-2 bg-transparent text-sm outline-none font-medium text-gray-800"
                 />
-                <button className="bg-blue-600 text-white p-3 rounded-xl hover:bg-blue-700 transition-all shadow-lg shadow-blue-200">
-                  <Send size={20} />
+                <button 
+                  onClick={handleSendReply}
+                  disabled={sendingReply || !replyText.trim()}
+                  className="bg-blue-600 text-white p-3 rounded-xl hover:bg-blue-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {sendingReply ? (
+                    <Loader2 size={20} className="animate-spin" />
+                  ) : (
+                    <Send size={20} />
+                  )}
                 </button>
               </div>
             </div>
