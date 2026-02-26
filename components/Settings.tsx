@@ -141,6 +141,25 @@ interface Session {
 }
 
 const Settings: React.FC = () => {
+    // Disconnect social account
+    const handleDisconnectAccount = async (account: SocialAccount) => {
+      if (!window.confirm(`Disconnect ${account.platform} account (${account.account_name})?`)) return;
+      setLoadingSocial(true);
+      try {
+        const { error } = await supabase
+          .from('social_accounts')
+          .update({ is_active: false })
+          .eq('id', account.id);
+        if (error) {
+          alert('Failed to disconnect account.');
+        } else {
+          setSocialAccounts(prev => prev.filter(a => a.id !== account.id));
+        }
+      } catch (err) {
+        alert('Error disconnecting account.');
+      }
+      setLoadingSocial(false);
+    };
   const {
     themeMode,
     setThemeMode,
@@ -1450,71 +1469,79 @@ const Settings: React.FC = () => {
                 <div className="flex items-center justify-center py-12">
                   <RefreshCw className="w-6 h-6 animate-spin text-brand-600" />
                 </div>
-              ) : socialAccounts.length === 0 ? (
-                <div className="text-center py-12">
-                  <Share2 className="w-12 h-12 mx-auto text-gray-300 dark:text-slate-600 mb-4" />
-                  <p className="text-gray-500 dark:text-slate-400">No social accounts connected yet</p>
-                  <button
-                    onClick={handleConnectNew}
-                    className="mt-4 px-6 py-2 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl text-sm font-bold text-gray-700 dark:text-slate-300"
-                  >
-                    Connect Your First Account
-                  </button>
-                      {/* Social Connect Modal */}
-                      {showConnectModal && (
-                        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-                          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl p-8 w-full max-w-md relative">
-                            <button onClick={() => setShowConnectModal(false)} className="absolute top-3 right-3 text-gray-400 hover:text-gray-700 dark:hover:text-slate-100">
-                              <span aria-hidden>×</span>
-                            </button>
-                            <h3 className="text-lg font-black mb-4 text-gray-900 dark:text-slate-100">Connect a Social Account</h3>
-                            <div className="grid grid-cols-2 gap-4">
-                              {supportedPlatforms.map((platform) => (
-                                <button
-                                  key={platform.id}
-                                  onClick={() => handlePlatformSelect(platform.id)}
-                                  className="flex flex-col items-center gap-2 p-4 rounded-xl border border-gray-200 dark:border-slate-800 hover:bg-brand-50 dark:hover:bg-brand-900/20 transition-all"
-                                >
-                                  {platform.icon}
-                                  <span className="text-xs font-bold text-gray-700 dark:text-slate-200">{platform.name}</span>
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                </div>
               ) : (
                 <div className="grid gap-4">
-                  {socialAccounts.map((account) => (
-                    <div key={account.id} className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-200 dark:border-slate-800 p-5 flex items-center justify-between">
-                      <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 rounded-xl bg-gray-100 dark:bg-slate-800 flex items-center justify-center">
-                          {getPlatformIcon(account.platform)}
+                  {supportedPlatforms.map((platform) => {
+                    const account = socialAccounts.find(acc => acc.platform.toLowerCase() === platform.id);
+                    return (
+                      <div key={platform.id} className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-200 dark:border-slate-800 p-5 flex items-center justify-between">
+                        <div className="flex items-center gap-4">
+                          <div className="w-12 h-12 rounded-xl bg-gray-100 dark:bg-slate-800 flex items-center justify-center">
+                            {platform.icon}
+                          </div>
+                          <div>
+                            <p className="font-bold text-gray-900 dark:text-slate-100">{platform.name}</p>
+                            {account ? (
+                              <>
+                                <p className="text-xs text-gray-500 dark:text-slate-400">{account.account_name}</p>
+                                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-bold bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 mt-1">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span>
+                                  Connected
+                                </span>
+                                {account.last_synced && (
+                                  <p className="text-[10px] text-gray-400 mt-1">Last synced: {new Date(account.last_synced).toLocaleDateString()}</p>
+                                )}
+                              </>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-bold bg-gray-100 text-gray-500 dark:bg-slate-800 dark:text-slate-400 mt-1">
+                                <span className="w-1.5 h-1.5 rounded-full bg-gray-400"></span>
+                                Not Connected
+                              </span>
+                            )}
+                          </div>
                         </div>
-                        <div>
-                          <p className="font-bold text-gray-900 dark:text-slate-100">{account.account_name}</p>
-                          <p className="text-xs text-gray-500 dark:text-slate-400 capitalize">{account.platform}</p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-4">
-                        <div className="text-right">
-                          <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-bold ${account.is_active ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-gray-100 text-gray-500 dark:bg-slate-800 dark:text-slate-400'}`}>
-                            <span className={`w-1.5 h-1.5 rounded-full ${account.is_active ? 'bg-green-500' : 'bg-gray-400'}`}></span>
-                            {account.is_active ? 'Active' : 'Inactive'}
-                          </span>
-                          {account.last_synced && (
-                            <p className="text-[10px] text-gray-400 mt-1">
-                              Last synced: {new Date(account.last_synced).toLocaleDateString()}
-                            </p>
+                        <div className="flex items-center gap-4">
+                          {account ? (
+                            <button
+                              className="p-2 text-gray-400 hover:text-red-600 dark:hover:text-red-400"
+                              title="Disconnect"
+                              onClick={() => handleDisconnectAccount(account)}
+                              disabled={loadingSocial}
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          ) : (
+                            <button className="p-2 text-brand-600 hover:bg-brand-50 dark:hover:bg-brand-900/20 rounded-xl font-bold" onClick={handleConnectNew} title="Connect">
+                              <Link2 size={16} /> Connect
+                            </button>
                           )}
                         </div>
-                        <button className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-slate-300">
-                          <ExternalLink size={16} />
+                      </div>
+                    );
+                  })}
+                  {/* Social Connect Modal */}
+                  {showConnectModal && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+                      <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl p-8 w-full max-w-md relative">
+                        <button onClick={() => setShowConnectModal(false)} className="absolute top-3 right-3 text-gray-400 hover:text-gray-700 dark:hover:text-slate-100">
+                          <span aria-hidden>×</span>
                         </button>
+                        <h3 className="text-lg font-black mb-4 text-gray-900 dark:text-slate-100">Connect a Social Account</h3>
+                        <div className="grid grid-cols-2 gap-4">
+                          {supportedPlatforms.map((platform) => (
+                            <button
+                              key={platform.id}
+                              onClick={() => handlePlatformSelect(platform.id)}
+                              className="flex flex-col items-center gap-2 p-4 rounded-xl border border-gray-200 dark:border-slate-800 hover:bg-brand-50 dark:hover:bg-brand-900/20 transition-all"
+                            >
+                              {platform.icon}
+                              <span className="text-xs font-bold text-gray-700 dark:text-slate-200">{platform.name}</span>
+                            </button>
+                          ))}
+                        </div>
                       </div>
                     </div>
-                  ))}
+                  )}
                 </div>
               )}
             </div>
