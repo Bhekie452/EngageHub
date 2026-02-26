@@ -891,6 +891,8 @@ const CRM: React.FC = () => {
   const tabs: { id: CRMTab; label: string; icon: React.ReactNode }[] = [
     { id: 'pipelines', label: 'Pipelines', icon: <Trello size={16} /> },
     { id: 'deals', label: 'Deals', icon: <DollarSign size={16} /> },
+    { id: 'contacts', label: 'Contacts', icon: <Users size={16} /> },
+    { id: 'companies', label: 'Companies', icon: <Building2 size={16} /> },
     { id: 'activities', label: 'Activities', icon: <Activity size={16} /> },
     { id: 'tasks', label: 'Tasks & follow-ups', icon: <CheckCircle2 size={16} /> },
     { id: 'timeline', label: 'Timeline', icon: <History size={16} /> },
