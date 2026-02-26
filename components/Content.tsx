@@ -1761,11 +1761,20 @@ const Content: React.FC = () => {
                 <div className="lg:col-span-7 p-6 space-y-6 bg-white border-r border-gray-100">
                   {/* Content Area */}
                   <div className="border border-gray-200 rounded-lg transition-all relative">
+                    {/* AI Rewrite button - top right */}
+                    <button
+                      onClick={() => setAiGeneratorOpen(true)}
+                      className="absolute top-2 right-2 z-10 flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-indigo-600 hover:text-white hover:bg-indigo-600 bg-indigo-50 border border-indigo-200 rounded-lg transition-all shadow-sm"
+                      title="Rewrite content with AI"
+                    >
+                      <Sparkles size={14} />
+                      AI Rewrite
+                    </button>
                     <textarea
                       value={postContent}
                       onChange={(e) => setPostContent(e.target.value)}
                       placeholder="Type your post content here... Use #hashtags and @mentions. Add images, videos, or links to engage your audience."
-                      className="w-full h-32 p-4 text-sm font-medium outline-none resize-none placeholder-gray-400 leading-relaxed text-gray-700 rounded-t-lg"
+                      className="w-full h-32 p-4 pr-28 text-sm font-medium outline-none resize-none placeholder-gray-400 leading-relaxed text-gray-700 rounded-t-lg"
                     />
 
                     {/* Hidden file inputs */}
@@ -1825,14 +1834,6 @@ const Content: React.FC = () => {
                           <Smile size={18} />
                         </button>
                         <div className="w-px h-5 bg-gray-200"></div>
-                        <button
-                          onClick={() => setAiGeneratorOpen(true)}
-                          className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 rounded transition-all"
-                          title="Generate text with AI"
-                        >
-                          <Sparkles size={16} />
-                          <span className="hidden sm:inline">AI Generate</span>
-                        </button>
                         <button
                           onClick={() => setAiImageGeneratorOpen(true)}
                           className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold text-pink-600 hover:text-pink-700 hover:bg-pink-50 rounded transition-all"
