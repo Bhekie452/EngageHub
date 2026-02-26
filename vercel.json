@@ -31,6 +31,14 @@
     {
       "source": "/api/utils/:endpoint",
       "destination": "/api/utils?endpoint=:endpoint"
+    },
+    {
+      "source": "/auth/(.*)",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/select-facebook-pages",
+      "destination": "/index.html"
     }
   ],
   "crons": [
