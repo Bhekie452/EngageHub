@@ -1568,16 +1568,16 @@ const SocialMedia: React.FC = () => {
     switch (activeTab) {
       case 'accounts':
         return (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {/* New Facebook Connection Manager */}
             <FacebookConnection />
 
             {[
-              { name: 'Instagram', handle: '@engagehub_creations', platform: 'instagram', icon: <Instagram className="text-pink-600" /> },
-              { name: 'LinkedIn Profile', handle: 'John Doe', platform: 'linkedin', icon: <Linkedin className="text-blue-700" /> },
-              { name: 'X (Twitter)', handle: '@engagehub', platform: 'twitter', icon: <X className="text-black" /> },
-              { name: 'TikTok', handle: '@engagehub_official', platform: 'tiktok', icon: <Music className="text-black" /> },
-              { name: 'YouTube', handle: 'Engagehub Tutorials', platform: 'youtube', icon: <Youtube className="text-red-600" /> },
+              { name: 'Instagram', handle: '@bhekietsa', platform: 'instagram', icon: <Instagram size={22} className="text-white" />, bgColor: 'bg-pink-500' },
+              { name: 'LinkedIn', handle: '', platform: 'linkedin', icon: <Linkedin size={22} className="text-white" />, bgColor: 'bg-blue-800' },
+              { name: 'X (Twitter)', handle: '', platform: 'twitter', icon: <X size={22} className="text-white" />, bgColor: 'bg-black' },
+              { name: 'TikTok', handle: '@bhekitsabedze24', platform: 'tiktok', icon: <Music size={22} className="text-white" />, bgColor: 'bg-gray-900' },
+              { name: 'YouTube', handle: '@BHEKITSABEDZE-Z7W', platform: 'youtube', icon: <Youtube size={22} className="text-white" />, bgColor: 'bg-red-600' },
             ].map((account, idx) => {
               const activeAccounts = connectedAccounts.filter(ca => ca.is_active);
               const connectedAccount = activeAccounts.find(ca => ca.platform === account.platform);
@@ -1615,52 +1615,90 @@ const SocialMedia: React.FC = () => {
                 }
               }
 
+              // Platform-specific external links
+              const platformLinks: Record<string, string> = {
+                instagram: 'https://instagram.com',
+                linkedin: 'https://linkedin.com',
+                twitter: 'https://x.com',
+                tiktok: 'https://tiktok.com',
+                youtube: 'https://youtube.com',
+              };
+
               return (
-                <div key={idx} className={`p-6 rounded-2xl border flex flex-col justify-between group transition-all duration-300 shadow-sm min-h-[160px] ${isConnected ? 'bg-white border-blue-100 ring-1 ring-blue-50/50 hover:shadow-lg hover:shadow-blue-100/50' : 'bg-white border-gray-100 hover:border-blue-200 hover:shadow-md'}`}>
-                  <div className="flex items-start gap-4 mb-4">
-                    <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 shadow-sm transition-transform group-hover:scale-105 duration-300 ${isConnected ? 'bg-white border border-gray-50 overflow-hidden' : 'bg-gray-50'}`}>
-                      {isConnected && displayAccount?.avatar_url ? (
-                        <img src={displayAccount.avatar_url} alt={displayAccount.display_name} className="w-full h-full object-cover" />
-                      ) : (
-                        React.cloneElement(account.icon as React.ReactElement, { size: 28, className: isConnected ? (account.icon as React.ReactElement).props.className : 'text-gray-600' })
-                      )}
-                    </div>
-                    <div className="overflow-hidden">
-                      <h4 className={`text-md font-black truncate leading-tight ${isConnected ? 'text-gray-900' : 'text-gray-700'}`}>
-                        {isConnected && (displayAccount?.display_name || displayAccount?.username || account.name) ? (displayAccount?.display_name || displayAccount?.username) : account.name}
-                      </h4>
-                      <div className="mt-1">
-                        <p className="text-xs text-gray-500 font-semibold truncate uppercase tracking-wider">
-                          {isConnected ? (displayAccount?.username || displayAccount?.display_name || 'Connected') : account.handle}
-                        </p>
+                <div key={idx} className="bg-white rounded-2xl border border-gray-200 p-6 flex flex-col justify-between group transition-all duration-300 hover:shadow-md min-h-[220px]">
+                  {/* Top row: icon + badges */}
+                  <div>
+                    <div className="flex items-start justify-between mb-5">
+                      <div className={`w-12 h-12 rounded-full ${(account as any).bgColor || 'bg-gray-800'} flex items-center justify-center shrink-0 shadow-sm`}>
+                        {account.icon}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {isConnected && (
+                          <span className="flex items-center gap-1.5 text-[10px] font-bold text-green-700 bg-green-50 px-2.5 py-1 rounded-full border border-green-100">
+                            <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
+                            LIVE
+                          </span>
+                        )}
+                        <button className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-all">
+                          <MoreVertical size={16} />
+                        </button>
                       </div>
                     </div>
-                  </div>
-                  <div className="flex items-center justify-between mt-auto">
-                    <div className="flex-1">
-                      {account.platform === 'youtube' && !isConnected && <YouTubeContextualConnect compact context="general" />}
-                      {isConnected && (
-                        <span className="flex items-center gap-1.5 text-[10px] font-black text-green-600 bg-green-50 px-2.5 py-1 rounded-full uppercase tracking-wider border border-green-100 shadow-sm w-fit">
-                          <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
-                          Live
-                        </span>
-                      )}
-                      {/* If the dashboard thinks it's connected but profile text is missing, show a tiny hint */}
-                      {isConnected && account.platform === 'youtube' && !displayAccount?.display_name && (
-                        <span className="text-[8px] text-gray-400 mt-1 block italic">Profile details pending sync</span>
+
+                    {/* Platform info */}
+                    <div className="mb-1">
+                      <div className="flex items-center gap-1.5">
+                        <h4 className="text-lg font-bold text-gray-900">{account.name}</h4>
+                        {isConnected && <CheckCircle2 size={16} className="text-blue-500" />}
+                      </div>
+                      {isConnected ? (
+                        <>
+                          <p className="text-sm text-gray-600 truncate mt-0.5">
+                            {displayAccount?.display_name || displayAccount?.username || account.name}
+                          </p>
+                          <p className="text-xs text-gray-400 font-medium truncate uppercase tracking-wider mt-0.5">
+                            {displayAccount?.username || displayAccount?.display_name || 'CONNECTED'}
+                          </p>
+                        </>
+                      ) : (
+                        <p className="text-sm text-gray-500 mt-0.5">Not connected</p>
                       )}
                     </div>
+                  </div>
 
-                    {needsInstagramReconnect && (
+                  {/* Bottom actions */}
+                  <div className="mt-auto pt-4">
+                    {needsInstagramReconnect ? (
                       <button
                         onClick={() => handleConnectInstagram()}
-                        className="flex items-center gap-1.5 text-[10px] font-black text-white bg-blue-600 hover:bg-blue-700 hover:scale-105 active:scale-95 px-4 py-2.5 rounded-xl uppercase tracking-wider shadow-lg shadow-blue-200/50 transition-all ml-auto"
+                        className="w-full py-3 px-6 rounded-xl font-semibold text-sm text-white bg-indigo-600 hover:bg-indigo-700 transition-all shadow-sm"
                       >
-                        Reconnect
+                        Reconnect Account
                       </button>
-                    )}
-
-                    {!isConnected && account.platform !== 'youtube' && !needsInstagramReconnect && (
+                    ) : isConnected ? (
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (connectedAccount?.id) handleDisconnect(connectedAccount.id);
+                          }}
+                          className="flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50 hover:border-gray-300 transition-all"
+                        >
+                          <LogOut size={15} className="rotate-180" />
+                          Disconnect
+                        </button>
+                        <a
+                          href={platformLinks[account.platform] || '#'}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="p-2.5 rounded-xl border border-gray-200 text-gray-400 hover:text-blue-600 hover:border-blue-200 hover:bg-blue-50 transition-all"
+                        >
+                          <ExternalLink size={16} />
+                        </a>
+                      </div>
+                    ) : account.platform === 'youtube' ? (
+                      <YouTubeContextualConnect compact context="general" />
+                    ) : (
                       <button
                         onClick={() => {
                           if (account.platform === 'facebook') handleConnectFacebook();
@@ -1670,33 +1708,20 @@ const SocialMedia: React.FC = () => {
                           else if (account.platform === 'tiktok') handleConnectTikTok();
                           else alert(`${account.name} integration coming soon!`);
                         }}
-                        className="flex items-center gap-1.5 text-[10px] font-black text-white bg-blue-600 hover:bg-blue-700 hover:scale-105 active:scale-95 px-5 py-2.5 rounded-xl uppercase tracking-wider shadow-lg shadow-blue-200/50 transition-all ml-auto"
+                        className="w-full py-3 px-6 rounded-xl font-semibold text-sm text-white bg-indigo-600 hover:bg-indigo-700 transition-all shadow-sm"
                       >
-                        CONNECT
-                      </button>
-                    )}
-
-                    {isConnected && connectedAccount?.id && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDisconnect(connectedAccount.id);
-                        }}
-                        className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all border border-transparent hover:border-red-100 shadow-sm ml-auto"
-                        title="Disconnect account"
-                      >
-                        <LogOut size={18} />
+                        Connect Account
                       </button>
                     )}
                   </div>
                 </div>
               );
             })}
-            <button className="border-2 border-dashed border-gray-200 rounded-xl p-5 flex flex-col items-center justify-center gap-2 hover:border-blue-400 hover:bg-blue-50 transition-all group min-h-[94px]">
-              <div className="w-8 h-8 rounded-full bg-gray-50 flex items-center justify-center text-gray-400 group-hover:bg-blue-100 group-hover:text-blue-600">
-                <Plus size={18} />
+            <button className="border-2 border-dashed border-gray-200 rounded-2xl p-6 flex flex-col items-center justify-center gap-3 hover:border-blue-400 hover:bg-blue-50 transition-all group min-h-[220px]">
+              <div className="w-12 h-12 rounded-full bg-gray-50 flex items-center justify-center text-gray-400 group-hover:bg-blue-100 group-hover:text-blue-600 transition-all">
+                <Plus size={22} />
               </div>
-              <span className="text-xs font-bold text-gray-400 group-hover:text-blue-600 uppercase">Add Account</span>
+              <span className="text-sm font-semibold text-gray-400 group-hover:text-blue-600">Add Account</span>
             </button>
           </div>
         );
@@ -1787,8 +1812,27 @@ const SocialMedia: React.FC = () => {
     );
   }
 
+  // Count connected accounts for the header badge
+  const connectedCount = (() => {
+    const activeAccounts = connectedAccounts.filter(ca => ca.is_active);
+    const platforms = new Set(activeAccounts.map((a: any) => a.platform));
+    return platforms.size;
+  })();
+
   return (
     <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">Social Connections</h1>
+          <p className="text-gray-500 mt-1">Manage and monitor your connected social media accounts in one place.</p>
+        </div>
+        <div className="px-4 py-2 border border-gray-200 rounded-full text-sm font-medium text-gray-700 whitespace-nowrap">
+          {connectedCount} Connected
+        </div>
+      </div>
+
+      {/* Tabs */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-gray-200">
         <div className="flex overflow-x-auto no-scrollbar scroll-smooth">
           {tabs.map((tab) => (
