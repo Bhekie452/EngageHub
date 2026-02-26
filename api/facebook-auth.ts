@@ -420,52 +420,38 @@ async function handleFacebookSimple(req: VercelRequest, res: VercelResponse) {
       throw new Error(longTermData.error.message);
     }
 
-    // Get user's pages - add page_id field
+    // Get user's pages with nested IG expansion + category
     const pagesResponse = await fetch(
       `https://graph.facebook.com/v21.0/me/accounts?` +
-      `fields=id,page_id,name,access_token,instagram_business_account&` +
+      `fields=id,name,category,access_token,instagram_business_account{id,username,profile_picture_url}&` +
       `access_token=${longTermData.access_token}&` +
       `limit=100`
     );
 
     const pagesData = await pagesResponse.json();
+    console.log('[handleFacebookSimple] Raw pages API response:', JSON.stringify(pagesData));
 
-    // Map pages and fetch Instagram details for each
+    // Map pages - IG details come from nested expansion
     const rawPages = pagesData.data || [];
-    const mappedPages = await Promise.all(
-      rawPages.map(async (page: any) => {
-        const igRef = page.instagram_business_account;
-        let igId = igRef?.id || null;
-        let igUsername = null;
+    const mappedPages = rawPages.map((page: any) => {
+      const igRef = page.instagram_business_account;
+      const igId = igRef?.id || null;
+      const igUsername = igRef?.username || null;
 
-        // If page has an IG business account, fetch the username
-        if (igId && page.access_token) {
-          try {
-            const igResp = await fetch(
-              `https://graph.facebook.com/v21.0/${igId}?fields=id,username,profile_picture_url&access_token=${page.access_token}`
-            );
-            const igData = await igResp.json();
-            if (igData && !igData.error) {
-              igUsername = igData.username || null;
-              console.log(`[handleFacebookSimple] Page "${page.name}" → IG @${igUsername}`);
-            }
-          } catch (e) {
-            console.warn(`[handleFacebookSimple] Failed to fetch IG details for page "${page.name}":`, e);
-          }
-        }
+      console.log(`[handleFacebookSimple] Page "${page.name}" (${page.id}) → IG id=${igId}, username=${igUsername}`);
 
-        return {
-          pageId: page.id || page.page_id,
-          pageName: page.name,
-          name: page.name,
-          accessToken: page.access_token,
-          instagramBusinessAccount: igRef,
-          instagramBusinessAccountId: igId,
-          instagramBusinessAccountUsername: igUsername,
-          hasInstagram: !!igId,
-        };
-      })
-    );
+      return {
+        pageId: page.id,
+        pageName: page.name,
+        name: page.name,
+        category: page.category || 'Unknown',
+        accessToken: page.access_token,
+        instagramBusinessAccount: igRef || null,
+        instagramBusinessAccountId: igId,
+        instagramBusinessAccountUsername: igUsername,
+        hasInstagram: !!igId,
+      };
+    });
 
     // Get user profile
     const profileResponse = await fetch(
@@ -490,7 +476,13 @@ async function handleFacebookSimple(req: VercelRequest, res: VercelResponse) {
       workspaceId: workspaceId,
       debug: {
         permissions: longTermData.scope || 'N/A',
-        pagesSummary: pagesData.summary || null
+        pagesSummary: pagesData.summary || null,
+        rawPages: rawPages.map((p: any) => ({
+          id: p.id,
+          name: p.name,
+          category: p.category,
+          instagram_business_account: p.instagram_business_account || 'NOT_RETURNED'
+        }))
       }
     });
 

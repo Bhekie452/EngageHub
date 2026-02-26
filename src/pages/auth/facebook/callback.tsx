@@ -71,6 +71,15 @@ export default function FacebookCallback() {
       .then(res => res.json())
       .then(data => {
         console.log('✅ OAuth + Pages response:', data);
+        if (data.debug) {
+          console.log('🔍 DEBUG - Raw pages from Facebook API:', JSON.stringify(data.debug.rawPages, null, 2));
+          console.log('🔍 DEBUG - Permissions granted:', data.debug.permissions);
+        }
+        if (data.pages) {
+          data.pages.forEach((p: any) => {
+            console.log(`📄 Page "${p.pageName}" → hasInstagram: ${p.hasInstagram}, igId: ${p.instagramBusinessAccountId}, igUsername: ${p.instagramBusinessAccountUsername}`);
+          });
+        }
         setLoading(false);
         
         if (data.success && data.pages) {
@@ -207,9 +216,13 @@ export default function FacebookCallback() {
             />
             <div>
               <div style={{ fontWeight: 'bold' }}>{page.pageName}</div>
-              {(page.hasInstagram || page.instagramBusinessAccount || page.instagramBusinessAccountUsername || page.instagramUsername) && (
-                <div style={{ fontSize: '12px', color: '#666' }}>
-                  📷 Instagram Business Account Connected{page.instagramBusinessAccountUsername || page.instagramUsername ? ` — @${page.instagramBusinessAccountUsername || page.instagramUsername}` : ''}
+              {page.hasInstagram ? (
+                <div style={{ fontSize: '12px', color: '#16a34a' }}>
+                  📷 Instagram Connected{page.instagramBusinessAccountUsername ? ` — @${page.instagramBusinessAccountUsername}` : page.instagramBusinessAccountId ? ` (ID: ${page.instagramBusinessAccountId})` : ''}
+                </div>
+              ) : (
+                <div style={{ fontSize: '12px', color: '#999' }}>
+                  No Instagram Business Account linked
                 </div>
               )}
               <div style={{ fontSize: '12px', color: '#666' }}>
