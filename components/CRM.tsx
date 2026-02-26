@@ -4931,7 +4931,17 @@ const CRM: React.FC = () => {
       </div>
 
       <div className="animate-in fade-in slide-in-from-bottom-2 duration-500 fill-mode-both">
-        {renderTabContent()}
+        {(() => {
+          const content = renderTabContent();
+          // strip any accidental strings containing build artifacts (e.g. "); case 'pipelines': return (")
+          const filtered = React.Children.toArray(content).filter(
+            (c) => !(typeof c === 'string' && c.includes("case 'pipelines'") )
+          );
+          if (filtered.length !== React.Children.toArray(content).length) {
+            console.warn('Filtered stray code text from CRM render output');
+          }
+          return filtered;
+        })()}
       </div>
 
       {/* Deal Detail Drawer (shared by Pipelines and Deals) */}
