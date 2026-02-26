@@ -1977,7 +1977,6 @@ export const analyticsService = {
         status,
         posts!inner (
           id,
-          title,
           content,
           link_url,
           workspace_id
@@ -2012,7 +2011,7 @@ export const analyticsService = {
     for (const pub of publications) {
       try {
         const post = (pub as any).posts;
-        const postTitle = post?.title || post?.content?.slice(0, 30) || 'Untitled';
+        const postTitle = post?.content?.slice(0, 30) || 'Untitled';
         const platform = pub.platform;
         platformsSet.add(platform);
 
