@@ -202,6 +202,40 @@ const Analytics: React.FC = () => {
     return series;
   }, [deals, rangeDates]);
 
+  // compute top posts and platform breakdown at top level to avoid conditional hooks
+  const topPosts = useMemo(() => {
+    return posts
+      .map((p: any) => {
+        const totalEngagement = (p.likes || 0) + (p.comments || 0) + (p.shares || 0);
+        const engagementRate = p.views ? (totalEngagement / p.views) * 100 : 0;
+        return { ...p, totalEngagement, engagementRate };
+      })
+      .sort((a: any, b: any) => b.totalEngagement - a.totalEngagement)
+      .slice(0, 5);
+  }, [posts]);
+
+  const engagementByPlatform = useMemo(() => {
+    const platformEngagement: Record<string, { likes: number; comments: number; shares: number; views: number }> = {};
+
+    posts.forEach((post: any) => {
+      (post.platforms || []).forEach((platform: string) => {
+        if (!platformEngagement[platform]) {
+          platformEngagement[platform] = { likes: 0, comments: 0, shares: 0, views: 0 };
+        }
+        platformEngagement[platform].likes += post.likes || 0;
+        platformEngagement[platform].comments += post.comments || 0;
+        platformEngagement[platform].shares += post.shares || 0;
+        platformEngagement[platform].views += post.views || 0;
+      });
+    });
+
+    return Object.entries(platformEngagement).map(([platform, stats]) => ({
+      platform: platform.charAt(0).toUpperCase() + platform.slice(1),
+      ...stats,
+      rate: stats.views > 0 ? ((stats.likes + stats.comments + stats.shares) / stats.views * 100).toFixed(2) : '0.00'
+    }));
+  }, [posts]);
+
   const tabs: { id: AnalyticsTab; label: string; icon: React.ReactNode }[] = [
     { id: 'overview', label: 'Overview', icon: <BarChart3 size={16} /> },
     { id: 'social', label: 'Social performance', icon: <Share2 size={16} /> },
@@ -576,39 +610,7 @@ const Analytics: React.FC = () => {
         );
 
       case 'engagement':
-        const topPosts = useMemo(() => {
-          return posts
-            .map((p: any) => {
-              const totalEngagement = (p.likes || 0) + (p.comments || 0) + (p.shares || 0);
-              const engagementRate = p.views ? (totalEngagement / p.views) * 100 : 0;
-              return { ...p, totalEngagement, engagementRate };
-            })
-            .sort((a: any, b: any) => b.totalEngagement - a.totalEngagement)
-            .slice(0, 5);
-        }, [posts]);
-
-        const engagementByPlatform = useMemo(() => {
-          const platformEngagement: Record<string, { likes: number; comments: number; shares: number; views: number }> = {};
-
-          posts.forEach((post: any) => {
-            (post.platforms || []).forEach((platform: string) => {
-              if (!platformEngagement[platform]) {
-                platformEngagement[platform] = { likes: 0, comments: 0, shares: 0, views: 0 };
-              }
-              platformEngagement[platform].likes += post.likes || 0;
-              platformEngagement[platform].comments += post.comments || 0;
-              platformEngagement[platform].shares += post.shares || 0;
-              platformEngagement[platform].views += post.views || 0;
-            });
-          });
-
-          return Object.entries(platformEngagement).map(([platform, stats]) => ({
-            platform: platform.charAt(0).toUpperCase() + platform.slice(1),
-            ...stats,
-            rate: stats.views > 0 ? ((stats.likes + stats.comments + stats.shares) / stats.views * 100).toFixed(2) : '0.00'
-          }));
-        }, [posts]);
-
+        // topPosts and engagementByPlatform are defined above to ensure hooks order
         return (
           <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
             {/* Key Engagement Metrics */}
