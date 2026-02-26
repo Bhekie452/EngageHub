@@ -1,6 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Upload, Wand2, Loader2, Image as ImageIcon, Palette, Type, X, Check, Sparkles } from 'lucide-react';
-import { supabase } from '../src/lib/supabase';
+import { Upload, Wand2, Loader2, Image as ImageIcon, Type, X, Check, Sparkles } from 'lucide-react';
 import { useToast } from '../src/components/common/Toast';
 
 interface AIImageBlenderProps {
@@ -20,6 +19,58 @@ export const AIImageBlender: React.FC<AIImageBlenderProps> = ({ isOpen = true, o
   const toast = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const hexToRgba = (hex: string, alpha: number) => {
+    const normalized = hex.replace('#', '').trim();
+    if (!/^[0-9a-fA-F]{6}$/.test(normalized)) return `rgba(0,0,0,${alpha})`;
+    const r = parseInt(normalized.slice(0, 2), 16);
+    const g = parseInt(normalized.slice(2, 4), 16);
+    const b = parseInt(normalized.slice(4, 6), 16);
+    return `rgba(${r},${g},${b},${alpha})`;
+  };
+
+  const wrapLines = (ctx: CanvasRenderingContext2D, input: string, maxWidth: number) => {
+    const words = input.split(/\s+/).filter(Boolean);
+    const lines: string[] = [];
+    let current = '';
+
+    for (const word of words) {
+      const next = current ? `${current} ${word}` : word;
+      if (ctx.measureText(next).width <= maxWidth) {
+        current = next;
+        continue;
+      }
+      if (current) lines.push(current);
+      current = word;
+    }
+    if (current) lines.push(current);
+    return lines;
+  };
+
+  const drawRoundedRect = (
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+    r: number
+  ) => {
+    const radius = Math.max(0, Math.min(r, Math.min(w, h) / 2));
+    // Modern browsers support roundRect; fall back when unavailable.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const anyCtx: any = ctx;
+    if (typeof anyCtx.roundRect === 'function') {
+      anyCtx.beginPath();
+      anyCtx.roundRect(x, y, w, h, radius);
+      return;
+    }
+    ctx.beginPath();
+    ctx.moveTo(x + radius, y);
+    ctx.arcTo(x + w, y, x + w, y + h, radius);
+    ctx.arcTo(x + w, y + h, x, y + h, radius);
+    ctx.arcTo(x, y + h, x, y, radius);
+    ctx.arcTo(x, y, x + w, y, radius);
+  };
+
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
@@ -27,6 +78,11 @@ export const AIImageBlender: React.FC<AIImageBlenderProps> = ({ isOpen = true, o
         toast?.error('File size must be less than 10MB');
         return;
       }
+      if (!file.type.startsWith('image/')) {
+        toast?.error('Please upload an image file');
+        return;
+      }
+      if (imagePreview) URL.revokeObjectURL(imagePreview);
       setImage(file);
       setImagePreview(URL.createObjectURL(file));
     }
@@ -41,6 +97,7 @@ export const AIImageBlender: React.FC<AIImageBlenderProps> = ({ isOpen = true, o
           toast?.error('File size must be less than 10MB');
           return;
         }
+        if (imagePreview) URL.revokeObjectURL(imagePreview);
         setImage(file);
         setImagePreview(URL.createObjectURL(file));
       } else {
@@ -54,44 +111,129 @@ export const AIImageBlender: React.FC<AIImageBlenderProps> = ({ isOpen = true, o
   };
 
   const handleGenerate = async () => {
-    if (!image) {
+    if (!image || !imagePreview) {
       toast?.error('Please upload an image first.');
+      return;
+    }
+
+    const headline = (text || '').trim();
+    if (!headline) {
+      toast?.error('Please enter the text you want on the image.');
       return;
     }
 
     setIsGenerating(true);
     setGeneratedImage(null);
 
-    const reader = new FileReader();
-    reader.readAsDataURL(image);
-    reader.onloadend = async () => {
-      const base64Image = reader.result?.toString().split(',')[1];
+    try {
+      const img = new Image();
+      await new Promise<void>((resolve, reject) => {
+        img.onload = () => resolve();
+        img.onerror = () => reject(new Error('Failed to load image'));
+        img.src = imagePreview;
+      });
 
-      try {
-        const { data, error } = await supabase.functions.invoke('ai-image-blender', {
-          body: {
-            image: base64Image,
-            text,
-            textColor,
-            backgroundColor,
-          },
-        });
+      // Social ad/banner friendly size
+      const canvas = document.createElement('canvas');
+      canvas.width = 1200;
+      canvas.height = 630;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) throw new Error('Canvas not supported');
 
-        if (error) {
-          throw error;
-        }
+      // Draw image (cover)
+      const imgRatio = img.width / img.height;
+      const canvasRatio = canvas.width / canvas.height;
+      let sx = 0;
+      let sy = 0;
+      let sw = img.width;
+      let sh = img.height;
 
-        // Add proper data URI prefix for image display
-        const imageMimeType = image?.type || 'image/png';
-        setGeneratedImage(`data:${imageMimeType};base64,${data.image}`);
-        toast?.success('Image generated successfully!');
-      } catch (error) {
-        console.error('Error generating image:', error);
-        toast?.error('Failed to generate image. Please try again.');
-      } finally {
-        setIsGenerating(false);
+      if (imgRatio > canvasRatio) {
+        sw = img.height * canvasRatio;
+        sx = (img.width - sw) / 2;
+      } else {
+        sh = img.width / canvasRatio;
+        sy = (img.height - sh) / 2;
       }
-    };
+
+      ctx.drawImage(img, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
+
+      // Subtle dark gradient overlay for readability (left -> right)
+      const leftGradient = ctx.createLinearGradient(0, 0, canvas.width, 0);
+      leftGradient.addColorStop(0, 'rgba(0,0,0,0.62)');
+      leftGradient.addColorStop(0.55, 'rgba(0,0,0,0.18)');
+      leftGradient.addColorStop(1, 'rgba(0,0,0,0.00)');
+      ctx.fillStyle = leftGradient;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // Slight top vignette
+      const topGradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+      topGradient.addColorStop(0, 'rgba(0,0,0,0.25)');
+      topGradient.addColorStop(0.45, 'rgba(0,0,0,0.00)');
+      ctx.fillStyle = topGradient;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // Typography (upper-left preferred)
+      const padding = 80;
+      const maxTextWidth = Math.floor(canvas.width * 0.62);
+      const fontSize = 72;
+      const lineHeight = Math.round(fontSize * 1.12);
+
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'top';
+      ctx.font = `800 ${fontSize}px Inter, system-ui, -apple-system, Segoe UI, sans-serif`;
+      const lines = wrapLines(ctx, headline, maxTextWidth);
+
+      // Limit runaway text height
+      const safeLines = lines.slice(0, 6);
+      const measuredWidths = safeLines.map((l) => ctx.measureText(l).width);
+      const maxLineWidth = Math.max(...measuredWidths, 0);
+
+      const boxPaddingX = 34;
+      const boxPaddingY = 28;
+      const boxW = Math.min(maxTextWidth, Math.ceil(maxLineWidth)) + boxPaddingX * 2;
+      const boxH = safeLines.length * lineHeight + boxPaddingY * 2;
+      const boxX = padding - boxPaddingX;
+      const boxY = 110 - boxPaddingY;
+
+      // Accent overlay tone behind text (premium banner feel)
+      ctx.save();
+      ctx.fillStyle = hexToRgba(backgroundColor, 0.28);
+      drawRoundedRect(ctx, boxX, boxY, boxW, boxH, 26);
+      ctx.fill();
+      ctx.restore();
+
+      // Small accent bar
+      ctx.save();
+      ctx.fillStyle = hexToRgba(backgroundColor, 0.65);
+      drawRoundedRect(ctx, boxX, boxY, 10, boxH, 10);
+      ctx.fill();
+      ctx.restore();
+
+      // Text
+      ctx.save();
+      ctx.fillStyle = textColor;
+      ctx.shadowColor = 'rgba(0,0,0,0.55)';
+      ctx.shadowBlur = 18;
+      ctx.shadowOffsetX = 0;
+      ctx.shadowOffsetY = 6;
+
+      let y = 110;
+      for (const line of safeLines) {
+        ctx.fillText(line, padding, y);
+        y += lineHeight;
+      }
+      ctx.restore();
+
+      const output = canvas.toDataURL('image/png');
+      setGeneratedImage(output);
+      toast?.success('Image generated successfully!');
+    } catch (error) {
+      console.error('Error generating image:', error);
+      toast?.error('Failed to generate image. Please try again.');
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   if (!isOpen) return null;
