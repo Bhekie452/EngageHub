@@ -37,6 +37,13 @@ export interface Contact {
   whatsapp_opt_in?: boolean;
   do_not_contact?: boolean;
   unsubscribed_at?: string;
+  // Social engagement fields
+  platform_user_id?: string;
+  platform?: string;
+  profile_url?: string;
+  engagement_count?: number;
+  last_engagement_at?: string;
+  harvested_from_engagement?: boolean;
   created_at: string;
   updated_at: string;
 }

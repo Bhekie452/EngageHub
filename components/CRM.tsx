@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import {
   Users,
   Building2,
@@ -58,7 +58,12 @@ import {
   Circle,
   Trophy,
   XCircle,
-  Bot
+  Bot,
+  Download,
+  Square,
+  CheckSquare,
+  UserPlus as UserPlusIcon,
+  RefreshCw
 } from 'lucide-react';
 import { useContacts } from '../src/hooks/useContacts';
 import { useCompanies } from '../src/hooks/useCompanies';
@@ -71,6 +76,7 @@ import { useAutomations } from '../src/hooks/useAutomations';
 import { useAuth } from '../src/hooks/useAuth';
 import { useNotes } from '../src/hooks/useNotes';
 import { useTimeline } from '../src/hooks/useTimeline';
+import { useEngagementHarvest } from '../src/hooks/useEngagementHarvest';
 import { TimelineEvent } from '../src/services/api/timeline.service';
 import { formatCurrency as formatCurrencyLib } from '../src/lib/currency';
 import { useQueryClient } from '@tanstack/react-query';
@@ -119,6 +125,132 @@ function mapStatusToUI(status: string, lifecycle_stage?: string): 'Customer' | '
   return 'Prospect';
 }
 
+// Lead Scoring Algorithm
+interface LeadScoreFactors {
+  source?: string;
+  hasEmail?: boolean;
+  hasPhone?: boolean;
+  hasCompany?: boolean;
+  activityCount?: number;
+  lastActivityDaysAgo?: number;
+  dealValue?: number;
+  status?: string;
+  lifecycle_stage?: string;
+  // Social engagement factors
+  socialEngagementCount?: number;
+  lastEngagementDaysAgo?: number;
+  harvestedFromEngagement?: boolean;
+}
+
+function calculateLeadScore(factors: LeadScoreFactors): { score: number; label: string; color: string } {
+  let score = 0;
+  
+  // Source score (0-25 points) - with engagement sources
+  const sourceScores: Record<string, number> = {
+    referral: 25,
+    facebook_engagement: 22,  // Engaged on Facebook
+    instagram_engagement: 22, // Engaged on Instagram
+    youtube_engagement: 20,   // Engaged on YouTube
+    email: 20,
+    web_form: 18,
+    facebook: 15,
+    instagram: 15,
+    whatsapp: 12,
+    manual: 10,
+    other: 5,
+  };
+  score += sourceScores[factors.source || 'other'] || 5;
+  
+  // Profile completeness (0-20 points)
+  if (factors.hasEmail) score += 8;
+  if (factors.hasPhone) score += 8;
+  if (factors.hasCompany) score += 4;
+  
+  // CRM Activity engagement (0-15 points)
+  const activityScore = Math.min((factors.activityCount || 0) * 3, 15);
+  score += activityScore;
+  
+  // SOCIAL MEDIA ENGAGEMENT (0-30 points) - THE KEY DIFFERENTIATOR
+  const engagementCount = factors.socialEngagementCount || 0;
+  if (engagementCount >= 10) score += 30;      // Super engaged
+  else if (engagementCount >= 5) score += 25;  // Very engaged
+  else if (engagementCount >= 3) score += 20;  // Engaged
+  else if (engagementCount >= 2) score += 15;  // Interested
+  else if (engagementCount >= 1) score += 10;  // Showed interest
+  
+  // Social engagement recency bonus (0-10 points)
+  const engagementDaysAgo = factors.lastEngagementDaysAgo ?? 999;
+  if (engagementDaysAgo <= 1) score += 10;     // Engaged today/yesterday
+  else if (engagementDaysAgo <= 3) score += 8;
+  else if (engagementDaysAgo <= 7) score += 5;
+  else if (engagementDaysAgo <= 14) score += 2;
+  
+  // CRM activity recency bonus (0-5 points)
+  const daysAgo = factors.lastActivityDaysAgo ?? 999;
+  if (daysAgo <= 1) score += 5;
+  else if (daysAgo <= 3) score += 3;
+  else if (daysAgo <= 7) score += 2;
+  
+  // Deal value bonus (0-15 points)
+  const value = factors.dealValue || 0;
+  if (value >= 10000) score += 15;
+  else if (value >= 5000) score += 12;
+  else if (value >= 1000) score += 8;
+  else if (value > 0) score += 4;
+  
+  // Status bonus (0-10 points)
+  if (factors.status === 'customer' || factors.lifecycle_stage === 'customer') score += 10;
+  else if (factors.status === 'qualified' || factors.lifecycle_stage === 'sql') score += 7;
+  else if (factors.lifecycle_stage === 'mql') score += 5;
+  
+  // Bonus for harvested social engagers (they showed organic interest)
+  if (factors.harvestedFromEngagement) score += 5;
+  
+  // Normalize to 0-100
+  score = Math.min(score, 100);
+  
+  // Determine label and color
+  if (score >= 80) return { score, label: 'Hot', color: 'bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-400' };
+  if (score >= 60) return { score, label: 'Warm', color: 'bg-orange-100 text-orange-700 dark:bg-orange-900/20 dark:text-orange-400' };
+  if (score >= 40) return { score, label: 'Moderate', color: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/20 dark:text-yellow-400' };
+  return { score, label: 'Cold', color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400' };
+}
+
+// Export to CSV utility
+function exportToCSV<T extends Record<string, any>>(data: T[], filename: string, columns: { key: keyof T; label: string }[]) {
+  if (data.length === 0) {
+    alert('No data to export');
+    return;
+  }
+  
+  // Create header row
+  const headers = columns.map(col => `"${col.label}"`).join(',');
+  
+  // Create data rows
+  const rows = data.map(item => 
+    columns.map(col => {
+      const value = item[col.key];
+      if (value === null || value === undefined) return '""';
+      if (typeof value === 'object') return `"${JSON.stringify(value).replace(/"/g, '""')}"`;
+      return `"${String(value).replace(/"/g, '""')}"`;
+    }).join(',')
+  );
+  
+  // Combine headers and rows
+  const csv = [headers, ...rows].join('\n');
+  
+  // Create blob and download
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const link = document.createElement('a');
+  const url = URL.createObjectURL(blob);
+  link.setAttribute('href', url);
+  link.setAttribute('download', `${filename}_${new Date().toISOString().split('T')[0]}.csv`);
+  link.style.visibility = 'hidden';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
+
 
 // Get color based on contact
 function getContactColor(contact: Contact): string {
@@ -142,6 +274,20 @@ const CRM: React.FC = () => {
   const { notes, isLoading: isLoadingNotes, createNote, updateNote, deleteNote } = useNotes();
   const queryClient = useQueryClient();
   const { events: timelineEvents, groupedEvents, isLoading: isLoadingTimeline, error: timelineError, refetch: refetchTimeline } = useTimeline();
+  
+  // Engagement harvest hook for social media engagers
+  const { 
+    unharvestedEngagers, 
+    syncEngagers, 
+    harvestEngager, 
+    isLoadingUnharvested,
+    refetchUnharvested 
+  } = useEngagementHarvest();
+
+  // Bulk selection state
+  const [selectedContactIds, setSelectedContactIds] = useState<Set<string>>(new Set());
+  const [selectedDealIds, setSelectedDealIds] = useState<Set<string>>(new Set());
+  const [showBulkActions, setShowBulkActions] = useState(false);
 
   // Force timeline refresh when contacts change (new customer created)
   useEffect(() => {
@@ -685,19 +831,62 @@ const CRM: React.FC = () => {
     lifecycle_stage: 'lead' as Company['lifecycle_stage'],
   });
 
-  // Transform database contacts to UI format
+  // Transform database contacts to UI format with lead scoring
   const contacts = useMemo(() => {
-    return dbContacts.map(contact => ({
-      id: contact.id,
-      name: contact.full_name || `${contact.first_name || ''} ${contact.last_name || ''}`.trim() || 'Unnamed',
-      email: contact.email || '',
-      status: mapStatusToUI(contact.status, contact.lifecycle_stage),
-      company: contact.company_name || '',
-      lastContact: formatTimeAgo(contact.last_contacted_at || contact.last_activity_at),
-      color: getContactColor(contact),
-      dbContact: contact, // Keep reference to original
-    }));
-  }, [dbContacts]);
+    return dbContacts.map(contact => {
+      // Calculate activity count and last activity for lead scoring
+      const contactActivities = savedActivities.filter(a => a.contact_id === contact.id);
+      const lastActivityDate = contact.last_activity_at || contact.last_contacted_at;
+      const daysSinceActivity = lastActivityDate 
+        ? Math.floor((Date.now() - new Date(lastActivityDate).getTime()) / 86400000)
+        : 999;
+      
+      // Get deal value for this contact
+      const contactDeals = deals?.filter(d => d.contact_id === contact.id) || [];
+      const totalDealValue = contactDeals.reduce((sum, d) => sum + (Number(d.amount) || 0), 0);
+      
+      // Social engagement data (from harvested contacts)
+      const engagementCount = (contact as any).engagement_count || 0;
+      const lastEngagementDate = (contact as any).last_engagement_at;
+      const daysSinceEngagement = lastEngagementDate
+        ? Math.floor((Date.now() - new Date(lastEngagementDate).getTime()) / 86400000)
+        : 999;
+      const harvestedFromEngagement = (contact as any).harvested_from_engagement || false;
+      
+      // Calculate lead score with social engagement
+      const leadScore = calculateLeadScore({
+        source: (contact as any).source || (contact as any).lead_source,
+        hasEmail: !!contact.email,
+        hasPhone: !!contact.phone,
+        hasCompany: !!contact.company_name,
+        activityCount: contactActivities.length,
+        lastActivityDaysAgo: daysSinceActivity,
+        dealValue: totalDealValue,
+        status: contact.status,
+        lifecycle_stage: contact.lifecycle_stage,
+        // Social engagement factors
+        socialEngagementCount: engagementCount,
+        lastEngagementDaysAgo: daysSinceEngagement,
+        harvestedFromEngagement,
+      });
+
+      return {
+        id: contact.id,
+        name: contact.full_name || `${contact.first_name || ''} ${contact.last_name || ''}`.trim() || 'Unnamed',
+        email: contact.email || '',
+        phone: contact.phone || '',
+        status: mapStatusToUI(contact.status, contact.lifecycle_stage),
+        company: contact.company_name || '',
+        lastContact: formatTimeAgo(contact.last_contacted_at || contact.last_activity_at),
+        color: getContactColor(contact),
+        dbContact: contact, // Keep reference to original
+        leadScore, // Add lead score
+        engagementCount, // Track engagement count for display
+        platform: (contact as any).platform,
+        harvestedFromEngagement,
+      };
+    });
+  }, [dbContacts, savedActivities, deals]);
 
   const tabs: { id: CRMTab; label: string; icon: React.ReactNode }[] = [
     { id: 'pipelines', label: 'Pipelines', icon: <Trello size={16} /> },
@@ -1278,6 +1467,156 @@ const CRM: React.FC = () => {
     }
   };
 
+  // Bulk Actions Handlers
+  const toggleContactSelection = useCallback((contactId: string) => {
+    setSelectedContactIds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(contactId)) {
+        newSet.delete(contactId);
+      } else {
+        newSet.add(contactId);
+      }
+      return newSet;
+    });
+  }, []);
+
+  const toggleSelectAllContacts = useCallback(() => {
+    if (selectedContactIds.size === filteredContacts.length) {
+      setSelectedContactIds(new Set());
+    } else {
+      setSelectedContactIds(new Set(filteredContacts.map(c => c.id)));
+    }
+  }, [filteredContacts, selectedContactIds.size]);
+
+  const handleBulkDeleteContacts = async () => {
+    if (selectedContactIds.size === 0) return;
+    
+    if (!window.confirm(`Are you sure you want to delete ${selectedContactIds.size} contact(s)?`)) {
+      return;
+    }
+    
+    try {
+      for (const id of selectedContactIds) {
+        await deleteContact.mutateAsync(id);
+      }
+      setSelectedContactIds(new Set());
+      alert(`Successfully deleted ${selectedContactIds.size} contact(s)`);
+    } catch (err) {
+      console.error('Error bulk deleting contacts:', err);
+      alert('Failed to delete some contacts. Please try again.');
+    }
+  };
+
+  const handleBulkUpdateStatus = async (newStatus: string) => {
+    if (selectedContactIds.size === 0) return;
+    
+    try {
+      for (const id of selectedContactIds) {
+        await updateContact.mutateAsync({
+          id,
+          updates: { status: newStatus }
+        });
+      }
+      setSelectedContactIds(new Set());
+      alert(`Successfully updated ${selectedContactIds.size} contact(s)`);
+    } catch (err) {
+      console.error('Error bulk updating contacts:', err);
+      alert('Failed to update some contacts. Please try again.');
+    }
+  };
+
+  const handleExportContacts = () => {
+    const dataToExport = selectedContactIds.size > 0 
+      ? contacts.filter(c => selectedContactIds.has(c.id))
+      : filteredContacts;
+    
+    exportToCSV(
+      dataToExport.map(c => ({
+        name: c.name,
+        email: c.email,
+        phone: c.phone,
+        status: c.status,
+        company: c.company,
+        lead_score: c.leadScore.score,
+        lead_rating: c.leadScore.label,
+        last_contact: c.lastContact,
+      })),
+      'contacts',
+      [
+        { key: 'name', label: 'Name' },
+        { key: 'email', label: 'Email' },
+        { key: 'phone', label: 'Phone' },
+        { key: 'status', label: 'Status' },
+        { key: 'company', label: 'Company' },
+        { key: 'lead_score', label: 'Lead Score' },
+        { key: 'lead_rating', label: 'Lead Rating' },
+        { key: 'last_contact', label: 'Last Contact' },
+      ]
+    );
+    
+    if (selectedContactIds.size > 0) {
+      setSelectedContactIds(new Set());
+    }
+  };
+
+  const handleExportDeals = () => {
+    const dataToExport = selectedDealIds.size > 0 
+      ? (deals || []).filter(d => selectedDealIds.has(d.id))
+      : filteredDeals;
+    
+    exportToCSV(
+      dataToExport.map(d => ({
+        title: d.title,
+        amount: Number(d.amount) || 0,
+        stage: d.pipeline_stages?.name || 'Unknown',
+        status: d.status,
+        contact: d.contacts?.full_name || d.contacts?.company_name || '',
+        expected_close: d.expected_close_date || '',
+        created: d.created_at,
+      })),
+      'deals',
+      [
+        { key: 'title', label: 'Deal Title' },
+        { key: 'amount', label: 'Amount' },
+        { key: 'stage', label: 'Stage' },
+        { key: 'status', label: 'Status' },
+        { key: 'contact', label: 'Contact' },
+        { key: 'expected_close', label: 'Expected Close Date' },
+        { key: 'created', label: 'Created Date' },
+      ]
+    );
+    
+    if (selectedDealIds.size > 0) {
+      setSelectedDealIds(new Set());
+    }
+  };
+
+  const handleExportActivities = () => {
+    exportToCSV(
+      filteredActivities.map(a => ({
+        type: a.activity_type,
+        title: a.title,
+        content: a.content || '',
+        contact: contactNameById.get(a.contact_id || '') || '',
+        deal: dealTitleById.get(a.deal_id || '') || '',
+        status: a.status,
+        date: a.activity_date,
+        outcome: a.outcome || '',
+      })),
+      'activities',
+      [
+        { key: 'type', label: 'Type' },
+        { key: 'title', label: 'Title' },
+        { key: 'content', label: 'Content' },
+        { key: 'contact', label: 'Contact' },
+        { key: 'deal', label: 'Deal' },
+        { key: 'status', label: 'Status' },
+        { key: 'date', label: 'Date' },
+        { key: 'outcome', label: 'Outcome' },
+      ]
+    );
+  };
+
   const renderTabContent = () => {
     switch (activeTab) {
       case 'contacts':
@@ -1290,36 +1629,207 @@ const CRM: React.FC = () => {
           );
         }
         return (
-          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-200 dark:border-slate-800 shadow-sm overflow-hidden">
-            <div className="p-4 border-b border-gray-100 dark:border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-4 bg-gray-50/30 dark:bg-slate-800/20">
-              <div className="relative flex-1 max-w-md">
-                <Search className="absolute left-3 top-2.5 text-gray-400" size={16} />
-                <input
-                  type="text"
-                  placeholder="Search contacts..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl text-sm focus:ring-4 focus:ring-brand-500/20 transition-all outline-none dark:text-slate-100"
-                />
+          <div className="space-y-6">
+            {/* Unharvested Social Engagers Section */}
+            {unharvestedEngagers.length > 0 && (
+              <div className="bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 rounded-2xl border border-purple-200 dark:border-purple-800 p-4">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white">
+                      <Heart size={20} />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-black text-gray-900 dark:text-slate-100">
+                        🔥 {unharvestedEngagers.length} Social Engagers Waiting
+                      </h3>
+                      <p className="text-xs text-gray-500 dark:text-slate-400">
+                        People who commented/liked your posts but aren't contacts yet
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => refetchUnharvested()}
+                      className="p-2 text-gray-500 hover:text-gray-700 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-white/50 dark:hover:bg-slate-800/50 rounded-lg transition-all"
+                      title="Refresh"
+                    >
+                      <RefreshCw size={16} className={isLoadingUnharvested ? 'animate-spin' : ''} />
+                    </button>
+                    <button
+                      onClick={() => syncEngagers.mutate()}
+                      disabled={syncEngagers.isPending}
+                      className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-white bg-gradient-to-r from-purple-600 to-pink-600 rounded-xl hover:from-purple-700 hover:to-pink-700 shadow-lg shadow-purple-500/20 transition-all disabled:opacity-50"
+                    >
+                      {syncEngagers.isPending ? (
+                        <>
+                          <RefreshCw size={14} className="animate-spin" />
+                          Syncing...
+                        </>
+                      ) : (
+                        <>
+                          <UserPlusIcon size={14} />
+                          Add All as Contacts
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+                
+                {/* Engagers Preview */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+                  {unharvestedEngagers.slice(0, 4).map((engager, idx) => (
+                    <div
+                      key={`${engager.platform}-${engager.platform_user_id}-${idx}`}
+                      className="bg-white dark:bg-slate-800 rounded-xl p-3 border border-gray-200 dark:border-slate-700 flex items-center justify-between group hover:border-purple-300 dark:hover:border-purple-700 transition-all"
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold ${
+                          engager.platform === 'facebook' ? 'bg-blue-600' :
+                          engager.platform === 'instagram' ? 'bg-gradient-to-br from-purple-500 to-pink-500' :
+                          engager.platform === 'youtube' ? 'bg-red-600' :
+                          'bg-gray-500'
+                        }`}>
+                          {engager.platform === 'facebook' ? <Facebook size={14} /> :
+                           engager.platform === 'instagram' ? <Instagram size={14} /> :
+                           engager.name?.charAt(0) || '?'}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-bold text-gray-900 dark:text-slate-100 truncate">
+                            {engager.name || 'Unknown User'}
+                          </p>
+                          <p className="text-[10px] text-gray-500 dark:text-slate-400">
+                            {engager.engagement_count} engagements • {engager.platform}
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => harvestEngager.mutate(engager)}
+                        disabled={harvestEngager.isPending}
+                        className="p-1.5 text-gray-400 hover:text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded-lg opacity-0 group-hover:opacity-100 transition-all"
+                        title="Add as contact"
+                      >
+                        <Plus size={14} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                
+                {unharvestedEngagers.length > 4 && (
+                  <p className="text-xs text-gray-500 dark:text-slate-400 text-center mt-3">
+                    +{unharvestedEngagers.length - 4} more engagers waiting to be added
+                  </p>
+                )}
               </div>
-              <div className="flex gap-2">
-                <button className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-gray-600 dark:text-slate-300 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl hover:bg-gray-50 dark:hover:bg-slate-700 transition-all">
-                  <Filter size={16} /> Filter
-                </button>
-                <button
-                  onClick={openAddModal}
-                  className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-white bg-brand-600 rounded-xl hover:bg-brand-700 shadow-lg shadow-brand-500/20 transition-all"
-                >
-                  <Plus size={16} /> Add Contact
-                </button>
+            )}
+            
+            {/* Main Contacts Table */}
+            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-200 dark:border-slate-800 shadow-sm overflow-hidden">
+              <div className="p-4 border-b border-gray-100 dark:border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-4 bg-gray-50/30 dark:bg-slate-800/20">
+                <div className="relative flex-1 max-w-md">
+                  <Search className="absolute left-3 top-2.5 text-gray-400" size={16} />
+                  <input
+                    type="text"
+                    placeholder="Search contacts..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl text-sm focus:ring-4 focus:ring-brand-500/20 transition-all outline-none dark:text-slate-100"
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => syncEngagers.mutate()}
+                    disabled={syncEngagers.isPending}
+                    className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-purple-600 dark:text-purple-400 bg-white dark:bg-slate-800 border border-purple-200 dark:border-purple-700 rounded-xl hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-all disabled:opacity-50"
+                    title="Sync social media engagers as contacts"
+                  >
+                    <Heart size={16} /> Sync Engagers
+                  </button>
+                  <button 
+                    onClick={handleExportContacts}
+                    className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-gray-600 dark:text-slate-300 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl hover:bg-gray-50 dark:hover:bg-slate-700 transition-all"
+                    title="Export to CSV"
+                  >
+                    <Download size={16} /> Export
+                  </button>
+                  <button className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-gray-600 dark:text-slate-300 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl hover:bg-gray-50 dark:hover:bg-slate-700 transition-all">
+                    <Filter size={16} /> Filter
+                  </button>
+                  <button
+                    onClick={openAddModal}
+                    className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-white bg-brand-600 rounded-xl hover:bg-brand-700 shadow-lg shadow-brand-500/20 transition-all"
+                  >
+                    <Plus size={16} /> Add Contact
+                  </button>
+                </div>
               </div>
-            </div>
+            
+            {/* Bulk Actions Bar */}
+            {selectedContactIds.size > 0 && (
+              <div className="p-3 bg-brand-50 dark:bg-brand-900/20 border-b border-brand-200 dark:border-brand-800 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <span className="text-sm font-bold text-brand-700 dark:text-brand-300">
+                    {selectedContactIds.size} selected
+                  </span>
+                  <button
+                    onClick={() => setSelectedContactIds(new Set())}
+                    className="text-xs text-brand-600 dark:text-brand-400 hover:underline"
+                  >
+                    Clear selection
+                  </button>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="relative">
+                    <button
+                      onClick={() => setShowBulkActions(!showBulkActions)}
+                      className="flex items-center gap-2 px-3 py-1.5 text-xs font-bold text-brand-700 dark:text-brand-300 bg-white dark:bg-slate-800 border border-brand-300 dark:border-brand-700 rounded-lg hover:bg-brand-50 dark:hover:bg-brand-900/30 transition-all"
+                    >
+                      Update Status <ChevronDown size={12} />
+                    </button>
+                    {showBulkActions && (
+                      <div className="absolute right-0 top-full mt-1 py-1 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-lg z-50 min-w-[140px]">
+                        <button onClick={() => { handleBulkUpdateStatus('lead'); setShowBulkActions(false); }} className="w-full px-3 py-2 text-left text-xs font-bold hover:bg-gray-50 dark:hover:bg-slate-700">Mark as Lead</button>
+                        <button onClick={() => { handleBulkUpdateStatus('qualified'); setShowBulkActions(false); }} className="w-full px-3 py-2 text-left text-xs font-bold hover:bg-gray-50 dark:hover:bg-slate-700">Mark as Qualified</button>
+                        <button onClick={() => { handleBulkUpdateStatus('customer'); setShowBulkActions(false); }} className="w-full px-3 py-2 text-left text-xs font-bold hover:bg-gray-50 dark:hover:bg-slate-700">Mark as Customer</button>
+                      </div>
+                    )}
+                  </div>
+                  <button
+                    onClick={handleExportContacts}
+                    className="flex items-center gap-1 px-3 py-1.5 text-xs font-bold text-brand-700 dark:text-brand-300 bg-white dark:bg-slate-800 border border-brand-300 dark:border-brand-700 rounded-lg hover:bg-brand-50 dark:hover:bg-brand-900/30 transition-all"
+                  >
+                    <Download size={12} /> Export Selected
+                  </button>
+                  <button
+                    onClick={handleBulkDeleteContacts}
+                    className="flex items-center gap-1 px-3 py-1.5 text-xs font-bold text-red-600 dark:text-red-400 bg-white dark:bg-slate-800 border border-red-300 dark:border-red-700 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/30 transition-all"
+                  >
+                    <Trash2 size={12} /> Delete
+                  </button>
+                </div>
+              </div>
+            )}
+            
             <div className="overflow-x-auto">
               <table className="w-full text-left">
                 <thead>
                   <tr className="text-[10px] font-black text-gray-400 uppercase tracking-widest border-b border-gray-100 dark:border-slate-800">
+                    <th className="px-3 py-4 w-10">
+                      <button
+                        onClick={toggleSelectAllContacts}
+                        className="p-1 rounded hover:bg-gray-100 dark:hover:bg-slate-800 transition-all"
+                      >
+                        {selectedContactIds.size === filteredContacts.length && filteredContacts.length > 0 ? (
+                          <CheckSquare size={16} className="text-brand-600" />
+                        ) : selectedContactIds.size > 0 ? (
+                          <div className="w-4 h-4 border-2 border-brand-600 rounded bg-brand-100 dark:bg-brand-900/20" />
+                        ) : (
+                          <Square size={16} className="text-gray-400" />
+                        )}
+                      </button>
+                    </th>
                     <th className="px-6 py-4">Name</th>
                     <th className="px-6 py-4">Status</th>
+                    <th className="px-6 py-4">Lead Score</th>
                     <th className="px-6 py-4">Company</th>
                     <th className="px-6 py-4">Last Contact</th>
                     <th className="px-6 py-4 text-right">Actions</th>
@@ -1328,7 +1838,7 @@ const CRM: React.FC = () => {
                 <tbody className="divide-y divide-gray-50 dark:divide-slate-800">
                   {isLoading ? (
                     <tr>
-                      <td colSpan={5} className="px-6 py-20 text-center text-gray-400">
+                      <td colSpan={7} className="px-6 py-20 text-center text-gray-400">
                         <div className="flex items-center justify-center gap-2">
                           <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
                           <span>Loading contacts...</span>
@@ -1337,7 +1847,7 @@ const CRM: React.FC = () => {
                     </tr>
                   ) : error ? (
                     <tr>
-                      <td colSpan={5} className="px-6 py-20 text-center text-red-400">
+                      <td colSpan={7} className="px-6 py-20 text-center text-red-400">
                         Error loading contacts. Please refresh the page.
                       </td>
                     </tr>
@@ -1345,10 +1855,23 @@ const CRM: React.FC = () => {
                     filteredContacts.map((contact) => (
                       <tr
                         key={contact.id}
-                        onClick={() => setSelectedContactId(contact.dbContact.id)}
-                        className="hover:bg-gray-50/50 dark:hover:bg-slate-800/50 transition-all group cursor-pointer"
+                        className={`hover:bg-gray-50/50 dark:hover:bg-slate-800/50 transition-all group cursor-pointer ${
+                          selectedContactIds.has(contact.id) ? 'bg-brand-50/50 dark:bg-brand-900/10' : ''
+                        }`}
                       >
-                        <td className="px-6 py-4">
+                        <td className="px-3 py-4" onClick={(e) => e.stopPropagation()}>
+                          <button
+                            onClick={() => toggleContactSelection(contact.id)}
+                            className="p-1 rounded hover:bg-gray-100 dark:hover:bg-slate-800 transition-all"
+                          >
+                            {selectedContactIds.has(contact.id) ? (
+                              <CheckSquare size={16} className="text-brand-600" />
+                            ) : (
+                              <Square size={16} className="text-gray-400" />
+                            )}
+                          </button>
+                        </td>
+                        <td className="px-6 py-4" onClick={() => setSelectedContactId(contact.dbContact.id)}>
                           <div className="flex items-center gap-3">
                             <div className={`w-8 h-8 rounded-full bg-${contact.color}-50 dark:bg-${contact.color}-900/20 text-${contact.color}-600 flex items-center justify-center font-black text-xs`}>
                               {contact.name.charAt(0)}
@@ -1359,15 +1882,25 @@ const CRM: React.FC = () => {
                             </div>
                           </div>
                         </td>
-                        <td className="px-6 py-4">
+                        <td className="px-6 py-4" onClick={() => setSelectedContactId(contact.dbContact.id)}>
                           <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full ${contact.status === 'Customer' ? 'text-green-600 bg-green-50 dark:bg-green-900/20' :
                               contact.status === 'Lead' ? 'text-orange-600 bg-orange-50 dark:bg-orange-900/20' : 'text-blue-600 bg-blue-50 dark:bg-blue-900/20'
                             }`}>
                             {contact.status}
                           </span>
                         </td>
-                        <td className="px-6 py-4 text-sm text-gray-600 dark:text-slate-400 font-medium">{contact.company}</td>
-                        <td className="px-6 py-4 text-xs text-gray-400 font-bold uppercase">{contact.lastContact}</td>
+                        <td className="px-6 py-4" onClick={() => setSelectedContactId(contact.dbContact.id)}>
+                          <div className="flex items-center gap-2">
+                            <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full ${contact.leadScore.color}`}>
+                              {contact.leadScore.label}
+                            </span>
+                            <span className="text-xs font-bold text-gray-500 dark:text-slate-400">
+                              {contact.leadScore.score}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-600 dark:text-slate-400 font-medium" onClick={() => setSelectedContactId(contact.dbContact.id)}>{contact.company}</td>
+                        <td className="px-6 py-4 text-xs text-gray-400 font-bold uppercase" onClick={() => setSelectedContactId(contact.dbContact.id)}>{contact.lastContact}</td>
                         <td className="px-6 py-4 text-right">
                           <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-all">
                             <button
@@ -1393,7 +1926,7 @@ const CRM: React.FC = () => {
                     ))
                   ) : (
                     <tr>
-                      <td colSpan={5} className="px-6 py-20 text-center text-gray-400 italic">No contacts found.</td>
+                      <td colSpan={7} className="px-6 py-20 text-center text-gray-400 italic">No contacts found.</td>
                     </tr>
                   )}
                 </tbody>
@@ -1625,6 +2158,7 @@ const CRM: React.FC = () => {
               })}
             </div>
           </div>
+          </div>
         );
 
       case 'deals':
@@ -1690,12 +2224,21 @@ const CRM: React.FC = () => {
                   <h2 className="text-2xl font-black text-gray-900 dark:text-slate-100 mb-1">💰 Deals</h2>
                   <p className="text-sm text-gray-500 dark:text-slate-400">One deal = one possible sale</p>
                 </div>
-                <button
-                  onClick={openAddDealModal}
-                  className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-white bg-brand-600 rounded-xl hover:bg-brand-700 shadow-lg shadow-brand-500/20 transition-all"
-                >
-                  <Plus size={16} /> New Deal
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleExportDeals}
+                    className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-gray-600 dark:text-slate-300 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl hover:bg-gray-50 dark:hover:bg-slate-700 transition-all"
+                    title="Export to CSV"
+                  >
+                    <Download size={16} /> Export
+                  </button>
+                  <button
+                    onClick={openAddDealModal}
+                    className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-white bg-brand-600 rounded-xl hover:bg-brand-700 shadow-lg shadow-brand-500/20 transition-all"
+                  >
+                    <Plus size={16} /> New Deal
+                  </button>
+                </div>
               </div>
 
               {/* Filters */}
@@ -1973,12 +2516,21 @@ const CRM: React.FC = () => {
                   <h2 className="text-2xl font-black text-gray-900 dark:text-slate-100 mb-1">⚙️ CRM Activities</h2>
                   <p className="text-sm text-gray-500 dark:text-slate-400">Action log of your entire business</p>
                 </div>
-                <button
-                  onClick={openAddActivityModal}
-                  className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-white bg-brand-600 rounded-xl hover:bg-brand-700 shadow-lg shadow-brand-500/20 transition-all"
-                >
-                  <Plus size={16} /> New Activity
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleExportActivities}
+                    className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-gray-600 dark:text-slate-300 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl hover:bg-gray-50 dark:hover:bg-slate-700 transition-all"
+                    title="Export to CSV"
+                  >
+                    <Download size={16} /> Export
+                  </button>
+                  <button
+                    onClick={openAddActivityModal}
+                    className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-white bg-brand-600 rounded-xl hover:bg-brand-700 shadow-lg shadow-brand-500/20 transition-all"
+                  >
+                    <Plus size={16} /> New Activity
+                  </button>
+                </div>
               </div>
 
               {/* Filters */}
