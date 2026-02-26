@@ -32,11 +32,25 @@ export function useEngagementHarvest() {
   const syncEngagers = useMutation({
     mutationFn: () => engagementHarvestService.syncEngagers(),
     onSuccess: (result) => {
+      console.log('Sync result:', result);
       // Invalidate relevant queries
       queryClient.invalidateQueries({ queryKey: ['unharvested-engagers'] });
       queryClient.invalidateQueries({ queryKey: ['contacts'] });
       queryClient.invalidateQueries({ queryKey: ['top-engaged-contacts'] });
+      
+      // Show result to user
+      if (result.added > 0) {
+        alert(`Successfully added ${result.added} engager(s) as contacts!`);
+      } else if (result.message) {
+        alert(result.message);
+      } else {
+        alert('No new engagers to add. They may already be contacts.');
+      }
       return result;
+    },
+    onError: (error: any) => {
+      console.error('Sync error:', error);
+      alert(`Sync failed: ${error.message || 'Unknown error'}`);
     },
   });
 

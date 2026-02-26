@@ -128,18 +128,24 @@ export const engagementHarvestService = {
   /**
    * Sync all unharvested engagers to contacts (on-demand)
    */
-  async syncEngagers(): Promise<{ added: number; updated: number }> {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error('Not authenticated');
+  async syncEngagers(): Promise<{ added: number; updated: number; message?: string }> {
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) {
+      console.error('Auth error:', authError);
+      return { added: 0, updated: 0, message: 'Not authenticated' };
+    }
 
     // Get workspace
-    const { data: workspaceData } = await supabase
+    const { data: workspaceData, error: wsError } = await supabase
       .from('workspaces')
       .select('id')
       .eq('owner_id', user.id)
       .single();
 
-    if (!workspaceData) return { added: 0, updated: 0 };
+    if (wsError || !workspaceData) {
+      console.error('Workspace error:', wsError);
+      return { added: 0, updated: 0, message: 'No workspace found' };
+    }
 
     // Try to use the database function first (may not exist)
     const { data, error } = await supabase.rpc('sync_unharvested_engagers', {
@@ -147,6 +153,7 @@ export const engagementHarvestService = {
     });
 
     if (!error && data !== null) {
+      console.log('DB function returned:', data);
       return { added: data, updated: 0 };
     }
     
@@ -155,12 +162,19 @@ export const engagementHarvestService = {
 
     // Fallback: do it in JavaScript
     const unharvested = await this.getUnharvestedEngagersFallback(workspaceData.id);
+    console.log('Found unharvested engagers:', unharvested.length);
+    
+    if (unharvested.length === 0) {
+      return { added: 0, updated: 0, message: 'No unharvested engagers found. Make sure you have engagement data from social media.' };
+    }
+    
     let added = 0;
     let updated = 0;
 
     for (const engager of unharvested) {
       try {
-        const { error: insertError } = await supabase
+        // First, try insert with all new columns
+        let { error: insertError } = await supabase
           .from('contacts')
           .insert({
             workspace_id: workspaceData.id,
@@ -180,8 +194,28 @@ export const engagementHarvestService = {
             notes: `Auto-harvested from ${engager.platform} engagement. Actions: ${engager.action_types.join(', ')}`,
           });
 
+        // If columns don't exist, try basic insert
+        if (insertError && insertError.message?.includes('column')) {
+          console.log('New columns not found, using basic insert');
+          const { error: basicError } = await supabase
+            .from('contacts')
+            .insert({
+              workspace_id: workspaceData.id,
+              created_by: user.id,
+              full_name: engager.name || `Social User ${engager.platform_user_id.slice(0, 8)}`,
+              first_name: engager.name?.split(' ')[0] || null,
+              type: 'lead',
+              status: 'new',
+              lead_source: `${engager.platform}_engagement`,
+              notes: `Auto-harvested from ${engager.platform} (${engager.platform_user_id}). Actions: ${engager.action_types.join(', ')}`,
+            });
+          insertError = basicError;
+        }
+
         if (!insertError) {
           added++;
+        } else {
+          console.error('Insert error for engager:', insertError);
         }
       } catch (e) {
         console.error('Error adding engager as contact:', e);
@@ -206,7 +240,8 @@ export const engagementHarvestService = {
 
     if (!workspaceData) throw new Error('No workspace found');
 
-    const { data, error } = await supabase
+    // Try with all columns first
+    let { data, error } = await supabase
       .from('contacts')
       .insert({
         workspace_id: workspaceData.id,
@@ -227,6 +262,27 @@ export const engagementHarvestService = {
       })
       .select()
       .single();
+
+    // If columns don't exist, try basic insert
+    if (error && error.message?.includes('column')) {
+      console.log('New columns not found, using basic insert');
+      const result = await supabase
+        .from('contacts')
+        .insert({
+          workspace_id: workspaceData.id,
+          created_by: user.id,
+          full_name: engager.name || `Social User ${engager.platform_user_id.slice(0, 8)}`,
+          first_name: engager.name?.split(' ')[0] || null,
+          type: 'lead',
+          status: 'new',
+          lead_source: `${engager.platform}_engagement`,
+          notes: `Auto-harvested from ${engager.platform} (${engager.platform_user_id}). Actions: ${engager.action_types.join(', ')}`,
+        })
+        .select()
+        .single();
+      data = result.data;
+      error = result.error;
+    }
 
     if (error) {
       console.error('Error harvesting engager:', error);
