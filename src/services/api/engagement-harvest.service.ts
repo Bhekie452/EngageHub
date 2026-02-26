@@ -48,8 +48,7 @@ export const engagementHarvestService = {
       .limit(50);
 
     if (error) {
-      // View might not exist yet, fall back to direct query
-      console.warn('unharvested_engagers view not found, using fallback query');
+      // View might not exist yet, fall back to direct query silently
       return this.getUnharvestedEngagersFallback(workspaceData.id);
     }
 
@@ -142,18 +141,17 @@ export const engagementHarvestService = {
 
     if (!workspaceData) return { added: 0, updated: 0 };
 
-    // Try to use the database function first
-    try {
-      const { data, error } = await supabase.rpc('sync_unharvested_engagers', {
-        p_workspace_id: workspaceData.id
-      });
+    // Try to use the database function first (may not exist)
+    const { data, error } = await supabase.rpc('sync_unharvested_engagers', {
+      p_workspace_id: workspaceData.id
+    });
 
-      if (!error && data !== null) {
-        return { added: data, updated: 0 };
-      }
-    } catch (e) {
-      console.warn('DB function not available, using JS fallback');
+    if (!error && data !== null) {
+      return { added: data, updated: 0 };
     }
+    
+    // DB function not available - use JavaScript fallback silently
+    console.log('Using JS fallback for sync (DB function may not be installed)');
 
     // Fallback: do it in JavaScript
     const unharvested = await this.getUnharvestedEngagersFallback(workspaceData.id);
