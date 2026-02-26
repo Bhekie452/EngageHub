@@ -1844,7 +1844,6 @@ const Content: React.FC = () => {
                         </button>
                       </div>
                       <div className="flex items-center gap-3">
-                        <span className="text-xs font-medium text-gray-400">{postContent.length}/2,200</span>
                         <button className="p-1 text-gray-300 hover:text-gray-500"><MoreVertical size={16} /></button>
                       </div>
 
@@ -1941,18 +1940,16 @@ const Content: React.FC = () => {
 
                       {/* Campaign Picker */}
                       <div className="mt-4 space-y-2">
-                        <label className="text-xs font-bold text-gray-500 uppercase">Campaign (optional)</label>
                         <select
                           value={selectedCampaignId || ''}
                           onChange={(e) => setSelectedCampaignId(e.target.value || null)}
                           className="w-full h-10 px-3 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm font-medium text-gray-800"
                         >
-                          <option value="">No campaign</option>
+                          <option value="">Campaign</option>
                           {campaigns.map((c: any) => (
                             <option key={c.id} value={c.id}>{c.name}</option>
                           ))}
                         </select>
-                        <p className="text-[11px] text-gray-400">Link this post to a campaign for reporting.</p>
                       </div>
                     </div>
 
