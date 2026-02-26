@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Upload, Wand2, Loader2, Image as ImageIcon, Type, X, Check, Sparkles } from 'lucide-react';
 import { useToast } from '../src/components/common/Toast';
 
@@ -12,12 +12,18 @@ export const AIImageBlender: React.FC<AIImageBlenderProps> = ({ isOpen = true, o
   const [image, setImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [text, setText] = useState<string>('');
+  const [subheading, setSubheading] = useState<string>('');
   const [textColor, setTextColor] = useState<string>('#FFFFFF');
   const [backgroundColor, setBackgroundColor] = useState<string>('#000000');
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
   const [generatedImage, setGeneratedImage] = useState<string | null>(null);
+  const [styleSeed, setStyleSeed] = useState<number>(() => Date.now());
   const toast = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const regenTimerRef = useRef<number | null>(null);
+
+  const headingRef = useRef<HTMLDivElement>(null);
+  const subheadingRef = useRef<HTMLDivElement>(null);
 
   const hexToRgba = (hex: string, alpha: number) => {
     const normalized = hex.replace('#', '').trim();
@@ -27,6 +33,34 @@ export const AIImageBlender: React.FC<AIImageBlenderProps> = ({ isOpen = true, o
     const b = parseInt(normalized.slice(4, 6), 16);
     return `rgba(${r},${g},${b},${alpha})`;
   };
+
+  const mulberry32 = (seed: number) => {
+    let t = seed >>> 0;
+    return () => {
+      t += 0x6d2b79f5;
+      let r = Math.imul(t ^ (t >>> 15), 1 | t);
+      r ^= r + Math.imul(r ^ (r >>> 7), 61 | r);
+      return ((r ^ (r >>> 14)) >>> 0) / 4294967296;
+    };
+  };
+
+  const styleParams = useMemo(() => {
+    const rnd = mulberry32(styleSeed);
+    const gradientAngle = Math.floor(rnd() * 360);
+    const accentAlpha = 0.22 + rnd() * 0.16;
+    const accentBarAlpha = 0.55 + rnd() * 0.2;
+    const vignetteStrength = 0.18 + rnd() * 0.18;
+    const boxRadius = 22 + Math.floor(rnd() * 10);
+    const boxWidthFactor = 0.64 + rnd() * 0.1;
+    return {
+      gradientAngle,
+      accentAlpha,
+      accentBarAlpha,
+      vignetteStrength,
+      boxRadius,
+      boxWidthFactor,
+    };
+  }, [styleSeed]);
 
   const wrapLines = (ctx: CanvasRenderingContext2D, input: string, maxWidth: number) => {
     const words = input.split(/\s+/).filter(Boolean);
@@ -85,6 +119,8 @@ export const AIImageBlender: React.FC<AIImageBlenderProps> = ({ isOpen = true, o
       if (imagePreview) URL.revokeObjectURL(imagePreview);
       setImage(file);
       setImagePreview(URL.createObjectURL(file));
+      setGeneratedImage(null);
+      setStyleSeed(Date.now());
     }
   };
 
@@ -100,6 +136,8 @@ export const AIImageBlender: React.FC<AIImageBlenderProps> = ({ isOpen = true, o
         if (imagePreview) URL.revokeObjectURL(imagePreview);
         setImage(file);
         setImagePreview(URL.createObjectURL(file));
+        setGeneratedImage(null);
+        setStyleSeed(Date.now());
       } else {
         toast?.error('Please upload an image file');
       }
@@ -110,7 +148,147 @@ export const AIImageBlender: React.FC<AIImageBlenderProps> = ({ isOpen = true, o
     e.preventDefault();
   };
 
-  const handleGenerate = async () => {
+  const renderCompositeToDataUrl = async (opts?: { showToast?: boolean }) => {
+    if (!imagePreview || !image) return null;
+
+    const headline = (text || '').trim();
+    if (!headline) return null;
+
+    const sub = (subheading || '').trim();
+
+    const img = new Image();
+    await new Promise<void>((resolve, reject) => {
+      img.onload = () => resolve();
+      img.onerror = () => reject(new Error('Failed to load image'));
+      img.src = imagePreview;
+    });
+
+    const canvas = document.createElement('canvas');
+    canvas.width = 1200;
+    canvas.height = 1200; // square works best across platforms
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('Canvas not supported');
+
+    // Draw image (cover)
+    const imgRatio = img.width / img.height;
+    const canvasRatio = canvas.width / canvas.height;
+    let sx = 0;
+    let sy = 0;
+    let sw = img.width;
+    let sh = img.height;
+
+    if (imgRatio > canvasRatio) {
+      sw = img.height * canvasRatio;
+      sx = (img.width - sw) / 2;
+    } else {
+      sh = img.width / canvasRatio;
+      sy = (img.height - sh) / 2;
+    }
+    ctx.drawImage(img, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
+
+    // Dark gradient overlay (angle based)
+    const angle = (styleParams.gradientAngle * Math.PI) / 180;
+    const cx = canvas.width / 2;
+    const cy = canvas.height / 2;
+    const len = Math.max(canvas.width, canvas.height);
+    const x0 = cx - Math.cos(angle) * len;
+    const y0 = cy - Math.sin(angle) * len;
+    const x1 = cx + Math.cos(angle) * len;
+    const y1 = cy + Math.sin(angle) * len;
+    const g = ctx.createLinearGradient(x0, y0, x1, y1);
+    g.addColorStop(0, 'rgba(0,0,0,0.62)');
+    g.addColorStop(0.6, 'rgba(0,0,0,0.22)');
+    g.addColorStop(1, 'rgba(0,0,0,0.08)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Vignette
+    const vignette = ctx.createRadialGradient(cx, cy, canvas.width * 0.2, cx, cy, canvas.width * 0.8);
+    vignette.addColorStop(0, 'rgba(0,0,0,0)');
+    vignette.addColorStop(1, `rgba(0,0,0,${styleParams.vignetteStrength})`);
+    ctx.fillStyle = vignette;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Typography (center)
+    const maxTextWidth = Math.floor(canvas.width * styleParams.boxWidthFactor);
+    const headingSize = 86;
+    const headingLineHeight = Math.round(headingSize * 1.08);
+    const subSize = 36;
+    const subLineHeight = Math.round(subSize * 1.28);
+
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.font = `800 ${headingSize}px Inter, system-ui, -apple-system, Segoe UI, sans-serif`;
+    const headingLines = wrapLines(ctx, headline, maxTextWidth);
+    const safeHeadingLines = headingLines.slice(0, 6);
+
+    let subLines: string[] = [];
+    if (sub) {
+      ctx.font = `600 ${subSize}px Inter, system-ui, -apple-system, Segoe UI, sans-serif`;
+      subLines = wrapLines(ctx, sub, maxTextWidth).slice(0, 3);
+    }
+
+    // Measure block
+    ctx.font = `800 ${headingSize}px Inter, system-ui, -apple-system, Segoe UI, sans-serif`;
+    const headingWidths = safeHeadingLines.map((l) => ctx.measureText(l).width);
+    ctx.font = `600 ${subSize}px Inter, system-ui, -apple-system, Segoe UI, sans-serif`;
+    const subWidths = subLines.map((l) => ctx.measureText(l).width);
+    const maxLineWidth = Math.max(...headingWidths, ...subWidths, 0);
+
+    const blockHeight = safeHeadingLines.length * headingLineHeight + (subLines.length ? 18 + subLines.length * subLineHeight : 0);
+    const boxPaddingX = 48;
+    const boxPaddingY = 44;
+    const boxW = Math.min(maxTextWidth, Math.ceil(maxLineWidth)) + boxPaddingX * 2;
+    const boxH = blockHeight + boxPaddingY * 2;
+    const boxX = (canvas.width - boxW) / 2;
+    const boxY = (canvas.height - boxH) / 2;
+
+    // Accent box + bar
+    ctx.save();
+    ctx.fillStyle = hexToRgba(backgroundColor, styleParams.accentAlpha);
+    drawRoundedRect(ctx, boxX, boxY, boxW, boxH, styleParams.boxRadius);
+    ctx.fill();
+    ctx.restore();
+
+    ctx.save();
+    ctx.fillStyle = hexToRgba(backgroundColor, styleParams.accentBarAlpha);
+    drawRoundedRect(ctx, boxX, boxY, boxW, 10, 10);
+    ctx.fill();
+    ctx.restore();
+
+    // Text with shadow
+    ctx.save();
+    ctx.shadowColor = 'rgba(0,0,0,0.55)';
+    ctx.shadowBlur = 22;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 8;
+    ctx.fillStyle = textColor;
+
+    let y = boxY + boxPaddingY;
+    ctx.font = `800 ${headingSize}px Inter, system-ui, -apple-system, Segoe UI, sans-serif`;
+    for (const line of safeHeadingLines) {
+      ctx.fillText(line, canvas.width / 2, y);
+      y += headingLineHeight;
+    }
+
+    if (subLines.length) {
+      y += 18;
+      ctx.font = `600 ${subSize}px Inter, system-ui, -apple-system, Segoe UI, sans-serif`;
+      ctx.fillStyle = 'rgba(255,255,255,0.92)';
+      for (const line of subLines) {
+        ctx.fillText(line, canvas.width / 2, y);
+        y += subLineHeight;
+      }
+    }
+
+    ctx.restore();
+
+    const output = canvas.toDataURL('image/png');
+    if (opts?.showToast) toast?.success('Image generated successfully!');
+    return output;
+  };
+
+  const handleGenerate = async (opts?: { showToast?: boolean }) => {
     if (!image || !imagePreview) {
       toast?.error('Please upload an image first.');
       return;
@@ -126,108 +304,9 @@ export const AIImageBlender: React.FC<AIImageBlenderProps> = ({ isOpen = true, o
     setGeneratedImage(null);
 
     try {
-      const img = new Image();
-      await new Promise<void>((resolve, reject) => {
-        img.onload = () => resolve();
-        img.onerror = () => reject(new Error('Failed to load image'));
-        img.src = imagePreview;
-      });
-
-      // Social ad/banner friendly size
-      const canvas = document.createElement('canvas');
-      canvas.width = 1200;
-      canvas.height = 630;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) throw new Error('Canvas not supported');
-
-      // Draw image (cover)
-      const imgRatio = img.width / img.height;
-      const canvasRatio = canvas.width / canvas.height;
-      let sx = 0;
-      let sy = 0;
-      let sw = img.width;
-      let sh = img.height;
-
-      if (imgRatio > canvasRatio) {
-        sw = img.height * canvasRatio;
-        sx = (img.width - sw) / 2;
-      } else {
-        sh = img.width / canvasRatio;
-        sy = (img.height - sh) / 2;
-      }
-
-      ctx.drawImage(img, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
-
-      // Subtle dark gradient overlay for readability (left -> right)
-      const leftGradient = ctx.createLinearGradient(0, 0, canvas.width, 0);
-      leftGradient.addColorStop(0, 'rgba(0,0,0,0.62)');
-      leftGradient.addColorStop(0.55, 'rgba(0,0,0,0.18)');
-      leftGradient.addColorStop(1, 'rgba(0,0,0,0.00)');
-      ctx.fillStyle = leftGradient;
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-      // Slight top vignette
-      const topGradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
-      topGradient.addColorStop(0, 'rgba(0,0,0,0.25)');
-      topGradient.addColorStop(0.45, 'rgba(0,0,0,0.00)');
-      ctx.fillStyle = topGradient;
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-      // Typography (upper-left preferred)
-      const padding = 80;
-      const maxTextWidth = Math.floor(canvas.width * 0.62);
-      const fontSize = 72;
-      const lineHeight = Math.round(fontSize * 1.12);
-
-      ctx.textAlign = 'left';
-      ctx.textBaseline = 'top';
-      ctx.font = `800 ${fontSize}px Inter, system-ui, -apple-system, Segoe UI, sans-serif`;
-      const lines = wrapLines(ctx, headline, maxTextWidth);
-
-      // Limit runaway text height
-      const safeLines = lines.slice(0, 6);
-      const measuredWidths = safeLines.map((l) => ctx.measureText(l).width);
-      const maxLineWidth = Math.max(...measuredWidths, 0);
-
-      const boxPaddingX = 34;
-      const boxPaddingY = 28;
-      const boxW = Math.min(maxTextWidth, Math.ceil(maxLineWidth)) + boxPaddingX * 2;
-      const boxH = safeLines.length * lineHeight + boxPaddingY * 2;
-      const boxX = padding - boxPaddingX;
-      const boxY = 110 - boxPaddingY;
-
-      // Accent overlay tone behind text (premium banner feel)
-      ctx.save();
-      ctx.fillStyle = hexToRgba(backgroundColor, 0.28);
-      drawRoundedRect(ctx, boxX, boxY, boxW, boxH, 26);
-      ctx.fill();
-      ctx.restore();
-
-      // Small accent bar
-      ctx.save();
-      ctx.fillStyle = hexToRgba(backgroundColor, 0.65);
-      drawRoundedRect(ctx, boxX, boxY, 10, boxH, 10);
-      ctx.fill();
-      ctx.restore();
-
-      // Text
-      ctx.save();
-      ctx.fillStyle = textColor;
-      ctx.shadowColor = 'rgba(0,0,0,0.55)';
-      ctx.shadowBlur = 18;
-      ctx.shadowOffsetX = 0;
-      ctx.shadowOffsetY = 6;
-
-      let y = 110;
-      for (const line of safeLines) {
-        ctx.fillText(line, padding, y);
-        y += lineHeight;
-      }
-      ctx.restore();
-
-      const output = canvas.toDataURL('image/png');
+      const output = await renderCompositeToDataUrl({ showToast: opts?.showToast ?? true });
+      if (!output) throw new Error('Failed to generate image');
       setGeneratedImage(output);
-      toast?.success('Image generated successfully!');
     } catch (error) {
       console.error('Error generating image:', error);
       toast?.error('Failed to generate image. Please try again.');
@@ -235,6 +314,20 @@ export const AIImageBlender: React.FC<AIImageBlenderProps> = ({ isOpen = true, o
       setIsGenerating(false);
     }
   };
+
+  const scheduleRegenerate = () => {
+    if (!image || !imagePreview) return;
+    if (!(text || '').trim()) return;
+    if (regenTimerRef.current) window.clearTimeout(regenTimerRef.current);
+    regenTimerRef.current = window.setTimeout(() => {
+      handleGenerate({ showToast: false });
+    }, 250);
+  };
+
+  useEffect(() => {
+    scheduleRegenerate();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [textColor, backgroundColor, styleSeed]);
 
   if (!isOpen) return null;
 
@@ -318,18 +411,37 @@ export const AIImageBlender: React.FC<AIImageBlenderProps> = ({ isOpen = true, o
             <div className="space-y-4">
               <div>
                 <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">
-                  Text Overlay
+                  Headline (editable on image)
                 </label>
                 <div className="relative">
                   <Type className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                   <input
                     type="text"
                     value={text}
-                    onChange={(e) => setText(e.target.value)}
+                    onChange={(e) => {
+                      setText(e.target.value);
+                      scheduleRegenerate();
+                    }}
                     placeholder="Your Text Here"
                     className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all font-medium text-gray-700 placeholder:text-gray-400"
                   />
                 </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">
+                  Subheading (optional)
+                </label>
+                <input
+                  type="text"
+                  value={subheading}
+                  onChange={(e) => {
+                    setSubheading(e.target.value);
+                    scheduleRegenerate();
+                  }}
+                  placeholder="Optional supporting line"
+                  className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all font-medium text-gray-700 placeholder:text-gray-400"
+                />
               </div>
 
               <div className="grid grid-cols-2 gap-4">
@@ -375,23 +487,34 @@ export const AIImageBlender: React.FC<AIImageBlenderProps> = ({ isOpen = true, o
           </div>
 
           <div className="mt-6 pt-6 border-t border-gray-100 shrink-0">
-            <button
-              onClick={handleGenerate}
-              disabled={isGenerating || !image}
-              className="w-full h-12 bg-gray-900 hover:bg-gray-800 text-white font-medium rounded-xl shadow-lg shadow-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2 group"
-            >
-              {isGenerating ? (
-                <>
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                  Generating Masterpiece...
-                </>
-              ) : (
-                <>
-                  <Wand2 className="w-5 h-5 group-hover:rotate-12 transition-transform" />
-                  Generate Image
-                </>
-              )}
-            </button>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                onClick={() => setStyleSeed(Date.now())}
+                disabled={isGenerating || !image}
+                className="h-12 bg-white hover:bg-gray-50 text-gray-900 font-semibold rounded-xl shadow-sm border border-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                title="Generate a different layout/style"
+              >
+                Refresh
+              </button>
+
+              <button
+                onClick={() => handleGenerate({ showToast: true })}
+                disabled={isGenerating || !image}
+                className="h-12 bg-gray-900 hover:bg-gray-800 text-white font-medium rounded-xl shadow-lg shadow-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2 group"
+              >
+                {isGenerating ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    Generating...
+                  </>
+                ) : (
+                  <>
+                    <Wand2 className="w-5 h-5 group-hover:rotate-12 transition-transform" />
+                    Generate
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </div>
 
@@ -404,26 +527,87 @@ export const AIImageBlender: React.FC<AIImageBlenderProps> = ({ isOpen = true, o
           </div>
 
           <div className="relative w-full h-full flex flex-col items-center justify-center max-w-2xl mx-auto">
-            {generatedImage ? (
-              <div className="relative group w-full flex flex-col items-center animate-in fade-in zoom-in-95 duration-500">
-                <div className="relative rounded-2xl overflow-hidden shadow-2xl ring-1 ring-gray-900/5 bg-white mb-6 max-h-[60vh]">
-                  <img 
-                    src={generatedImage} 
-                    alt="Generated artwork" 
-                    className="max-w-full max-h-[60vh] object-contain" 
-                  />
-                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors pointer-events-none" />
-                </div>
-                
-                {onInsert && (
-                  <button
-                    onClick={() => onInsert(generatedImage)}
-                    className="px-8 py-3 bg-white hover:bg-gray-50 text-gray-900 font-semibold rounded-full shadow-lg shadow-gray-200 border border-gray-100 flex items-center gap-2 transition-all hover:-translate-y-1"
+            {imagePreview ? (
+              <div className="relative w-full max-w-[620px] aspect-square rounded-3xl overflow-hidden shadow-2xl ring-1 ring-gray-900/5 bg-white">
+                <img
+                  src={imagePreview}
+                  alt="Preview"
+                  className="absolute inset-0 w-full h-full object-cover"
+                />
+
+                {/* Gradient + accent overlays (visual parity with export) */}
+                <div
+                  className="absolute inset-0 pointer-events-none"
+                  style={{
+                    background: `linear-gradient(${styleParams.gradientAngle}deg, rgba(0,0,0,0.62) 0%, rgba(0,0,0,0.22) 60%, rgba(0,0,0,0.08) 100%)`,
+                  }}
+                />
+                <div
+                  className="absolute inset-0 pointer-events-none"
+                  style={{
+                    background: `radial-gradient(circle at center, rgba(0,0,0,0) 0%, rgba(0,0,0,${styleParams.vignetteStrength}) 100%)`,
+                  }}
+                />
+                <div
+                  className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none"
+                  style={{
+                    width: '82%',
+                    height: '48%',
+                    background: hexToRgba(backgroundColor, styleParams.accentAlpha),
+                    borderRadius: `${styleParams.boxRadius}px`,
+                  }}
+                />
+                <div
+                  className="absolute left-1/2 top-[26%] -translate-x-1/2 pointer-events-none"
+                  style={{
+                    width: '82%',
+                    height: '10px',
+                    background: hexToRgba(backgroundColor, styleParams.accentBarAlpha),
+                    borderRadius: '10px',
+                  }}
+                />
+
+                {/* On-image editable text overlay */}
+                <div className="absolute inset-0 flex items-center justify-center p-10">
+                  <div
+                    className="w-full max-w-[80%] text-center"
+                    style={{ color: textColor }}
                   >
-                    <Check className="w-4 h-4 text-green-500" />
-                    Use This Image
-                  </button>
-                )}
+                    <div
+                      ref={headingRef}
+                      contentEditable
+                      suppressContentEditableWarning
+                      onInput={(e) => {
+                        const next = (e.currentTarget.textContent || '').replace(/\s+/g, ' ').trim();
+                        setText(next);
+                        scheduleRegenerate();
+                      }}
+                      className="outline-none font-black tracking-tight leading-[1.05] text-[44px] sm:text-[56px] md:text-[64px]"
+                      style={{
+                        textShadow: '0 12px 28px rgba(0,0,0,0.45)',
+                      }}
+                    >
+                      {text || 'Your Text Here'}
+                    </div>
+
+                    <div
+                      ref={subheadingRef}
+                      contentEditable
+                      suppressContentEditableWarning
+                      onInput={(e) => {
+                        const next = (e.currentTarget.textContent || '').replace(/\s+/g, ' ').trim();
+                        setSubheading(next);
+                        scheduleRegenerate();
+                      }}
+                      className="outline-none mt-4 text-[14px] sm:text-[16px] md:text-[18px] font-semibold text-white/90"
+                      style={{
+                        textShadow: '0 10px 24px rgba(0,0,0,0.45)',
+                      }}
+                    >
+                      {subheading || ''}
+                    </div>
+                  </div>
+                </div>
               </div>
             ) : (
               <div className="text-center space-y-4 max-w-sm">
@@ -432,9 +616,19 @@ export const AIImageBlender: React.FC<AIImageBlenderProps> = ({ isOpen = true, o
                 </div>
                 <h3 className="text-lg font-bold text-gray-900">Your masterpiece awaits</h3>
                 <p className="text-sm text-gray-500 leading-relaxed">
-                  The blended image will appear here once the magic is complete.
+                  Upload an image to start.
                 </p>
               </div>
+            )}
+
+            {generatedImage && onInsert && (
+              <button
+                onClick={() => onInsert(generatedImage)}
+                className="mt-6 px-8 py-3 bg-white hover:bg-gray-50 text-gray-900 font-semibold rounded-full shadow-lg shadow-gray-200 border border-gray-100 flex items-center gap-2 transition-all hover:-translate-y-1"
+              >
+                <Check className="w-4 h-4 text-green-500" />
+                Use This Image
+              </button>
             )}
           </div>
         </div>
