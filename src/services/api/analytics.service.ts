@@ -586,26 +586,38 @@ export const analyticsService = {
                       // Skip if no commenter info
                       if (!commenterId && !commenterName) continue;
                       
-                      await supabase.from('engagement_actions').upsert({
-                        workspace_id: workspace_id,
-                        user_id: user?.id,
-                        platform: 'facebook',
-                        platform_post_id: fbPostId,
-                        platform_user_id: commenterId || null,
-                        platform_action_id: comment.id || `${fbPostId}_${commenterId}_${Date.now()}`,
-                        action_type: 'comment',
-                        source: 'native',
-                        action_data: {
-                          from_id: commenterId,
-                          from_name: commenterName,
-                          message: comment.message || '',
-                          profile_url: commenterId ? `https://facebook.com/${commenterId}` : null,
-                        },
-                        created_at: comment.created_time || new Date().toISOString(),
-                      }, { 
-                        onConflict: 'platform_action_id',
-                        ignoreDuplicates: true 
-                      });
+                      const actionId = comment.id || `fb_${fbPostId}_${commenterId || 'anon'}_${Date.now()}`;
+                      
+                      // Check if already exists to avoid constraint errors
+                      const { data: existing } = await supabase
+                        .from('engagement_actions')
+                        .select('id')
+                        .eq('platform', 'facebook')
+                        .eq('platform_post_id', fbPostId)
+                        .eq('platform_action_id', actionId)
+                        .eq('action_type', 'comment')
+                        .maybeSingle();
+                      
+                      if (!existing) {
+                        await supabase.from('engagement_actions').insert({
+                          workspace_id: workspace_id,
+                          user_id: user?.id,
+                          platform: 'facebook',
+                          platform_post_id: fbPostId,
+                          platform_user_id: commenterId || null,
+                          platform_action_id: actionId,
+                          action_type: 'comment',
+                          source: 'native',
+                          action_data: {
+                            from_id: commenterId,
+                            from_name: commenterName,
+                            message: comment.message || '',
+                            profile_url: commenterId ? `https://facebook.com/${commenterId}` : null,
+                          },
+                          created_at: comment.created_time || new Date().toISOString(),
+                        });
+                        console.log('[Analytics] Stored FB comment:', commenterName);
+                      }
                     } catch (insertErr) {
                       console.warn('[Analytics] Failed to store FB comment in engagement_actions:', insertErr);
                     }
@@ -906,26 +918,38 @@ export const analyticsService = {
                     try {
                       if (!comment.username) continue;
                       
-                      await supabase.from('engagement_actions').upsert({
-                        workspace_id: workspace_id,
-                        user_id: user?.id,
-                        platform: 'instagram',
-                        platform_post_id: igMediaId,
-                        platform_user_id: comment.username,
-                        platform_action_id: comment.id || `${igMediaId}_${comment.username}_${Date.now()}`,
-                        action_type: 'comment',
-                        source: 'native',
-                        action_data: {
-                          from_id: comment.username,
-                          from_name: comment.username,
-                          message: comment.text || '',
-                          profile_url: `https://instagram.com/${comment.username}`,
-                        },
-                        created_at: comment.timestamp || new Date().toISOString(),
-                      }, { 
-                        onConflict: 'platform_action_id',
-                        ignoreDuplicates: true 
-                      });
+                      const actionId = comment.id || `ig_${igMediaId}_${comment.username}_${Date.now()}`;
+                      
+                      // Check if already exists
+                      const { data: existing } = await supabase
+                        .from('engagement_actions')
+                        .select('id')
+                        .eq('platform', 'instagram')
+                        .eq('platform_post_id', igMediaId)
+                        .eq('platform_action_id', actionId)
+                        .eq('action_type', 'comment')
+                        .maybeSingle();
+                      
+                      if (!existing) {
+                        await supabase.from('engagement_actions').insert({
+                          workspace_id: workspace_id,
+                          user_id: user?.id,
+                          platform: 'instagram',
+                          platform_post_id: igMediaId,
+                          platform_user_id: comment.username,
+                          platform_action_id: actionId,
+                          action_type: 'comment',
+                          source: 'native',
+                          action_data: {
+                            from_id: comment.username,
+                            from_name: comment.username,
+                            message: comment.text || '',
+                            profile_url: `https://instagram.com/${comment.username}`,
+                          },
+                          created_at: comment.timestamp || new Date().toISOString(),
+                        });
+                        console.log('[Analytics] Stored IG comment:', comment.username);
+                      }
                     } catch (insertErr) {
                       console.warn('[Analytics] Failed to store IG comment in engagement_actions:', insertErr);
                     }
@@ -1370,28 +1394,39 @@ export const analyticsService = {
               try {
                 if (!comment.author) continue;
                 const channelId = comment.authorChannelId || comment.authorChannelUrl?.replace(/.*\/channel\//, '') || comment.author;
+                const actionId = comment.id || `yt_${videoId}_${channelId}_${Date.now()}`;
                 
-                await supabase.from('engagement_actions').upsert({
-                  workspace_id: workspace_id,
-                  user_id: user?.id,
-                  platform: 'youtube',
-                  platform_post_id: videoId,
-                  platform_user_id: channelId,
-                  platform_action_id: comment.id || `${videoId}_${channelId}_${Date.now()}`,
-                  action_type: 'comment',
-                  source: 'native',
-                  action_data: {
-                    from_id: channelId,
-                    from_name: comment.author,
-                    message: comment.text || '',
-                    profile_url: comment.authorChannelUrl || `https://youtube.com/channel/${channelId}`,
-                    avatar: comment.authorProfileImageUrl || '',
-                  },
-                  created_at: comment.publishedAt || new Date().toISOString(),
-                }, { 
-                  onConflict: 'platform_action_id',
-                  ignoreDuplicates: true 
-                });
+                // Check if already exists
+                const { data: existing } = await supabase
+                  .from('engagement_actions')
+                  .select('id')
+                  .eq('platform', 'youtube')
+                  .eq('platform_post_id', videoId)
+                  .eq('platform_action_id', actionId)
+                  .eq('action_type', 'comment')
+                  .maybeSingle();
+                
+                if (!existing) {
+                  await supabase.from('engagement_actions').insert({
+                    workspace_id: workspace_id,
+                    user_id: user?.id,
+                    platform: 'youtube',
+                    platform_post_id: videoId,
+                    platform_user_id: channelId,
+                    platform_action_id: actionId,
+                    action_type: 'comment',
+                    source: 'native',
+                    action_data: {
+                      from_id: channelId,
+                      from_name: comment.author,
+                      message: comment.text || '',
+                      profile_url: comment.authorChannelUrl || `https://youtube.com/channel/${channelId}`,
+                      avatar: comment.authorProfileImageUrl || '',
+                    },
+                    created_at: comment.publishedAt || new Date().toISOString(),
+                  });
+                  console.log('[Analytics] Stored YT comment:', comment.author);
+                }
               } catch (insertErr) {
                 console.warn('[Analytics] Failed to store YT comment in engagement_actions:', insertErr);
               }
@@ -1440,26 +1475,38 @@ export const analyticsService = {
               const snippet = sub.subscriberSnippet;
               if (!snippet || !snippet.channelId) continue;
               
-              await supabase.from('engagement_actions').upsert({
-                workspace_id: workspace_id,
-                user_id: user?.id,
-                platform: 'youtube',
-                platform_post_id: 'channel_subscription',
-                platform_user_id: snippet.channelId,
-                platform_action_id: `sub_${snippet.channelId}`,
-                action_type: 'subscribe',
-                source: 'native',
-                action_data: {
-                  from_id: snippet.channelId,
-                  from_name: snippet.title || 'YouTube User',
-                  profile_url: `https://youtube.com/channel/${snippet.channelId}`,
-                  avatar: snippet.thumbnails?.default?.url || snippet.thumbnails?.medium?.url || '',
-                },
-                created_at: snippet.publishedAt || new Date().toISOString(),
-              }, { 
-                onConflict: 'platform_action_id',
-                ignoreDuplicates: true 
-              });
+              const actionId = `sub_${snippet.channelId}`;
+              
+              // Check if already exists
+              const { data: existing } = await supabase
+                .from('engagement_actions')
+                .select('id')
+                .eq('platform', 'youtube')
+                .eq('platform_post_id', 'channel_subscription')
+                .eq('platform_action_id', actionId)
+                .eq('action_type', 'subscribe')
+                .maybeSingle();
+              
+              if (!existing) {
+                await supabase.from('engagement_actions').insert({
+                  workspace_id: workspace_id,
+                  user_id: user?.id,
+                  platform: 'youtube',
+                  platform_post_id: 'channel_subscription',
+                  platform_user_id: snippet.channelId,
+                  platform_action_id: actionId,
+                  action_type: 'subscribe',
+                  source: 'native',
+                  action_data: {
+                    from_id: snippet.channelId,
+                    from_name: snippet.title || 'YouTube User',
+                    profile_url: `https://youtube.com/channel/${snippet.channelId}`,
+                    avatar: snippet.thumbnails?.default?.url || snippet.thumbnails?.medium?.url || '',
+                  },
+                  created_at: snippet.publishedAt || new Date().toISOString(),
+                });
+                console.log('[Analytics] Stored YT subscriber:', snippet.title);
+              }
             } catch (insertErr) {
               console.warn('[Analytics] Failed to store YT subscriber in engagement_actions:', insertErr);
             }
