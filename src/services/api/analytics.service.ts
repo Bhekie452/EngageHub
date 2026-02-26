@@ -1948,5 +1948,111 @@ export const analyticsService = {
       engagementRate,
       platformBreakdown: breakdown
     };
-  }
+  },
+
+  /**
+   * Fetch engagement (comments) from ALL published posts across ALL platforms in one shot.
+   * This loops through all posts with publications, calls getPostEngagementSummary for each,
+   * which triggers the comment storage into engagement_actions.
+   */
+  async fetchAllEngagement(
+    onProgress?: (current: number, total: number, platform: string, postTitle: string) => void
+  ): Promise<{ postsProcessed: number; commentsStored: number; platforms: string[]; errors: string[] }> {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Not authenticated');
+
+    // Get workspace
+    const workspaceId = await getWorkspaceIdForCurrentUser();
+    if (!workspaceId) throw new Error('No workspace found');
+
+    // Get all published posts with their publications
+    const { data: publications, error: pubErr } = await supabase
+      .from('post_publications')
+      .select(`
+        id,
+        post_id,
+        platform,
+        platform_post_id,
+        platform_url,
+        status,
+        posts!inner (
+          id,
+          title,
+          content,
+          link_url,
+          workspace_id
+        )
+      `)
+      .eq('status', 'published')
+      .eq('posts.workspace_id', workspaceId);
+
+    if (pubErr) {
+      console.error('[FetchAll] Error fetching publications:', pubErr);
+      throw new Error('Failed to fetch published posts');
+    }
+
+    if (!publications || publications.length === 0) {
+      return { postsProcessed: 0, commentsStored: 0, platforms: [], errors: ['No published posts found'] };
+    }
+
+    console.log(`[FetchAll] Found ${publications.length} published posts to process`);
+
+    // Count engagement_actions before
+    const { data: beforeCount } = await supabase
+      .from('engagement_actions')
+      .select('id', { count: 'exact' })
+      .eq('workspace_id', workspaceId)
+      .eq('source', 'native');
+    const countBefore = beforeCount?.length ?? 0;
+
+    let postsProcessed = 0;
+    const platformsSet = new Set<string>();
+    const errors: string[] = [];
+
+    for (const pub of publications) {
+      try {
+        const post = (pub as any).posts;
+        const postTitle = post?.title || post?.content?.slice(0, 30) || 'Untitled';
+        const platform = pub.platform;
+        platformsSet.add(platform);
+
+        console.log(`[FetchAll] Processing: ${platform} - ${postTitle}`);
+        onProgress?.(postsProcessed + 1, publications.length, platform, postTitle);
+
+        // Call the existing function which fetches comments and stores them in engagement_actions
+        await this.getPostEngagementSummary(
+          pub.post_id,
+          platform,
+          pub.platform_url || post?.link_url || null
+        );
+
+        postsProcessed++;
+        
+        // Small delay to avoid rate limiting
+        await new Promise(resolve => setTimeout(resolve, 500));
+      } catch (err: any) {
+        const msg = `Failed for ${pub.platform} post ${pub.post_id}: ${err.message || err}`;
+        console.warn('[FetchAll]', msg);
+        errors.push(msg);
+      }
+    }
+
+    // Count engagement_actions after
+    const { data: afterCount } = await supabase
+      .from('engagement_actions')
+      .select('id', { count: 'exact' })
+      .eq('workspace_id', workspaceId)
+      .eq('source', 'native');
+    const countAfter = afterCount?.length ?? 0;
+    const commentsStored = countAfter - countBefore;
+
+    console.log(`[FetchAll] Done. Processed ${postsProcessed}/${publications.length} posts. New comments stored: ${commentsStored}`);
+
+    return {
+      postsProcessed,
+      commentsStored,
+      platforms: Array.from(platformsSet),
+      errors,
+    };
+  },
 };

@@ -280,8 +280,10 @@ const CRM: React.FC = () => {
     unharvestedEngagers, 
     syncEngagers, 
     harvestEngager, 
+    fetchAllEngagement,
     isLoadingUnharvested,
-    refetchUnharvested 
+    refetchUnharvested,
+    fetchProgress 
   } = useEngagementHarvest();
 
   // Bulk selection state
@@ -1632,6 +1634,55 @@ const CRM: React.FC = () => {
         }
         return (
           <div className="space-y-6">
+            {/* Fetch All Engagement Banner */}
+            <div className="bg-gradient-to-r from-blue-50 to-cyan-50 dark:from-blue-900/20 dark:to-cyan-900/20 rounded-2xl border border-blue-200 dark:border-blue-800 p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center text-white">
+                    <Download size={20} />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-black text-gray-900 dark:text-slate-100">
+                      Fetch All Engagement
+                    </h3>
+                    <p className="text-xs text-gray-500 dark:text-slate-400">
+                      {fetchProgress 
+                        ? `Scanning ${fetchProgress.current}/${fetchProgress.total}: ${fetchProgress.platform} — ${fetchProgress.postTitle}`
+                        : 'Scan all published posts across Facebook, Instagram & YouTube for comments'
+                      }
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => fetchAllEngagement.mutate()}
+                  disabled={fetchAllEngagement.isPending}
+                  className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-white bg-gradient-to-r from-blue-600 to-cyan-600 rounded-xl hover:from-blue-700 hover:to-cyan-700 shadow-lg shadow-blue-500/20 transition-all disabled:opacity-50"
+                >
+                  {fetchAllEngagement.isPending ? (
+                    <>
+                      <RefreshCw size={14} className="animate-spin" />
+                      {fetchProgress ? `${fetchProgress.current}/${fetchProgress.total}` : 'Fetching...'}
+                    </>
+                  ) : (
+                    <>
+                      <Download size={14} />
+                      Fetch All
+                    </>
+                  )}
+                </button>
+              </div>
+              {fetchAllEngagement.isPending && fetchProgress && (
+                <div className="mt-3">
+                  <div className="w-full bg-blue-200 dark:bg-blue-800 rounded-full h-2">
+                    <div 
+                      className="bg-gradient-to-r from-blue-500 to-cyan-500 h-2 rounded-full transition-all duration-300"
+                      style={{ width: `${(fetchProgress.current / fetchProgress.total) * 100}%` }}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+
             {/* Unharvested Social Engagers Section */}
             {unharvestedEngagers.length > 0 && (
               <div className="bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 rounded-2xl border border-purple-200 dark:border-purple-800 p-4">
