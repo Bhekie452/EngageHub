@@ -430,14 +430,42 @@ async function handleFacebookSimple(req: VercelRequest, res: VercelResponse) {
 
     const pagesData = await pagesResponse.json();
 
-    // Map pages to include pageId for frontend compatibility
-    const mappedPages = (pagesData.data || []).map((page: any) => ({
-      pageId: page.id || page.page_id,
-      pageName: page.name, // Add pageName for frontend compatibility
-      name: page.name,
-      accessToken: page.access_token,
-      instagramBusinessAccount: page.instagram_business_account
-    }));
+    // Map pages and fetch Instagram details for each
+    const rawPages = pagesData.data || [];
+    const mappedPages = await Promise.all(
+      rawPages.map(async (page: any) => {
+        const igRef = page.instagram_business_account;
+        let igId = igRef?.id || null;
+        let igUsername = null;
+
+        // If page has an IG business account, fetch the username
+        if (igId && page.access_token) {
+          try {
+            const igResp = await fetch(
+              `https://graph.facebook.com/v21.0/${igId}?fields=id,username,profile_picture_url&access_token=${page.access_token}`
+            );
+            const igData = await igResp.json();
+            if (igData && !igData.error) {
+              igUsername = igData.username || null;
+              console.log(`[handleFacebookSimple] Page "${page.name}" → IG @${igUsername}`);
+            }
+          } catch (e) {
+            console.warn(`[handleFacebookSimple] Failed to fetch IG details for page "${page.name}":`, e);
+          }
+        }
+
+        return {
+          pageId: page.id || page.page_id,
+          pageName: page.name,
+          name: page.name,
+          accessToken: page.access_token,
+          instagramBusinessAccount: igRef,
+          instagramBusinessAccountId: igId,
+          instagramBusinessAccountUsername: igUsername,
+          hasInstagram: !!igId,
+        };
+      })
+    );
 
     // Get user profile
     const profileResponse = await fetch(

@@ -8,8 +8,13 @@ interface OAuthState {
 interface FacebookPage {
   pageId: string;
   pageName: string;
-  pageAccessToken: string;
+  name?: string;
+  accessToken?: string;
+  pageAccessToken?: string;
+  instagramBusinessAccount?: { id: string };
   instagramBusinessAccountId?: string;
+  instagramBusinessAccountUsername?: string;
+  instagramUsername?: string;
   category?: string;
   hasInstagram?: boolean;
 }
