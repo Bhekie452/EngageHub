@@ -15,6 +15,7 @@ export const AIImageBlender: React.FC<AIImageBlenderProps> = ({ isOpen = true, o
   const [subheading, setSubheading] = useState<string>('');
   const [textColor, setTextColor] = useState<string>('#FFFFFF');
   const [backgroundColor, setBackgroundColor] = useState<string>('#000000');
+  const [showBackgroundAccent, setShowBackgroundAccent] = useState<boolean>(true);
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
   const [generatedImage, setGeneratedImage] = useState<string | null>(null);
   const [styleSeed, setStyleSeed] = useState<number>(() => Date.now());
@@ -243,18 +244,20 @@ export const AIImageBlender: React.FC<AIImageBlenderProps> = ({ isOpen = true, o
     const boxX = (canvas.width - boxW) / 2;
     const boxY = (canvas.height - boxH) / 2;
 
-    // Accent box + bar
-    ctx.save();
-    ctx.fillStyle = hexToRgba(backgroundColor, styleParams.accentAlpha);
-    drawRoundedRect(ctx, boxX, boxY, boxW, boxH, styleParams.boxRadius);
-    ctx.fill();
-    ctx.restore();
+    // Accent box + bar (optional)
+    if (showBackgroundAccent) {
+      ctx.save();
+      ctx.fillStyle = hexToRgba(backgroundColor, styleParams.accentAlpha);
+      drawRoundedRect(ctx, boxX, boxY, boxW, boxH, styleParams.boxRadius);
+      ctx.fill();
+      ctx.restore();
 
-    ctx.save();
-    ctx.fillStyle = hexToRgba(backgroundColor, styleParams.accentBarAlpha);
-    drawRoundedRect(ctx, boxX, boxY, boxW, 10, 10);
-    ctx.fill();
-    ctx.restore();
+      ctx.save();
+      ctx.fillStyle = hexToRgba(backgroundColor, styleParams.accentBarAlpha);
+      drawRoundedRect(ctx, boxX, boxY, boxW, 10, 10);
+      ctx.fill();
+      ctx.restore();
+    }
 
     // Text with shadow
     ctx.save();
@@ -327,7 +330,7 @@ export const AIImageBlender: React.FC<AIImageBlenderProps> = ({ isOpen = true, o
   useEffect(() => {
     scheduleRegenerate();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [textColor, backgroundColor, styleSeed]);
+  }, [textColor, backgroundColor, styleSeed, showBackgroundAccent]);
 
   if (!isOpen) return null;
 
@@ -468,7 +471,7 @@ export const AIImageBlender: React.FC<AIImageBlenderProps> = ({ isOpen = true, o
                   <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider">
                     Background
                   </label>
-                  <div className="relative h-11 flex items-center gap-3 px-3 border border-gray-200 rounded-xl hover:border-gray-300 transition-colors bg-white group cursor-pointer shadow-sm">
+                  <div className={`relative h-11 flex items-center gap-3 px-3 border border-gray-200 rounded-xl transition-colors bg-white shadow-sm ${showBackgroundAccent ? 'hover:border-gray-300 cursor-pointer' : 'opacity-50 cursor-not-allowed'}`}>
                     <div 
                       className="w-6 h-6 rounded-lg shadow-sm border border-gray-100 ring-1 ring-black/5"
                       style={{ backgroundColor: backgroundColor }}
@@ -477,12 +480,24 @@ export const AIImageBlender: React.FC<AIImageBlenderProps> = ({ isOpen = true, o
                     <input
                       type="color"
                       value={backgroundColor}
-                      onChange={(e) => setBackgroundColor(e.target.value)}
+                      onChange={(e) => {
+                        if (!showBackgroundAccent) return;
+                        setBackgroundColor(e.target.value);
+                      }}
                       className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                     />
                   </div>
                 </div>
               </div>
+
+              <button
+                type="button"
+                onClick={() => setShowBackgroundAccent((v) => !v)}
+                className="w-full h-11 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-sm font-semibold text-gray-800 transition-colors"
+                title="Toggle the colored background accent behind the text"
+              >
+                {showBackgroundAccent ? 'Remove Background' : 'Add Background'}
+              </button>
             </div>
           </div>
 
@@ -548,24 +563,28 @@ export const AIImageBlender: React.FC<AIImageBlenderProps> = ({ isOpen = true, o
                     background: `radial-gradient(circle at center, rgba(0,0,0,0) 0%, rgba(0,0,0,${styleParams.vignetteStrength}) 100%)`,
                   }}
                 />
-                <div
-                  className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none"
-                  style={{
-                    width: '82%',
-                    height: '48%',
-                    background: hexToRgba(backgroundColor, styleParams.accentAlpha),
-                    borderRadius: `${styleParams.boxRadius}px`,
-                  }}
-                />
-                <div
-                  className="absolute left-1/2 top-[26%] -translate-x-1/2 pointer-events-none"
-                  style={{
-                    width: '82%',
-                    height: '10px',
-                    background: hexToRgba(backgroundColor, styleParams.accentBarAlpha),
-                    borderRadius: '10px',
-                  }}
-                />
+                {showBackgroundAccent && (
+                  <>
+                    <div
+                      className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none"
+                      style={{
+                        width: '82%',
+                        height: '48%',
+                        background: hexToRgba(backgroundColor, styleParams.accentAlpha),
+                        borderRadius: `${styleParams.boxRadius}px`,
+                      }}
+                    />
+                    <div
+                      className="absolute left-1/2 top-[26%] -translate-x-1/2 pointer-events-none"
+                      style={{
+                        width: '82%',
+                        height: '10px',
+                        background: hexToRgba(backgroundColor, styleParams.accentBarAlpha),
+                        borderRadius: '10px',
+                      }}
+                    />
+                  </>
+                )}
 
                 {/* On-image editable text overlay */}
                 <div className="absolute inset-0 flex items-center justify-center p-10">
