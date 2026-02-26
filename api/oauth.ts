@@ -570,14 +570,102 @@ async function handleLinkedInOrganizationDetails(req: VercelRequest, res: Vercel
   return res.status(501).json({ error: 'Not implemented' });
 }
 
-// Twitter Token (placeholder)
+// Twitter Token Exchange (OAuth 2.0 with PKCE)
 async function handleTwitterToken(req: VercelRequest, res: VercelResponse) {
-  return res.status(501).json({ error: 'Not implemented' });
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  const { code, redirectUri, codeVerifier } = req.body || {};
+  if (!code || !redirectUri || !codeVerifier) {
+    return res.status(400).json({ error: 'Missing code, redirectUri, or codeVerifier' });
+  }
+
+  const clientId = process.env.TWITTER_CLIENT_ID;
+  const clientSecret = process.env.TWITTER_CLIENT_SECRET;
+  if (!clientId || !clientSecret) {
+    console.error('[handleTwitterToken] Missing TWITTER_CLIENT_ID or TWITTER_CLIENT_SECRET');
+    return res.status(500).json({ error: 'Twitter credentials not configured on server' });
+  }
+
+  try {
+    // Twitter OAuth 2.0 token endpoint requires Basic auth (clientId:clientSecret)
+    const basicAuth = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
+
+    const tokenResp = await fetch('https://api.twitter.com/2/oauth2/token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Authorization': `Basic ${basicAuth}`,
+      },
+      body: new URLSearchParams({
+        grant_type: 'authorization_code',
+        code: String(code),
+        redirect_uri: String(redirectUri),
+        code_verifier: String(codeVerifier),
+      }).toString(),
+    });
+
+    const tokenData = await tokenResp.json();
+    console.log('[handleTwitterToken] Twitter response status:', tokenResp.status);
+
+    if (!tokenResp.ok) {
+      console.error('[handleTwitterToken] Twitter error:', JSON.stringify(tokenData));
+      return res.status(tokenResp.status).json({
+        error: tokenData.error_description || tokenData.error || 'Token exchange failed',
+        details: tokenData,
+      });
+    }
+
+    console.log('[handleTwitterToken] Token exchange successful, scopes:', tokenData.scope);
+    return res.status(200).json({
+      access_token: tokenData.access_token,
+      refresh_token: tokenData.refresh_token,
+      expires_in: tokenData.expires_in,
+      token_type: tokenData.token_type,
+      scope: tokenData.scope,
+    });
+  } catch (err: any) {
+    console.error('[handleTwitterToken] Error:', err);
+    return res.status(500).json({ error: 'Failed to exchange Twitter token', details: err.message });
+  }
 }
 
-// Twitter Profile (placeholder)
+// Twitter Profile (via Twitter API v2)
 async function handleTwitterProfile(req: VercelRequest, res: VercelResponse) {
-  return res.status(501).json({ error: 'Not implemented' });
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  const { accessToken } = req.body || {};
+  if (!accessToken) {
+    return res.status(400).json({ error: 'Missing accessToken' });
+  }
+
+  try {
+    const profileResp = await fetch('https://api.twitter.com/2/users/me?user.fields=id,name,username,profile_image_url,description,public_metrics', {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+      },
+    });
+
+    const profileData = await profileResp.json();
+    console.log('[handleTwitterProfile] Twitter response status:', profileResp.status);
+
+    if (!profileResp.ok) {
+      console.error('[handleTwitterProfile] Twitter error:', JSON.stringify(profileData));
+      return res.status(profileResp.status).json({
+        error: profileData.detail || profileData.title || 'Failed to fetch profile',
+        details: profileData,
+      });
+    }
+
+    console.log('[handleTwitterProfile] Profile fetched:', profileData.data?.username);
+    return res.status(200).json(profileData);
+  } catch (err: any) {
+    console.error('[handleTwitterProfile] Error:', err);
+    return res.status(500).json({ error: 'Failed to fetch Twitter profile', details: err.message });
+  }
 }
 
 // YouTube Token (placeholder)
