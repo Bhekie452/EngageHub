@@ -16,7 +16,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { platform, contentType, topic, audience, tone, cta, currentContent, existingText, variationIndex, websiteUrl } = await req.json();
+    const { platform, contentType, topic, audience, tone, cta, maxWords, currentContent, existingText, variationIndex, websiteUrl } = await req.json();
 
     // Handle Image Text content type
     if (contentType === 'Image Text' || contentType === 'Image Text Regenerate') {
@@ -142,6 +142,7 @@ CONTEXT:
 - Target Audience: ${audience}
 - Tone: ${tone}
 - Call-to-Action: ${cta}
+${maxWords ? `- Maximum Words per variation: ${maxWords} words (STRICTLY enforce this limit)` : ''}
 ${currentContent ? `- Current Content: ${currentContent}` : ""}
 
 PLATFORM GUIDELINES:

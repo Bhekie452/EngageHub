@@ -60,6 +60,7 @@ export const AIContentGenerator: React.FC<AIContentGeneratorProps> = ({
   const [audience, setAudience] = useState('');
   const [tone, setTone] = useState('Engaging');
   const [cta, setCta] = useState('');
+  const [maxWords, setMaxWords] = useState<number | ''>('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedVariations, setGeneratedVariations] = useState<GeneratedContent[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -102,6 +103,7 @@ export const AIContentGenerator: React.FC<AIContentGeneratorProps> = ({
             audience: audience || 'General audience',
             tone,
             cta: cta || 'Not specified',
+            maxWords: maxWords || null,
             currentContent,
           },
         }
@@ -237,6 +239,7 @@ export const AIContentGenerator: React.FC<AIContentGeneratorProps> = ({
             audience: audience || 'General audience',
             tone,
             cta: cta || 'Not specified',
+            maxWords: maxWords || null,
             currentContent,
             websiteUrl: websiteUrl || null,
           },
@@ -571,6 +574,21 @@ export const AIContentGenerator: React.FC<AIContentGeneratorProps> = ({
                 value={cta}
                 onChange={(e) => setCta(e.target.value)}
                 placeholder="e.g., Learn more, Sign up now, Get your free trial..."
+                className="w-full px-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                Maximum Words (Optional)
+              </label>
+              <input
+                type="number"
+                value={maxWords}
+                onChange={(e) => setMaxWords(e.target.value ? parseInt(e.target.value, 10) : '')}
+                placeholder="e.g., 50, 100, 200..."
+                min={10}
+                max={2000}
                 className="w-full px-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
               />
             </div>
