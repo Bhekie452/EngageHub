@@ -181,6 +181,44 @@ const Settings: React.FC = () => {
   // Social Accounts State
   const [socialAccounts, setSocialAccounts] = useState<SocialAccount[]>([]);
   const [loadingSocial, setLoadingSocial] = useState(false);
+  // Social Connect Modal
+  const [showConnectModal, setShowConnectModal] = useState(false);
+  const [selectedPlatform, setSelectedPlatform] = useState<string | null>(null);
+
+  const supportedPlatforms = [
+    { name: 'Facebook', id: 'facebook', icon: <Facebook size={24} className="text-blue-600" /> },
+    { name: 'Instagram', id: 'instagram', icon: <Instagram size={24} className="text-pink-600" /> },
+    { name: 'Twitter/X', id: 'twitter', icon: <Twitter size={24} className="text-sky-500" /> },
+    { name: 'YouTube', id: 'youtube', icon: <Youtube size={24} className="text-red-600" /> },
+    { name: 'LinkedIn', id: 'linkedin', icon: <Linkedin size={24} className="text-blue-700" /> },
+    { name: 'TikTok', id: 'tiktok', icon: <Music size={24} className="text-black dark:text-white" /> },
+  ];
+
+  const handleConnectNew = () => setShowConnectModal(true);
+  const handlePlatformSelect = (platformId: string) => {
+    setSelectedPlatform(platformId);
+    // Example OAuth redirect logic (replace URLs with your backend endpoints)
+    let oauthUrl = '';
+    switch (platformId) {
+      case 'facebook':
+        oauthUrl = '/api/oauth/facebook'; break;
+      case 'instagram':
+        oauthUrl = '/api/oauth/instagram'; break;
+      case 'twitter':
+        oauthUrl = '/api/oauth/twitter'; break;
+      case 'youtube':
+        oauthUrl = '/api/oauth/youtube'; break;
+      case 'linkedin':
+        oauthUrl = '/api/oauth/linkedin'; break;
+      case 'tiktok':
+        oauthUrl = '/api/oauth/tiktok'; break;
+      default:
+        break;
+    }
+    if (oauthUrl) {
+      window.location.href = oauthUrl;
+    }
+  };
 
   // Notifications State
   const [notifications, setNotifications] = useState<NotificationSettings>({
@@ -1401,7 +1439,7 @@ const Settings: React.FC = () => {
                   <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">Manage your linked social media platforms</p>
                 </div>
                 <button
-                  onClick={() => window.location.hash = '#social-media'}
+                  onClick={handleConnectNew}
                   className="px-4 py-2 bg-brand-600 text-white rounded-xl text-xs font-bold flex items-center gap-2 hover:bg-brand-700 transition-all"
                 >
                   <Link2 size={14} /> Connect New
@@ -1417,11 +1455,34 @@ const Settings: React.FC = () => {
                   <Share2 className="w-12 h-12 mx-auto text-gray-300 dark:text-slate-600 mb-4" />
                   <p className="text-gray-500 dark:text-slate-400">No social accounts connected yet</p>
                   <button
-                    onClick={() => window.location.hash = '#social-media'}
+                    onClick={handleConnectNew}
                     className="mt-4 px-6 py-2 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl text-sm font-bold text-gray-700 dark:text-slate-300"
                   >
                     Connect Your First Account
                   </button>
+                      {/* Social Connect Modal */}
+                      {showConnectModal && (
+                        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+                          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl p-8 w-full max-w-md relative">
+                            <button onClick={() => setShowConnectModal(false)} className="absolute top-3 right-3 text-gray-400 hover:text-gray-700 dark:hover:text-slate-100">
+                              <span aria-hidden>×</span>
+                            </button>
+                            <h3 className="text-lg font-black mb-4 text-gray-900 dark:text-slate-100">Connect a Social Account</h3>
+                            <div className="grid grid-cols-2 gap-4">
+                              {supportedPlatforms.map((platform) => (
+                                <button
+                                  key={platform.id}
+                                  onClick={() => handlePlatformSelect(platform.id)}
+                                  className="flex flex-col items-center gap-2 p-4 rounded-xl border border-gray-200 dark:border-slate-800 hover:bg-brand-50 dark:hover:bg-brand-900/20 transition-all"
+                                >
+                                  {platform.icon}
+                                  <span className="text-xs font-bold text-gray-700 dark:text-slate-200">{platform.name}</span>
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      )}
                 </div>
               ) : (
                 <div className="grid gap-4">
