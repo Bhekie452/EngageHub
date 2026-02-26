@@ -171,6 +171,18 @@ const Settings: React.FC = () => {
   const { currency, setCurrency, availableCurrencies, isLoading: isLoadingCurrency } = useCurrency();
   const { user, signOut } = useAuth();
   const [activeTab, setActiveTab] = useState<SettingsTab>('profile');
+
+  // listen for navigation events so other parts of the app can request a specific tab
+  useEffect(() => {
+    const handler = (e: any) => {
+      const detail = e.detail;
+      if (detail?.section === 'Settings' && detail.tab) {
+        setActiveTab(detail.tab);
+      }
+    };
+    window.addEventListener('navigate', handler as EventListener);
+    return () => window.removeEventListener('navigate', handler as EventListener);
+  }, []);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [isEditingProfile, setIsEditingProfile] = useState(false);

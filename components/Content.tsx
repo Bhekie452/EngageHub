@@ -113,6 +113,18 @@ const Content: React.FC = () => {
   const { user } = useAuth(); // Get authenticated user
   const [activeTab, setActiveTab] = useState<ContentTab>('create');
 
+  // allow external navigation events to switch tabs (e.g. quick create button)
+  useEffect(() => {
+    const handler = (e: any) => {
+      const detail = e.detail;
+      if (detail?.section === 'Content' && detail.contentTab) {
+        setActiveTab(detail.contentTab);
+      }
+    };
+    window.addEventListener('navigate', handler as EventListener);
+    return () => window.removeEventListener('navigate', handler as EventListener);
+  }, []);
+
   // Use simple session-based YouTube connection
   const { isConnected: youtubeAccountConnected } = useYouTubeSession()
 

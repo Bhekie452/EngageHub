@@ -78,10 +78,24 @@ const Dashboard: React.FC = () => {
         <p className="text-gray-500 text-sm mt-0.5">Monday, June 24th — You have 3 tasks and 2 posts scheduled.</p>
       </div>
       <div className="flex gap-2">
-        <button className="px-4 py-2 text-sm font-semibold text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors shadow-sm">
+        <button
+          title="Change colors, theme and branding"
+          onClick={() => {
+            // take user straight to branding section of settings
+            window.dispatchEvent(new CustomEvent('navigate', { detail: { section: 'Settings', tab: 'branding' } }));
+          }}
+          className="px-4 py-2 text-sm font-semibold text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors shadow-sm"
+        >
           Customize
         </button>
-        <button className="px-4 py-2 text-sm font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors shadow-md shadow-blue-200">
+        <button
+          title="Jump to the new post editor"
+          onClick={() => {
+            // navigate to Content area and open create tab
+            window.dispatchEvent(new CustomEvent('navigate', { detail: { section: 'Content', contentTab: 'create' } }));
+          }}
+          className="px-4 py-2 text-sm font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors shadow-md shadow-blue-200"
+        >
           Quick Create
         </button>
       </div>
