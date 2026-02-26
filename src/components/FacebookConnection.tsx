@@ -35,12 +35,12 @@ export default function FacebookConnection() {
         .select('*')
         .eq('workspace_id', workspaceId)
         .eq('platform', 'facebook')
-        .eq('connection_status', 'connected')
-        .order('created_at', { ascending: false })
-        .limit(1);
+        .order('created_at', { ascending: false });
 
-      // Prefer page account, then any connected account
-      const page = data?.find((a: any) => a.account_type === 'page') ?? data?.[0] ?? null;
+      // Find a connected account: prefer page, check both connection_status and is_active
+      const connected = (data || []).filter((a: any) => a.connection_status === 'connected' || a.is_active);
+      const page = connected.find((a: any) => a.account_type === 'page') ?? connected[0] ?? null;
+      console.log('[FacebookConnection] Found accounts:', data?.length, 'connected:', connected.length, 'selected:', page?.id);
       setConnection(page);
     } catch (err) {
       console.error('Error loading Facebook connection:', err);
