@@ -24,7 +24,44 @@ import {
   Check,
   Layout,
   RefreshCw,
-  Columns
+  Columns,
+  Upload,
+  MapPin,
+  Phone,
+  Users,
+  Briefcase,
+  Clock,
+  Link2,
+  Instagram,
+  Twitter,
+  Facebook,
+  Youtube,
+  Linkedin,
+  Music,
+  ExternalLink,
+  BellRing,
+  MessageSquare,
+  Heart,
+  TrendingUp,
+  Calendar,
+  Shield,
+  Key,
+  Laptop,
+  Trash2,
+  Download,
+  FileText,
+  Eye,
+  EyeOff,
+  Search,
+  Filter,
+  ChevronDown,
+  Copy,
+  RotateCcw,
+  Database,
+  UserCheck,
+  Settings as SettingsIcon,
+  LogIn,
+  BarChart2
 } from 'lucide-react';
 import { useAuth } from '../src/hooks/useAuth';
 import { supabase } from '../src/lib/supabase';
@@ -48,6 +85,61 @@ interface UserProfile {
   trial_ends_at?: string | null;
 }
 
+interface CompanyProfile {
+  company_name: string;
+  company_logo: string;
+  industry: string;
+  company_size: string;
+  website: string;
+  address: string;
+  phone: string;
+  contact_email: string;
+  timezone: string;
+  business_hours: string;
+}
+
+interface NotificationSettings {
+  email_post_published: boolean;
+  email_engagement_alerts: boolean;
+  email_weekly_report: boolean;
+  email_new_followers: boolean;
+  email_mentions: boolean;
+  push_enabled: boolean;
+  push_engagement: boolean;
+  push_mentions: boolean;
+  push_reminders: boolean;
+}
+
+interface SocialAccount {
+  id: string;
+  platform: string;
+  account_name: string;
+  account_id: string;
+  is_active: boolean;
+  created_at: string;
+  last_synced?: string;
+  profile_image_url?: string;
+}
+
+interface AuditLog {
+  id: string;
+  action: string;
+  description: string;
+  ip_address: string;
+  user_agent: string;
+  created_at: string;
+}
+
+interface Session {
+  id: string;
+  device: string;
+  browser: string;
+  location: string;
+  ip_address: string;
+  last_active: string;
+  is_current: boolean;
+}
+
 const Settings: React.FC = () => {
   const {
     themeMode,
@@ -68,6 +160,62 @@ const Settings: React.FC = () => {
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
 
+  // Company Profile State
+  const [companyProfile, setCompanyProfile] = useState<CompanyProfile>({
+    company_name: '',
+    company_logo: '',
+    industry: '',
+    company_size: '',
+    website: '',
+    address: '',
+    phone: '',
+    contact_email: '',
+    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    business_hours: '9:00 AM - 5:00 PM'
+  });
+  const [isEditingCompany, setIsEditingCompany] = useState(false);
+  const [isSavingCompany, setIsSavingCompany] = useState(false);
+  const [companyLogoFile, setCompanyLogoFile] = useState<File | null>(null);
+  const [companyLogoPreview, setCompanyLogoPreview] = useState<string | null>(null);
+
+  // Social Accounts State
+  const [socialAccounts, setSocialAccounts] = useState<SocialAccount[]>([]);
+  const [loadingSocial, setLoadingSocial] = useState(false);
+
+  // Notifications State
+  const [notifications, setNotifications] = useState<NotificationSettings>({
+    email_post_published: true,
+    email_engagement_alerts: true,
+    email_weekly_report: true,
+    email_new_followers: false,
+    email_mentions: true,
+    push_enabled: false,
+    push_engagement: true,
+    push_mentions: true,
+    push_reminders: true
+  });
+  const [isSavingNotifications, setIsSavingNotifications] = useState(false);
+
+  // Security State
+  const [sessions, setSessions] = useState<Session[]>([]);
+  const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+
+  // Audit Logs State
+  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
+  const [loadingAudit, setLoadingAudit] = useState(false);
+  const [auditFilter, setAuditFilter] = useState('all');
+  const [auditSearch, setAuditSearch] = useState('');
+
+  // Privacy State
+  const [dataRetentionDays, setDataRetentionDays] = useState(365);
+  const [analyticsEnabled, setAnalyticsEnabled] = useState(true);
+  const [marketingConsent, setMarketingConsent] = useState(false);
+
   // Fetch user profile from Supabase
   // Fetch user profile from Supabase
   useEffect(() => {
@@ -85,12 +233,83 @@ const Settings: React.FC = () => {
         console.error('Error fetching profile:', error);
       } else {
         setProfile(data);
+        // Also populate company profile from profile data
+        if (data) {
+          setCompanyProfile(prev => ({
+            ...prev,
+            company_name: data.company_name || '',
+          }));
+        }
       }
       setLoadingProfile(false);
     };
 
     fetchProfile();
   }, [user?.id]);
+
+  // Fetch social accounts
+  useEffect(() => {
+    const fetchSocialAccounts = async () => {
+      if (!user?.id) return;
+      setLoadingSocial(true);
+      
+      const { data, error } = await supabase
+        .from('social_accounts')
+        .select('*')
+        .eq('is_active', true)
+        .order('created_at', { ascending: false });
+
+      if (!error && data) {
+        setSocialAccounts(data.map(acc => ({
+          id: acc.id,
+          platform: acc.platform,
+          account_name: acc.account_name || acc.username || acc.page_name || 'Connected Account',
+          account_id: acc.account_id || acc.page_id || '',
+          is_active: acc.is_active,
+          created_at: acc.created_at,
+          last_synced: acc.updated_at,
+          profile_image_url: acc.profile_image_url
+        })));
+      }
+      setLoadingSocial(false);
+    };
+
+    if (activeTab === 'social') {
+      fetchSocialAccounts();
+    }
+  }, [user?.id, activeTab]);
+
+  // Generate mock audit logs (in production, fetch from database)
+  useEffect(() => {
+    if (activeTab === 'audit' && user?.id) {
+      setLoadingAudit(true);
+      // Simulate audit logs - in production, this would come from a database table
+      const mockLogs: AuditLog[] = [
+        { id: '1', action: 'login', description: 'User logged in successfully', ip_address: '102.89.45.123', user_agent: 'Chrome/120 Windows', created_at: new Date(Date.now() - 1000 * 60 * 5).toISOString() },
+        { id: '2', action: 'post_created', description: 'Created new social media post', ip_address: '102.89.45.123', user_agent: 'Chrome/120 Windows', created_at: new Date(Date.now() - 1000 * 60 * 30).toISOString() },
+        { id: '3', action: 'settings_changed', description: 'Updated notification preferences', ip_address: '102.89.45.123', user_agent: 'Chrome/120 Windows', created_at: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString() },
+        { id: '4', action: 'social_connected', description: 'Connected Facebook Page', ip_address: '102.89.45.123', user_agent: 'Chrome/120 Windows', created_at: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString() },
+        { id: '5', action: 'post_published', description: 'Published post to Instagram', ip_address: '102.89.45.123', user_agent: 'Chrome/120 Windows', created_at: new Date(Date.now() - 1000 * 60 * 60 * 48).toISOString() },
+        { id: '6', action: 'login', description: 'User logged in successfully', ip_address: '41.150.62.88', user_agent: 'Safari/17 macOS', created_at: new Date(Date.now() - 1000 * 60 * 60 * 72).toISOString() },
+        { id: '7', action: 'password_changed', description: 'Password was changed', ip_address: '102.89.45.123', user_agent: 'Chrome/120 Windows', created_at: new Date(Date.now() - 1000 * 60 * 60 * 96).toISOString() },
+        { id: '8', action: 'post_scheduled', description: 'Scheduled post for future publishing', ip_address: '102.89.45.123', user_agent: 'Chrome/120 Windows', created_at: new Date(Date.now() - 1000 * 60 * 60 * 120).toISOString() },
+      ];
+      setTimeout(() => {
+        setAuditLogs(mockLogs);
+        setLoadingAudit(false);
+      }, 500);
+    }
+  }, [activeTab, user?.id]);
+
+  // Generate mock sessions
+  useEffect(() => {
+    if (activeTab === 'security') {
+      setSessions([
+        { id: '1', device: 'Windows PC', browser: 'Chrome 120', location: 'Johannesburg, SA', ip_address: '102.89.45.123', last_active: new Date().toISOString(), is_current: true },
+        { id: '2', device: 'iPhone 15', browser: 'Safari Mobile', location: 'Cape Town, SA', ip_address: '41.150.62.88', last_active: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString(), is_current: false },
+      ]);
+    }
+  }, [activeTab]);
 
   // Handle logout
   const handleLogout = async () => {
@@ -187,6 +406,144 @@ const Settings: React.FC = () => {
     setAvatarFile(null);
     setAvatarPreview(null);
   };
+
+  // Handle company logo file selection
+  const handleCompanyLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setCompanyLogoFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setCompanyLogoPreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  // Handle save company profile
+  const handleSaveCompany = async () => {
+    if (!user) return;
+    setIsSavingCompany(true);
+
+    try {
+      let logoUrl = companyProfile.company_logo;
+
+      if (companyLogoFile) {
+        const fileExt = companyLogoFile.name.split('.').pop();
+        const fileName = `company-${user.id}-${Date.now()}.${fileExt}`;
+        const filePath = `logos/${fileName}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('avatars')
+          .upload(filePath, companyLogoFile);
+
+        if (!uploadError) {
+          const { data } = supabase.storage
+            .from('avatars')
+            .getPublicUrl(filePath);
+          logoUrl = data.publicUrl;
+        }
+      }
+
+      // Update profile with company name
+      await supabase
+        .from('profiles')
+        .update({
+          company_name: companyProfile.company_name,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', user.id);
+
+      setCompanyProfile(prev => ({ ...prev, company_logo: logoUrl }));
+      setIsEditingCompany(false);
+      setCompanyLogoFile(null);
+      setCompanyLogoPreview(null);
+    } catch (err) {
+      console.error('Error saving company:', err);
+      alert('Failed to save company profile');
+    }
+
+    setIsSavingCompany(false);
+  };
+
+  // Handle notification toggle
+  const handleNotificationToggle = async (key: keyof NotificationSettings) => {
+    setNotifications(prev => ({
+      ...prev,
+      [key]: !prev[key]
+    }));
+  };
+
+  // Handle password change
+  const handlePasswordChange = async () => {
+    if (!newPassword || !confirmPassword) {
+      alert('Please fill in all password fields');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      alert('Passwords do not match');
+      return;
+    }
+    if (newPassword.length < 8) {
+      alert('Password must be at least 8 characters');
+      return;
+    }
+
+    setIsChangingPassword(true);
+    try {
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      if (error) throw error;
+      alert('Password updated successfully');
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+    } catch (err: any) {
+      alert(err.message || 'Failed to update password');
+    }
+    setIsChangingPassword(false);
+  };
+
+  // Handle session revoke
+  const handleRevokeSession = (sessionId: string) => {
+    setSessions(prev => prev.filter(s => s.id !== sessionId));
+  };
+
+  // Get platform icon
+  const getPlatformIcon = (platform: string) => {
+    const icons: Record<string, React.ReactNode> = {
+      facebook: <Facebook size={18} className="text-blue-600" />,
+      instagram: <Instagram size={18} className="text-pink-600" />,
+      twitter: <Twitter size={18} className="text-sky-500" />,
+      youtube: <Youtube size={18} className="text-red-600" />,
+      linkedin: <Linkedin size={18} className="text-blue-700" />,
+      tiktok: <Music size={18} className="text-black dark:text-white" />,
+    };
+    return icons[platform.toLowerCase()] || <Share2 size={18} />;
+  };
+
+  // Get audit action icon
+  const getAuditIcon = (action: string) => {
+    const icons: Record<string, React.ReactNode> = {
+      login: <LogIn size={16} className="text-green-600" />,
+      logout: <LogOut size={16} className="text-gray-500" />,
+      post_created: <FileText size={16} className="text-blue-600" />,
+      post_published: <CheckCircle2 size={16} className="text-green-600" />,
+      post_scheduled: <Calendar size={16} className="text-purple-600" />,
+      settings_changed: <SettingsIcon size={16} className="text-orange-600" />,
+      social_connected: <Link2 size={16} className="text-brand-600" />,
+      password_changed: <Key size={16} className="text-red-600" />,
+    };
+    return icons[action] || <History size={16} className="text-gray-400" />;
+  };
+
+  // Filter audit logs
+  const filteredAuditLogs = auditLogs.filter(log => {
+    const matchesFilter = auditFilter === 'all' || log.action === auditFilter;
+    const matchesSearch = !auditSearch || 
+      log.description.toLowerCase().includes(auditSearch.toLowerCase()) ||
+      log.action.toLowerCase().includes(auditSearch.toLowerCase());
+    return matchesFilter && matchesSearch;
+  });
 
   // Local temporary state for the "Interactive Preview" logic before "Apply"
   const [tempMode, setTempMode] = useState(themeMode);
@@ -818,6 +1175,792 @@ const Settings: React.FC = () => {
                   className="px-6 py-2 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl text-xs font-bold uppercase tracking-widest text-gray-900 dark:text-white hover:bg-gray-50 dark:hover:bg-slate-700 transition-all"
                 >
                   {subscriptionPlan ? 'Manage Subscription' : 'Upgrade Plan'}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+
+      case 'company':
+        return (
+          <div className="space-y-8 animate-in fade-in duration-500 pb-10">
+            {/* Company Header */}
+            <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-3xl border border-blue-100 dark:border-blue-800 p-8">
+              <div className="flex items-start gap-6">
+                <div className="relative">
+                  <div className="w-20 h-20 bg-blue-600 rounded-2xl flex items-center justify-center text-white text-2xl font-bold shadow-xl overflow-hidden">
+                    {companyLogoPreview || companyProfile.company_logo ? (
+                      <img src={companyLogoPreview || companyProfile.company_logo} alt="Company logo" className="w-full h-full object-cover" />
+                    ) : (
+                      <Building2 size={32} />
+                    )}
+                  </div>
+                  {isEditingCompany && (
+                    <>
+                      <input type="file" id="company-logo-upload" accept="image/*" onChange={handleCompanyLogoChange} className="hidden" />
+                      <label htmlFor="company-logo-upload" className="absolute -bottom-2 -right-2 w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center text-white cursor-pointer hover:bg-blue-700 transition-all shadow-lg">
+                        <Upload size={16} />
+                      </label>
+                    </>
+                  )}
+                </div>
+                <div className="flex-1">
+                  {isEditingCompany ? (
+                    <input
+                      type="text"
+                      value={companyProfile.company_name}
+                      onChange={(e) => setCompanyProfile({ ...companyProfile, company_name: e.target.value })}
+                      placeholder="Company Name"
+                      className="w-full px-4 py-2 text-2xl font-black text-gray-900 dark:text-slate-100 bg-white dark:bg-slate-900 border-2 border-gray-200 dark:border-slate-700 rounded-xl focus:border-blue-600 focus:outline-none"
+                    />
+                  ) : (
+                    <>
+                      <h3 className="text-2xl font-black text-gray-900 dark:text-slate-100">
+                        {companyProfile.company_name || profile?.company_name || 'Your Company'}
+                      </h3>
+                      <p className="text-sm text-gray-600 dark:text-slate-400 font-medium mt-1">{companyProfile.industry || 'Add your industry'}</p>
+                    </>
+                  )}
+                </div>
+                {!isEditingCompany ? (
+                  <button onClick={() => setIsEditingCompany(true)} className="px-4 py-2 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 text-gray-700 dark:text-slate-300 rounded-xl text-xs font-bold hover:bg-gray-50 dark:hover:bg-slate-800 transition-all flex items-center gap-2">
+                    <Palette size={14} /> Edit
+                  </button>
+                ) : (
+                  <div className="flex gap-2">
+                    <button onClick={() => { setIsEditingCompany(false); setCompanyLogoFile(null); setCompanyLogoPreview(null); }} className="px-4 py-2 bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-slate-300 rounded-xl text-xs font-bold">Cancel</button>
+                    <button onClick={handleSaveCompany} disabled={isSavingCompany} className="px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-bold flex items-center gap-2">
+                      {isSavingCompany ? <RefreshCw size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
+                      Save
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Company Details */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-200 dark:border-slate-800 p-6 space-y-4">
+                <div className="flex items-center gap-2 text-gray-400">
+                  <Briefcase size={16} />
+                  <span className="text-xs font-black uppercase tracking-widest">Industry</span>
+                </div>
+                {isEditingCompany ? (
+                  <select
+                    value={companyProfile.industry}
+                    onChange={(e) => setCompanyProfile({ ...companyProfile, industry: e.target.value })}
+                    className="w-full px-4 py-2 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-xl text-gray-900 dark:text-slate-100"
+                  >
+                    <option value="">Select Industry</option>
+                    <option value="Technology">Technology</option>
+                    <option value="Healthcare">Healthcare</option>
+                    <option value="Finance">Finance</option>
+                    <option value="Retail">Retail</option>
+                    <option value="Education">Education</option>
+                    <option value="Marketing">Marketing & Advertising</option>
+                    <option value="Media">Media & Entertainment</option>
+                    <option value="Real Estate">Real Estate</option>
+                    <option value="Other">Other</option>
+                  </select>
+                ) : (
+                  <p className="text-gray-900 dark:text-slate-100 font-semibold">{companyProfile.industry || 'Not set'}</p>
+                )}
+              </div>
+
+              <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-200 dark:border-slate-800 p-6 space-y-4">
+                <div className="flex items-center gap-2 text-gray-400">
+                  <Users size={16} />
+                  <span className="text-xs font-black uppercase tracking-widest">Company Size</span>
+                </div>
+                {isEditingCompany ? (
+                  <select
+                    value={companyProfile.company_size}
+                    onChange={(e) => setCompanyProfile({ ...companyProfile, company_size: e.target.value })}
+                    className="w-full px-4 py-2 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-xl text-gray-900 dark:text-slate-100"
+                  >
+                    <option value="">Select Size</option>
+                    <option value="1">Solo (1 person)</option>
+                    <option value="2-10">Small (2-10)</option>
+                    <option value="11-50">Medium (11-50)</option>
+                    <option value="51-200">Large (51-200)</option>
+                    <option value="200+">Enterprise (200+)</option>
+                  </select>
+                ) : (
+                  <p className="text-gray-900 dark:text-slate-100 font-semibold">{companyProfile.company_size || 'Not set'}</p>
+                )}
+              </div>
+
+              <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-200 dark:border-slate-800 p-6 space-y-4">
+                <div className="flex items-center gap-2 text-gray-400">
+                  <Globe size={16} />
+                  <span className="text-xs font-black uppercase tracking-widest">Website</span>
+                </div>
+                {isEditingCompany ? (
+                  <input
+                    type="url"
+                    value={companyProfile.website}
+                    onChange={(e) => setCompanyProfile({ ...companyProfile, website: e.target.value })}
+                    placeholder="https://example.com"
+                    className="w-full px-4 py-2 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-xl text-gray-900 dark:text-slate-100"
+                  />
+                ) : (
+                  <p className="text-gray-900 dark:text-slate-100 font-semibold">{companyProfile.website || 'Not set'}</p>
+                )}
+              </div>
+
+              <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-200 dark:border-slate-800 p-6 space-y-4">
+                <div className="flex items-center gap-2 text-gray-400">
+                  <Clock size={16} />
+                  <span className="text-xs font-black uppercase tracking-widest">Timezone</span>
+                </div>
+                {isEditingCompany ? (
+                  <select
+                    value={companyProfile.timezone}
+                    onChange={(e) => setCompanyProfile({ ...companyProfile, timezone: e.target.value })}
+                    className="w-full px-4 py-2 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-xl text-gray-900 dark:text-slate-100"
+                  >
+                    <option value="Africa/Johannesburg">Africa/Johannesburg (SAST)</option>
+                    <option value="UTC">UTC</option>
+                    <option value="America/New_York">America/New_York (EST)</option>
+                    <option value="America/Los_Angeles">America/Los_Angeles (PST)</option>
+                    <option value="Europe/London">Europe/London (GMT)</option>
+                    <option value="Europe/Paris">Europe/Paris (CET)</option>
+                    <option value="Asia/Dubai">Asia/Dubai (GST)</option>
+                  </select>
+                ) : (
+                  <p className="text-gray-900 dark:text-slate-100 font-semibold">{companyProfile.timezone}</p>
+                )}
+              </div>
+
+              <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-200 dark:border-slate-800 p-6 space-y-4">
+                <div className="flex items-center gap-2 text-gray-400">
+                  <Phone size={16} />
+                  <span className="text-xs font-black uppercase tracking-widest">Phone</span>
+                </div>
+                {isEditingCompany ? (
+                  <input
+                    type="tel"
+                    value={companyProfile.phone}
+                    onChange={(e) => setCompanyProfile({ ...companyProfile, phone: e.target.value })}
+                    placeholder="+27 12 345 6789"
+                    className="w-full px-4 py-2 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-xl text-gray-900 dark:text-slate-100"
+                  />
+                ) : (
+                  <p className="text-gray-900 dark:text-slate-100 font-semibold">{companyProfile.phone || 'Not set'}</p>
+                )}
+              </div>
+
+              <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-200 dark:border-slate-800 p-6 space-y-4">
+                <div className="flex items-center gap-2 text-gray-400">
+                  <Mail size={16} />
+                  <span className="text-xs font-black uppercase tracking-widest">Contact Email</span>
+                </div>
+                {isEditingCompany ? (
+                  <input
+                    type="email"
+                    value={companyProfile.contact_email}
+                    onChange={(e) => setCompanyProfile({ ...companyProfile, contact_email: e.target.value })}
+                    placeholder="contact@company.com"
+                    className="w-full px-4 py-2 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-xl text-gray-900 dark:text-slate-100"
+                  />
+                ) : (
+                  <p className="text-gray-900 dark:text-slate-100 font-semibold">{companyProfile.contact_email || profile?.email || 'Not set'}</p>
+                )}
+              </div>
+            </div>
+
+            {/* Address */}
+            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-200 dark:border-slate-800 p-6 space-y-4">
+              <div className="flex items-center gap-2 text-gray-400">
+                <MapPin size={16} />
+                <span className="text-xs font-black uppercase tracking-widest">Business Address</span>
+              </div>
+              {isEditingCompany ? (
+                <textarea
+                  value={companyProfile.address}
+                  onChange={(e) => setCompanyProfile({ ...companyProfile, address: e.target.value })}
+                  placeholder="123 Business Street, City, Country"
+                  rows={3}
+                  className="w-full px-4 py-2 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-xl text-gray-900 dark:text-slate-100 resize-none"
+                />
+              ) : (
+                <p className="text-gray-900 dark:text-slate-100 font-semibold">{companyProfile.address || 'Not set'}</p>
+              )}
+            </div>
+          </div>
+        );
+
+      case 'social':
+        return (
+          <div className="space-y-8 animate-in fade-in duration-500 pb-10">
+            {/* Social Accounts Overview */}
+            <div className="bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 rounded-3xl border border-purple-100 dark:border-purple-800 p-8">
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h4 className="text-lg font-black text-gray-900 dark:text-slate-100">Connected Accounts</h4>
+                  <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">Manage your linked social media platforms</p>
+                </div>
+                <button
+                  onClick={() => window.location.hash = '#social-media'}
+                  className="px-4 py-2 bg-brand-600 text-white rounded-xl text-xs font-bold flex items-center gap-2 hover:bg-brand-700 transition-all"
+                >
+                  <Link2 size={14} /> Connect New
+                </button>
+              </div>
+
+              {loadingSocial ? (
+                <div className="flex items-center justify-center py-12">
+                  <RefreshCw className="w-6 h-6 animate-spin text-brand-600" />
+                </div>
+              ) : socialAccounts.length === 0 ? (
+                <div className="text-center py-12">
+                  <Share2 className="w-12 h-12 mx-auto text-gray-300 dark:text-slate-600 mb-4" />
+                  <p className="text-gray-500 dark:text-slate-400">No social accounts connected yet</p>
+                  <button
+                    onClick={() => window.location.hash = '#social-media'}
+                    className="mt-4 px-6 py-2 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl text-sm font-bold text-gray-700 dark:text-slate-300"
+                  >
+                    Connect Your First Account
+                  </button>
+                </div>
+              ) : (
+                <div className="grid gap-4">
+                  {socialAccounts.map((account) => (
+                    <div key={account.id} className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-200 dark:border-slate-800 p-5 flex items-center justify-between">
+                      <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 rounded-xl bg-gray-100 dark:bg-slate-800 flex items-center justify-center">
+                          {getPlatformIcon(account.platform)}
+                        </div>
+                        <div>
+                          <p className="font-bold text-gray-900 dark:text-slate-100">{account.account_name}</p>
+                          <p className="text-xs text-gray-500 dark:text-slate-400 capitalize">{account.platform}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <div className="text-right">
+                          <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-bold ${account.is_active ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-gray-100 text-gray-500 dark:bg-slate-800 dark:text-slate-400'}`}>
+                            <span className={`w-1.5 h-1.5 rounded-full ${account.is_active ? 'bg-green-500' : 'bg-gray-400'}`}></span>
+                            {account.is_active ? 'Active' : 'Inactive'}
+                          </span>
+                          {account.last_synced && (
+                            <p className="text-[10px] text-gray-400 mt-1">
+                              Last synced: {new Date(account.last_synced).toLocaleDateString()}
+                            </p>
+                          )}
+                        </div>
+                        <button className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-slate-300">
+                          <ExternalLink size={16} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Platform Guide */}
+            <div className="bg-gray-50 dark:bg-slate-800/50 rounded-2xl border border-gray-200 dark:border-slate-800 p-6">
+              <h5 className="text-sm font-black text-gray-800 dark:text-slate-100 uppercase tracking-widest mb-4">Supported Platforms</h5>
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                {[
+                  { name: 'Facebook', icon: <Facebook size={24} />, color: 'text-blue-600' },
+                  { name: 'Instagram', icon: <Instagram size={24} />, color: 'text-pink-600' },
+                  { name: 'Twitter/X', icon: <Twitter size={24} />, color: 'text-sky-500' },
+                  { name: 'YouTube', icon: <Youtube size={24} />, color: 'text-red-600' },
+                  { name: 'LinkedIn', icon: <Linkedin size={24} />, color: 'text-blue-700' },
+                  { name: 'TikTok', icon: <Music size={24} />, color: 'text-black dark:text-white' },
+                ].map((platform) => (
+                  <div key={platform.name} className="bg-white dark:bg-slate-900 rounded-xl p-4 text-center border border-gray-100 dark:border-slate-800">
+                    <div className={`${platform.color} mx-auto mb-2`}>{platform.icon}</div>
+                    <p className="text-xs font-bold text-gray-700 dark:text-slate-300">{platform.name}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        );
+
+      case 'notifications':
+        return (
+          <div className="space-y-8 animate-in fade-in duration-500 pb-10">
+            {/* Email Notifications */}
+            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-200 dark:border-slate-800 p-8 space-y-6">
+              <div className="flex items-center gap-3 pb-4 border-b border-gray-100 dark:border-slate-800">
+                <div className="w-10 h-10 rounded-xl bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-blue-600">
+                  <Mail size={20} />
+                </div>
+                <div>
+                  <h4 className="text-sm font-black text-gray-800 dark:text-slate-100 uppercase tracking-widest">Email Notifications</h4>
+                  <p className="text-xs text-gray-400 font-medium mt-0.5">Manage email alerts and digests</p>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                {[
+                  { key: 'email_post_published', label: 'Post Published', desc: 'Get notified when a scheduled post is published', icon: <CheckCircle2 size={18} /> },
+                  { key: 'email_engagement_alerts', label: 'Engagement Alerts', desc: 'Receive alerts for significant engagement spikes', icon: <TrendingUp size={18} /> },
+                  { key: 'email_weekly_report', label: 'Weekly Report', desc: 'Get a weekly summary of your social performance', icon: <BarChart2 size={18} /> },
+                  { key: 'email_new_followers', label: 'New Followers', desc: 'Be notified about new follower milestones', icon: <UserCheck size={18} /> },
+                  { key: 'email_mentions', label: 'Mentions & Tags', desc: 'Get alerts when you\'re mentioned or tagged', icon: <MessageSquare size={18} /> },
+                ].map((item) => (
+                  <div key={item.key} className="flex items-center justify-between p-4 bg-gray-50 dark:bg-slate-800/50 rounded-xl">
+                    <div className="flex items-center gap-4">
+                      <div className="text-gray-400">{item.icon}</div>
+                      <div>
+                        <p className="font-bold text-gray-900 dark:text-slate-100 text-sm">{item.label}</p>
+                        <p className="text-xs text-gray-500 dark:text-slate-400">{item.desc}</p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => handleNotificationToggle(item.key as keyof NotificationSettings)}
+                      className={`relative w-12 h-6 rounded-full transition-colors ${notifications[item.key as keyof NotificationSettings] ? 'bg-brand-600' : 'bg-gray-300 dark:bg-slate-600'}`}
+                    >
+                      <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${notifications[item.key as keyof NotificationSettings] ? 'left-6' : 'left-0.5'}`}></span>
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Push Notifications */}
+            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-200 dark:border-slate-800 p-8 space-y-6">
+              <div className="flex items-center gap-3 pb-4 border-b border-gray-100 dark:border-slate-800">
+                <div className="w-10 h-10 rounded-xl bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center text-purple-600">
+                  <BellRing size={20} />
+                </div>
+                <div>
+                  <h4 className="text-sm font-black text-gray-800 dark:text-slate-100 uppercase tracking-widest">Push Notifications</h4>
+                  <p className="text-xs text-gray-400 font-medium mt-0.5">Browser and mobile push alerts</p>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between p-4 bg-purple-50 dark:bg-purple-900/20 rounded-xl border border-purple-100 dark:border-purple-800">
+                <div className="flex items-center gap-4">
+                  <Smartphone className="text-purple-600" size={20} />
+                  <div>
+                    <p className="font-bold text-gray-900 dark:text-slate-100 text-sm">Enable Push Notifications</p>
+                    <p className="text-xs text-gray-500 dark:text-slate-400">Allow browser notifications</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => handleNotificationToggle('push_enabled')}
+                  className={`relative w-12 h-6 rounded-full transition-colors ${notifications.push_enabled ? 'bg-brand-600' : 'bg-gray-300 dark:bg-slate-600'}`}
+                >
+                  <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${notifications.push_enabled ? 'left-6' : 'left-0.5'}`}></span>
+                </button>
+              </div>
+
+              <div className={`space-y-4 transition-opacity ${notifications.push_enabled ? 'opacity-100' : 'opacity-50 pointer-events-none'}`}>
+                {[
+                  { key: 'push_engagement', label: 'Real-time Engagement', desc: 'Instant alerts for likes, comments, shares' },
+                  { key: 'push_mentions', label: 'Mentions', desc: 'Push when someone mentions you' },
+                  { key: 'push_reminders', label: 'Post Reminders', desc: 'Reminders for scheduled posts' },
+                ].map((item) => (
+                  <div key={item.key} className="flex items-center justify-between p-4 bg-gray-50 dark:bg-slate-800/50 rounded-xl">
+                    <div>
+                      <p className="font-bold text-gray-900 dark:text-slate-100 text-sm">{item.label}</p>
+                      <p className="text-xs text-gray-500 dark:text-slate-400">{item.desc}</p>
+                    </div>
+                    <button
+                      onClick={() => handleNotificationToggle(item.key as keyof NotificationSettings)}
+                      className={`relative w-12 h-6 rounded-full transition-colors ${notifications[item.key as keyof NotificationSettings] ? 'bg-brand-600' : 'bg-gray-300 dark:bg-slate-600'}`}
+                    >
+                      <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${notifications[item.key as keyof NotificationSettings] ? 'left-6' : 'left-0.5'}`}></span>
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        );
+
+      case 'privacy':
+        return (
+          <div className="space-y-8 animate-in fade-in duration-500 pb-10">
+            {/* Data & Privacy */}
+            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-200 dark:border-slate-800 p-8 space-y-6">
+              <div className="flex items-center gap-3 pb-4 border-b border-gray-100 dark:border-slate-800">
+                <div className="w-10 h-10 rounded-xl bg-green-100 dark:bg-green-900/30 flex items-center justify-center text-green-600">
+                  <Shield size={20} />
+                </div>
+                <div>
+                  <h4 className="text-sm font-black text-gray-800 dark:text-slate-100 uppercase tracking-widest">Data & Privacy</h4>
+                  <p className="text-xs text-gray-400 font-medium mt-0.5">Manage how your data is handled</p>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-slate-800/50 rounded-xl">
+                  <div className="flex items-center gap-4">
+                    <Database className="text-gray-400" size={20} />
+                    <div>
+                      <p className="font-bold text-gray-900 dark:text-slate-100 text-sm">Data Retention Period</p>
+                      <p className="text-xs text-gray-500 dark:text-slate-400">How long we keep your historical data</p>
+                    </div>
+                  </div>
+                  <select
+                    value={dataRetentionDays}
+                    onChange={(e) => setDataRetentionDays(Number(e.target.value))}
+                    className="px-4 py-2 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-xl text-sm text-gray-900 dark:text-slate-100"
+                  >
+                    <option value={90}>90 days</option>
+                    <option value={180}>180 days</option>
+                    <option value={365}>1 year</option>
+                    <option value={730}>2 years</option>
+                    <option value={0}>Forever</option>
+                  </select>
+                </div>
+
+                <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-slate-800/50 rounded-xl">
+                  <div className="flex items-center gap-4">
+                    <TrendingUp className="text-gray-400" size={20} />
+                    <div>
+                      <p className="font-bold text-gray-900 dark:text-slate-100 text-sm">Analytics Collection</p>
+                      <p className="text-xs text-gray-500 dark:text-slate-400">Allow us to collect usage analytics</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setAnalyticsEnabled(!analyticsEnabled)}
+                    className={`relative w-12 h-6 rounded-full transition-colors ${analyticsEnabled ? 'bg-brand-600' : 'bg-gray-300 dark:bg-slate-600'}`}
+                  >
+                    <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${analyticsEnabled ? 'left-6' : 'left-0.5'}`}></span>
+                  </button>
+                </div>
+
+                <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-slate-800/50 rounded-xl">
+                  <div className="flex items-center gap-4">
+                    <Mail className="text-gray-400" size={20} />
+                    <div>
+                      <p className="font-bold text-gray-900 dark:text-slate-100 text-sm">Marketing Communications</p>
+                      <p className="text-xs text-gray-500 dark:text-slate-400">Receive product updates and offers</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setMarketingConsent(!marketingConsent)}
+                    className={`relative w-12 h-6 rounded-full transition-colors ${marketingConsent ? 'bg-brand-600' : 'bg-gray-300 dark:bg-slate-600'}`}
+                  >
+                    <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${marketingConsent ? 'left-6' : 'left-0.5'}`}></span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Data Export */}
+            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-200 dark:border-slate-800 p-8 space-y-6">
+              <div className="flex items-center gap-3 pb-4 border-b border-gray-100 dark:border-slate-800">
+                <div className="w-10 h-10 rounded-xl bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-blue-600">
+                  <Download size={20} />
+                </div>
+                <div>
+                  <h4 className="text-sm font-black text-gray-800 dark:text-slate-100 uppercase tracking-widest">Data Export</h4>
+                  <p className="text-xs text-gray-400 font-medium mt-0.5">Download your data (POPIA/GDPR)</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <button className="flex items-center gap-4 p-4 bg-gray-50 dark:bg-slate-800/50 rounded-xl hover:bg-gray-100 dark:hover:bg-slate-800 transition-all text-left">
+                  <FileText className="text-blue-600" size={24} />
+                  <div>
+                    <p className="font-bold text-gray-900 dark:text-slate-100 text-sm">Export Posts</p>
+                    <p className="text-xs text-gray-500 dark:text-slate-400">Download all your posts as CSV</p>
+                  </div>
+                </button>
+                <button className="flex items-center gap-4 p-4 bg-gray-50 dark:bg-slate-800/50 rounded-xl hover:bg-gray-100 dark:hover:bg-slate-800 transition-all text-left">
+                  <Database className="text-green-600" size={24} />
+                  <div>
+                    <p className="font-bold text-gray-900 dark:text-slate-100 text-sm">Export Analytics</p>
+                    <p className="text-xs text-gray-500 dark:text-slate-400">Download engagement metrics</p>
+                  </div>
+                </button>
+                <button className="flex items-center gap-4 p-4 bg-gray-50 dark:bg-slate-800/50 rounded-xl hover:bg-gray-100 dark:hover:bg-slate-800 transition-all text-left">
+                  <User className="text-purple-600" size={24} />
+                  <div>
+                    <p className="font-bold text-gray-900 dark:text-slate-100 text-sm">Export Profile</p>
+                    <p className="text-xs text-gray-500 dark:text-slate-400">Download your account data</p>
+                  </div>
+                </button>
+                <button className="flex items-center gap-4 p-4 bg-gray-50 dark:bg-slate-800/50 rounded-xl hover:bg-gray-100 dark:hover:bg-slate-800 transition-all text-left">
+                  <Download className="text-orange-600" size={24} />
+                  <div>
+                    <p className="font-bold text-gray-900 dark:text-slate-100 text-sm">Export All Data</p>
+                    <p className="text-xs text-gray-500 dark:text-slate-400">Complete data archive (ZIP)</p>
+                  </div>
+                </button>
+              </div>
+            </div>
+
+            {/* Compliance */}
+            <div className="bg-gray-50 dark:bg-slate-800/50 rounded-2xl border border-gray-200 dark:border-slate-800 p-6">
+              <h5 className="text-sm font-black text-gray-800 dark:text-slate-100 uppercase tracking-widest mb-4">Compliance & Legal</h5>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <a href="#" className="flex items-center gap-3 p-4 bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 hover:border-brand-300 transition-all">
+                  <FileText className="text-gray-400" size={20} />
+                  <span className="text-sm font-bold text-gray-700 dark:text-slate-300">Privacy Policy</span>
+                </a>
+                <a href="#" className="flex items-center gap-3 p-4 bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 hover:border-brand-300 transition-all">
+                  <FileText className="text-gray-400" size={20} />
+                  <span className="text-sm font-bold text-gray-700 dark:text-slate-300">Terms of Service</span>
+                </a>
+                <a href="#" className="flex items-center gap-3 p-4 bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 hover:border-brand-300 transition-all">
+                  <Shield className="text-gray-400" size={20} />
+                  <span className="text-sm font-bold text-gray-700 dark:text-slate-300">POPIA Compliance</span>
+                </a>
+              </div>
+            </div>
+
+            {/* Delete Account */}
+            <div className="bg-red-50 dark:bg-red-900/10 rounded-2xl border border-red-200 dark:border-red-900/30 p-6">
+              <div className="flex items-start gap-4">
+                <div className="w-10 h-10 rounded-xl bg-red-100 dark:bg-red-900/30 flex items-center justify-center text-red-600 shrink-0">
+                  <Trash2 size={20} />
+                </div>
+                <div className="flex-1">
+                  <h5 className="text-sm font-black text-red-800 dark:text-red-400 uppercase tracking-widest">Delete Account</h5>
+                  <p className="text-xs text-red-600 dark:text-red-400/80 mt-1 leading-relaxed">
+                    Permanently delete your account and all associated data. This action cannot be undone.
+                  </p>
+                  <button className="mt-4 px-4 py-2 bg-red-600 text-white rounded-xl text-xs font-bold hover:bg-red-700 transition-all">
+                    Request Account Deletion
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+
+      case 'security':
+        return (
+          <div className="space-y-8 animate-in fade-in duration-500 pb-10">
+            {/* Two-Factor Authentication */}
+            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-200 dark:border-slate-800 p-8 space-y-6">
+              <div className="flex items-center gap-3 pb-4 border-b border-gray-100 dark:border-slate-800">
+                <div className="w-10 h-10 rounded-xl bg-green-100 dark:bg-green-900/30 flex items-center justify-center text-green-600">
+                  <Shield size={20} />
+                </div>
+                <div>
+                  <h4 className="text-sm font-black text-gray-800 dark:text-slate-100 uppercase tracking-widest">Two-Factor Authentication</h4>
+                  <p className="text-xs text-gray-400 font-medium mt-0.5">Add an extra layer of security</p>
+                </div>
+              </div>
+
+              <div className={`p-4 rounded-xl border-2 ${twoFactorEnabled ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800' : 'bg-gray-50 dark:bg-slate-800/50 border-gray-200 dark:border-slate-700'}`}>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <Key className={twoFactorEnabled ? 'text-green-600' : 'text-gray-400'} size={24} />
+                    <div>
+                      <p className="font-bold text-gray-900 dark:text-slate-100 text-sm">
+                        {twoFactorEnabled ? '2FA is Enabled' : '2FA is Disabled'}
+                      </p>
+                      <p className="text-xs text-gray-500 dark:text-slate-400">
+                        {twoFactorEnabled ? 'Your account is protected' : 'Enable for better security'}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setTwoFactorEnabled(!twoFactorEnabled)}
+                    className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${twoFactorEnabled ? 'bg-red-100 text-red-700 hover:bg-red-200' : 'bg-brand-600 text-white hover:bg-brand-700'}`}
+                  >
+                    {twoFactorEnabled ? 'Disable 2FA' : 'Enable 2FA'}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Change Password */}
+            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-200 dark:border-slate-800 p-8 space-y-6">
+              <div className="flex items-center gap-3 pb-4 border-b border-gray-100 dark:border-slate-800">
+                <div className="w-10 h-10 rounded-xl bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center text-orange-600">
+                  <Lock size={20} />
+                </div>
+                <div>
+                  <h4 className="text-sm font-black text-gray-800 dark:text-slate-100 uppercase tracking-widest">Change Password</h4>
+                  <p className="text-xs text-gray-400 font-medium mt-0.5">Update your account password</p>
+                </div>
+              </div>
+
+              <div className="space-y-4 max-w-md">
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-gray-600 dark:text-slate-400 uppercase tracking-widest">Current Password</label>
+                  <div className="relative">
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      value={currentPassword}
+                      onChange={(e) => setCurrentPassword(e.target.value)}
+                      className="w-full px-4 py-3 pr-12 bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl text-gray-900 dark:text-slate-100"
+                      placeholder="••••••••"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    >
+                      {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                    </button>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-gray-600 dark:text-slate-400 uppercase tracking-widest">New Password</label>
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    className="w-full px-4 py-3 bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl text-gray-900 dark:text-slate-100"
+                    placeholder="••••••••"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-gray-600 dark:text-slate-400 uppercase tracking-widest">Confirm New Password</label>
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    className="w-full px-4 py-3 bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl text-gray-900 dark:text-slate-100"
+                    placeholder="••••••••"
+                  />
+                </div>
+                <button
+                  onClick={handlePasswordChange}
+                  disabled={isChangingPassword}
+                  className="px-6 py-3 bg-brand-600 text-white rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-brand-700 transition-all disabled:opacity-50 flex items-center gap-2"
+                >
+                  {isChangingPassword ? <RefreshCw size={14} className="animate-spin" /> : <Lock size={14} />}
+                  {isChangingPassword ? 'Updating...' : 'Update Password'}
+                </button>
+              </div>
+            </div>
+
+            {/* Active Sessions */}
+            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-200 dark:border-slate-800 p-8 space-y-6">
+              <div className="flex items-center gap-3 pb-4 border-b border-gray-100 dark:border-slate-800">
+                <div className="w-10 h-10 rounded-xl bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-blue-600">
+                  <Laptop size={20} />
+                </div>
+                <div>
+                  <h4 className="text-sm font-black text-gray-800 dark:text-slate-100 uppercase tracking-widest">Active Sessions</h4>
+                  <p className="text-xs text-gray-400 font-medium mt-0.5">Devices currently logged in</p>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                {sessions.map((session) => (
+                  <div key={session.id} className={`flex items-center justify-between p-4 rounded-xl ${session.is_current ? 'bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800' : 'bg-gray-50 dark:bg-slate-800/50'}`}>
+                    <div className="flex items-center gap-4">
+                      <Laptop className={session.is_current ? 'text-green-600' : 'text-gray-400'} size={20} />
+                      <div>
+                        <p className="font-bold text-gray-900 dark:text-slate-100 text-sm flex items-center gap-2">
+                          {session.device} • {session.browser}
+                          {session.is_current && <span className="text-[10px] px-2 py-0.5 bg-green-600 text-white rounded-full">Current</span>}
+                        </p>
+                        <p className="text-xs text-gray-500 dark:text-slate-400">{session.location} • {session.ip_address}</p>
+                        <p className="text-[10px] text-gray-400 mt-0.5">
+                          Last active: {new Date(session.last_active).toLocaleString()}
+                        </p>
+                      </div>
+                    </div>
+                    {!session.is_current && (
+                      <button
+                        onClick={() => handleRevokeSession(session.id)}
+                        className="px-3 py-1.5 bg-red-100 text-red-700 rounded-lg text-xs font-bold hover:bg-red-200 transition-all"
+                      >
+                        Revoke
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        );
+
+      case 'audit':
+        return (
+          <div className="space-y-6 animate-in fade-in duration-500 pb-10">
+            {/* Filters */}
+            <div className="flex flex-col md:flex-row gap-4">
+              <div className="flex-1 relative">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                <input
+                  type="text"
+                  value={auditSearch}
+                  onChange={(e) => setAuditSearch(e.target.value)}
+                  placeholder="Search audit logs..."
+                  className="w-full pl-12 pr-4 py-3 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-xl text-gray-900 dark:text-slate-100"
+                />
+              </div>
+              <div className="relative">
+                <Filter className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                <select
+                  value={auditFilter}
+                  onChange={(e) => setAuditFilter(e.target.value)}
+                  className="pl-12 pr-10 py-3 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-xl text-gray-900 dark:text-slate-100 appearance-none cursor-pointer"
+                >
+                  <option value="all">All Activities</option>
+                  <option value="login">Logins</option>
+                  <option value="post_created">Posts Created</option>
+                  <option value="post_published">Posts Published</option>
+                  <option value="settings_changed">Settings Changes</option>
+                  <option value="social_connected">Social Connections</option>
+                  <option value="password_changed">Password Changes</option>
+                </select>
+                <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={18} />
+              </div>
+            </div>
+
+            {/* Audit Log Table */}
+            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-200 dark:border-slate-800 overflow-hidden">
+              <div className="p-4 border-b border-gray-100 dark:border-slate-800">
+                <h4 className="text-sm font-black text-gray-800 dark:text-slate-100 uppercase tracking-widest">Activity Log</h4>
+              </div>
+
+              {loadingAudit ? (
+                <div className="flex items-center justify-center py-20">
+                  <RefreshCw className="w-6 h-6 animate-spin text-brand-600" />
+                </div>
+              ) : filteredAuditLogs.length === 0 ? (
+                <div className="text-center py-20">
+                  <History className="w-12 h-12 mx-auto text-gray-300 dark:text-slate-600 mb-4" />
+                  <p className="text-gray-500 dark:text-slate-400">No audit logs found</p>
+                </div>
+              ) : (
+                <div className="divide-y divide-gray-100 dark:divide-slate-800">
+                  {filteredAuditLogs.map((log) => (
+                    <div key={log.id} className="p-4 hover:bg-gray-50 dark:hover:bg-slate-800/50 transition-colors">
+                      <div className="flex items-start gap-4">
+                        <div className="w-10 h-10 rounded-xl bg-gray-100 dark:bg-slate-800 flex items-center justify-center shrink-0">
+                          {getAuditIcon(log.action)}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-start justify-between gap-4">
+                            <div>
+                              <p className="font-bold text-gray-900 dark:text-slate-100 text-sm">{log.description}</p>
+                              <p className="text-xs text-gray-500 dark:text-slate-400 mt-0.5 capitalize">{log.action.replace(/_/g, ' ')}</p>
+                            </div>
+                            <p className="text-xs text-gray-400 whitespace-nowrap">
+                              {new Date(log.created_at).toLocaleString()}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-4 mt-2 text-[10px] text-gray-400">
+                            <span className="flex items-center gap-1">
+                              <Globe size={12} />
+                              {log.ip_address}
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <Laptop size={12} />
+                              {log.user_agent}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Export Button */}
+              <div className="p-4 border-t border-gray-100 dark:border-slate-800 bg-gray-50 dark:bg-slate-800/50">
+                <button className="flex items-center gap-2 text-sm font-bold text-brand-600 hover:text-brand-700">
+                  <Download size={16} />
+                  Export Audit Log (CSV)
                 </button>
               </div>
             </div>

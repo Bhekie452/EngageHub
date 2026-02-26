@@ -86,26 +86,36 @@ Don't miss out!
 
 What's stopping you?`;
 
-      const imageTextResponse = await fetch(`https://api.groq.com/openai/v1/chat/completions`, {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${GROQ_API_KEY}`
-        },
-        body: JSON.stringify({
-          model: 'llama-3.1-8b-instant',
-          messages: [{ role: 'user', content: imageTextPrompt }],
-          temperature: 0.9,
-          max_tokens: 1024,
-        }),
-      });
+      let imageTextData: any;
+      try {
+        const imageTextResponse = await fetch(`https://api.groq.com/openai/v1/chat/completions`, {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${GROQ_API_KEY}`
+          },
+          body: JSON.stringify({
+            model: 'llama-3.1-8b-instant',
+            messages: [{ role: 'user', content: imageTextPrompt }],
+            temperature: 0.9,
+            max_tokens: 1024,
+          }),
+        });
 
-      if (!imageTextResponse.ok) {
-        const errorData = await imageTextResponse.text();
-        throw new Error(`Groq API error: ${imageTextResponse.status} - ${errorData}`);
+        if (!imageTextResponse.ok) {
+          const errorData = await imageTextResponse.text();
+          throw new Error(`Groq API error: ${imageTextResponse.status} - ${errorData}`);
+        }
+
+        imageTextData = await imageTextResponse.json();
+      } catch (error) {
+        console.error("AI Error:", error);
+        return new Response(
+          JSON.stringify({ error: "AI request failed" }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
       }
 
-      const imageTextData = await imageTextResponse.json();
       const imageText = imageTextData.choices[0]?.message?.content || '';
 
       return new Response(JSON.stringify({ result: imageText }), {
@@ -178,26 +188,36 @@ Variation 3: Story-Driven Approach
 Generate only the 3 variations. No preamble, no explanations.`;
 
     // Use fetch to call Groq API
-    const response = await fetch(`https://api.groq.com/openai/v1/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${GROQ_API_KEY}`
-      },
-      body: JSON.stringify({
-        model: 'llama-3.1-8b-instant',
-        messages: [{ role: 'user', content: prompt }],
-        temperature: 0.9,
-        max_tokens: 2048,
-      }),
-    });
+    let data: any;
+    try {
+      const response = await fetch(`https://api.groq.com/openai/v1/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${GROQ_API_KEY}`
+        },
+        body: JSON.stringify({
+          model: 'llama-3.1-8b-instant',
+          messages: [{ role: 'user', content: prompt }],
+          temperature: 0.9,
+          max_tokens: 2048,
+        }),
+      });
 
-    if (!response.ok) {
-      const errorData = await response.text();
-      throw new Error(`Groq API error: ${response.status} - ${errorData}`);
+      if (!response.ok) {
+        const errorData = await response.text();
+        throw new Error(`Groq API error: ${response.status} - ${errorData}`);
+      }
+
+      data = await response.json();
+    } catch (error) {
+      console.error("AI Error:", error);
+      return new Response(
+        JSON.stringify({ error: "AI request failed" }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
-    const data = await response.json();
     const text = data.choices[0]?.message?.content || 'No response generated';
 
     return new Response(JSON.stringify({ result: text }), {
