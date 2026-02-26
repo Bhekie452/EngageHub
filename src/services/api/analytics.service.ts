@@ -576,6 +576,41 @@ export const analyticsService = {
                   }));
                   facebookActivity.push(...nativeFbComments);
                   console.log('[Analytics] Added', nativeFbComments.length, 'native FB comments to activity feed');
+                  
+                  // ✅ ALSO store each comment in engagement_actions for CRM harvesting
+                  for (const comment of graphData.comments.data) {
+                    try {
+                      const commenterId = comment.from?.id;
+                      const commenterName = comment.from?.name;
+                      
+                      // Skip if no commenter info
+                      if (!commenterId && !commenterName) continue;
+                      
+                      await supabase.from('engagement_actions').upsert({
+                        workspace_id: workspace_id,
+                        user_id: user?.id,
+                        platform: 'facebook',
+                        platform_post_id: fbPostId,
+                        platform_user_id: commenterId || null,
+                        platform_action_id: comment.id || `${fbPostId}_${commenterId}_${Date.now()}`,
+                        action_type: 'comment',
+                        source: 'native',
+                        action_data: {
+                          from_id: commenterId,
+                          from_name: commenterName,
+                          message: comment.message || '',
+                          profile_url: commenterId ? `https://facebook.com/${commenterId}` : null,
+                        },
+                        created_at: comment.created_time || new Date().toISOString(),
+                      }, { 
+                        onConflict: 'platform_action_id',
+                        ignoreDuplicates: true 
+                      });
+                    } catch (insertErr) {
+                      console.warn('[Analytics] Failed to store FB comment in engagement_actions:', insertErr);
+                    }
+                  }
+                  console.log('[Analytics] Stored FB comments in engagement_actions for CRM harvesting');
                 }
 
                 // ✅ FIX 4: Also upsert to post_analytics for caching
@@ -865,6 +900,37 @@ export const analyticsService = {
                       time: timeAgo(c.timestamp || new Date().toISOString()),
                     }));
                   instagramActivity.push(...nativeIgComments);
+                  
+                  // ✅ ALSO store each comment in engagement_actions for CRM harvesting
+                  for (const comment of commentsJson.data) {
+                    try {
+                      if (!comment.username) continue;
+                      
+                      await supabase.from('engagement_actions').upsert({
+                        workspace_id: workspace_id,
+                        user_id: user?.id,
+                        platform: 'instagram',
+                        platform_post_id: igMediaId,
+                        platform_user_id: comment.username,
+                        platform_action_id: comment.id || `${igMediaId}_${comment.username}_${Date.now()}`,
+                        action_type: 'comment',
+                        source: 'native',
+                        action_data: {
+                          from_id: comment.username,
+                          from_name: comment.username,
+                          message: comment.text || '',
+                          profile_url: `https://instagram.com/${comment.username}`,
+                        },
+                        created_at: comment.timestamp || new Date().toISOString(),
+                      }, { 
+                        onConflict: 'platform_action_id',
+                        ignoreDuplicates: true 
+                      });
+                    } catch (insertErr) {
+                      console.warn('[Analytics] Failed to store IG comment in engagement_actions:', insertErr);
+                    }
+                  }
+                  console.log('[Analytics] Stored IG comments in engagement_actions for CRM harvesting');
                 }
 
                 await supabase.from('post_analytics').upsert({
