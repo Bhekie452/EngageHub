@@ -1364,6 +1364,39 @@ export const analyticsService = {
               }));
             youtubeActivity.push(...validComments);
             console.log('[Analytics] Found YouTube comments:', validComments.length);
+            
+            // ✅ ALSO store each YouTube comment in engagement_actions for CRM harvesting
+            for (const comment of ytComments.data) {
+              try {
+                if (!comment.author) continue;
+                const channelId = comment.authorChannelId || comment.authorChannelUrl?.replace(/.*\/channel\//, '') || comment.author;
+                
+                await supabase.from('engagement_actions').upsert({
+                  workspace_id: workspace_id,
+                  user_id: user?.id,
+                  platform: 'youtube',
+                  platform_post_id: videoId,
+                  platform_user_id: channelId,
+                  platform_action_id: comment.id || `${videoId}_${channelId}_${Date.now()}`,
+                  action_type: 'comment',
+                  source: 'native',
+                  action_data: {
+                    from_id: channelId,
+                    from_name: comment.author,
+                    message: comment.text || '',
+                    profile_url: comment.authorChannelUrl || `https://youtube.com/channel/${channelId}`,
+                    avatar: comment.authorProfileImageUrl || '',
+                  },
+                  created_at: comment.publishedAt || new Date().toISOString(),
+                }, { 
+                  onConflict: 'platform_action_id',
+                  ignoreDuplicates: true 
+                });
+              } catch (insertErr) {
+                console.warn('[Analytics] Failed to store YT comment in engagement_actions:', insertErr);
+              }
+            }
+            console.log('[Analytics] Stored YT comments in engagement_actions for CRM harvesting');
           } else {
             console.log('[Analytics] No YouTube comments in response');
             // FALLBACK: Try local /api/app proxy for comments
@@ -1400,6 +1433,38 @@ export const analyticsService = {
               avatar: s.subscriberSnippet.thumbnails?.default?.url || s.subscriberSnippet.thumbnails?.medium?.url,
               userUrl: `https://youtube.com/channel/${s.subscriberSnippet.channelId}`
             })));
+          
+          // ✅ ALSO store each YouTube subscriber in engagement_actions for CRM harvesting
+          for (const sub of ytSubs.data) {
+            try {
+              const snippet = sub.subscriberSnippet;
+              if (!snippet || !snippet.channelId) continue;
+              
+              await supabase.from('engagement_actions').upsert({
+                workspace_id: workspace_id,
+                user_id: user?.id,
+                platform: 'youtube',
+                platform_post_id: 'channel_subscription',
+                platform_user_id: snippet.channelId,
+                platform_action_id: `sub_${snippet.channelId}`,
+                action_type: 'subscribe',
+                source: 'native',
+                action_data: {
+                  from_id: snippet.channelId,
+                  from_name: snippet.title || 'YouTube User',
+                  profile_url: `https://youtube.com/channel/${snippet.channelId}`,
+                  avatar: snippet.thumbnails?.default?.url || snippet.thumbnails?.medium?.url || '',
+                },
+                created_at: snippet.publishedAt || new Date().toISOString(),
+              }, { 
+                onConflict: 'platform_action_id',
+                ignoreDuplicates: true 
+              });
+            } catch (insertErr) {
+              console.warn('[Analytics] Failed to store YT subscriber in engagement_actions:', insertErr);
+            }
+          }
+          console.log('[Analytics] Stored YT subscribers in engagement_actions for CRM harvesting');
         }
       }
     } catch (e) {
