@@ -218,6 +218,9 @@ export const analyticsService = {
       workspace_id = await getWorkspaceIdForCurrentUser();
     }
 
+    // Get authenticated user for engagement_actions user_id
+    const { data: { user: authUser } } = await supabase.auth.getUser();
+
     // Use stored link_url if externalUrl wasn't passed
     const finalExternalUrl = externalUrl || (postData as any)?.link_url;
 
@@ -589,7 +592,7 @@ export const analyticsService = {
                     
                     const { error: upsertErr } = await supabase.from('engagement_actions').upsert({
                       workspace_id: workspace_id,
-                      user_id: user?.id,
+                      user_id: authUser?.id,
                       platform: 'facebook',
                       platform_post_id: fbPostId,
                       platform_user_id: commenterId || null,
@@ -910,7 +913,7 @@ export const analyticsService = {
                     
                     const { error: upsertErr } = await supabase.from('engagement_actions').upsert({
                       workspace_id: workspace_id,
-                      user_id: user?.id,
+                      user_id: authUser?.id,
                       platform: 'instagram',
                       platform_post_id: igMediaId,
                       platform_user_id: comment.username,
@@ -1375,7 +1378,7 @@ export const analyticsService = {
               
               const { error: upsertErr } = await supabase.from('engagement_actions').upsert({
                 workspace_id: workspace_id,
-                user_id: user?.id,
+                user_id: authUser?.id,
                 platform: 'youtube',
                 platform_post_id: videoId,
                 platform_user_id: channelId,
@@ -1445,7 +1448,7 @@ export const analyticsService = {
             
             const { error: upsertErr } = await supabase.from('engagement_actions').upsert({
               workspace_id: workspace_id,
-              user_id: user?.id,
+              user_id: authUser?.id,
               platform: 'youtube',
               platform_post_id: 'channel_subscription',
               platform_user_id: snippet.channelId,
