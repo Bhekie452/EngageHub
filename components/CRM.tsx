@@ -286,6 +286,27 @@ const CRM: React.FC = () => {
     fetchProgress 
   } = useEngagementHarvest();
 
+  // sometimes build artifacts leak literal strings into the DOM (e.g. "); case 'pipelines': return (")
+  // remove any such stray text nodes whenever the active CRM tab changes
+  useEffect(() => {
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
+      acceptNode(node) {
+        if (node.nodeValue && node.nodeValue.includes("case 'pipelines'")) {
+          return NodeFilter.FILTER_ACCEPT;
+        }
+        return NodeFilter.FILTER_SKIP;
+      }
+    });
+    const toRemove: Node[] = [];
+    while (walker.nextNode()) {
+      toRemove.push(walker.currentNode);
+    }
+    toRemove.forEach(n => n.parentNode?.removeChild(n));
+    if (toRemove.length > 0) {
+      console.warn('CRM cleaned stray artifact nodes:', toRemove.length);
+    }
+  }, [activeTab]);
+
   // Bulk selection state
   const [selectedContactIds, setSelectedContactIds] = useState<Set<string>>(new Set());
   const [selectedDealIds, setSelectedDealIds] = useState<Set<string>>(new Set());

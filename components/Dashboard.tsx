@@ -20,16 +20,15 @@ import { useYouTubeOAuthCallback } from './YouTubeConnection';
 import { usePosts } from '../src/hooks/usePosts';
 import { useDeals } from '../src/hooks/useDeals';
 import { useCustomers } from '../src/hooks/useCustomers';
+import { useTasks } from '../src/hooks/useTasks';
+import { useWorkspace } from '../src/hooks/useWorkspace';
+import { useInbox } from '../src/hooks/useInbox';
+import { useLeads } from '../src/hooks/useLeads';
 
-const chartData = [
-  { name: 'Mon', revenue: 4000 },
-  { name: 'Tue', revenue: 3000 },
-  { name: 'Wed', revenue: 2000 },
-  { name: 'Thu', revenue: 2780 },
-  { name: 'Fri', revenue: 1890 },
-  { name: 'Sat', revenue: 2390 },
-  { name: 'Sun', revenue: 3490 },
-];
+
+// default empty array; will compute below using real data
+const chartData: Array<{ name: string; revenue: number }> = []; // filled later
+
 
 const StatCard = ({ title, value, change, icon: Icon, color }: any) => (
   <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
@@ -61,13 +60,53 @@ const Dashboard: React.FC = () => {
   // Handle YouTube OAuth callback
   useYouTubeOAuthCallback();
 
-  const { posts } = usePosts();
-  const { deals } = useDeals();
-  const { customers } = useCustomers();
+  // grab underlying data hooks
+  const { posts, scheduledPosts } = usePosts();
+  const { deals, wonDeals } = useDeals();
+  const { tasks } = useTasks();
+  const { workspaceId } = useWorkspace();
+  const { messages } = useInbox(workspaceId);
+  const { leads } = useLeads();
 
-  const wonDeals = deals.filter(d => d.status === 'won');
+  // metrics
   const totalRevenue = wonDeals.reduce((sum, d) => sum + (d.amount || 0), 0);
   const winRate = deals.length > 0 ? (wonDeals.length / deals.length * 100).toFixed(1) : '0';
+
+  // compute weekly revenue chart (last 7 days)
+  const now = new Date();
+  const dailyMap: Record<string, number> = {};
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(now);
+    d.setDate(now.getDate() - i);
+    const key = d.toLocaleDateString('en-US', { weekday: 'short' });
+    dailyMap[key] = 0;
+  }
+  wonDeals.forEach(d => {
+    if (d.created_at) {
+      const dt = new Date(d.created_at);
+      const diff = now.getTime() - dt.getTime();
+      if (diff < 7 * 24 * 60 * 60 * 1000) {
+        const key = dt.toLocaleDateString('en-US', { weekday: 'short' });
+        if (dailyMap[key] !== undefined) {
+          dailyMap[key] += Number(d.amount) || 0;
+        }
+      }
+    }
+  });
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(now);
+    d.setDate(now.getDate() - i);
+    const key = d.toLocaleDateString('en-US', { weekday: 'short' });
+    chartData.push({ name: key, revenue: dailyMap[key] || 0 });
+  }
+
+  // prepare dashboard panels
+  const pendingTasks = tasks.filter(t => t.status === 'pending').slice(0, 3);
+  const upcomingPosts = scheduledPosts.slice(0, 2);
+  const unreadMsgs = messages.filter(m => m.unread).slice(0, 2);
+  const recentLeads = leads.slice(0, 2);
+
+  const aiInsightText = `You have ${leads.filter(l => l.status === 'new').length} new lead${leads.filter(l => l.status === 'new').length !== 1 ? 's' : ''} in your workspace. Reach out soon to boost conversion.`;
 
   return (
     <div className="space-y-6">
@@ -141,23 +180,23 @@ const Dashboard: React.FC = () => {
           <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
             <SectionHeader title="Pending Tasks" linkText="View All" />
             <div className="space-y-3">
-              {[
-                { id: 1, text: 'Review Q3 Marketing Plan', priority: 'High' },
-                { id: 2, text: 'Follow up with lead: SolarTech', priority: 'Medium' },
-                { id: 3, text: 'Record tutorial video', priority: 'Low' },
-              ].map(task => (
-                <div key={task.id} className="flex items-center gap-3 group cursor-pointer">
-                  <div className="w-5 h-5 rounded border border-gray-300 flex items-center justify-center group-hover:border-blue-500 group-hover:bg-blue-50 transition-all">
-                    <CheckCircle2 size={12} className="text-transparent group-hover:text-blue-500" />
+              {pendingTasks.length > 0 ? (
+                pendingTasks.map(task => (
+                  <div key={task.id} className="flex items-center gap-3 group cursor-pointer">
+                    <div className="w-5 h-5 rounded border border-gray-300 flex items-center justify-center group-hover:border-blue-500 group-hover:bg-blue-50 transition-all">
+                      <CheckCircle2 size={12} className="text-transparent group-hover:text-blue-500" />
+                    </div>
+                    <span className="text-sm text-gray-700 flex-1">{task.title || task.text}</span>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase ${task.priority === 'high' ? 'bg-red-50 text-red-600' :
+                        task.priority === 'medium' ? 'bg-amber-50 text-amber-600' : 'bg-gray-50 text-gray-500'
+                      }`}>
+                      {task.priority}
+                    </span>
                   </div>
-                  <span className="text-sm text-gray-700 flex-1">{task.text}</span>
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase ${task.priority === 'High' ? 'bg-red-50 text-red-600' :
-                      task.priority === 'Medium' ? 'bg-amber-50 text-amber-600' : 'bg-gray-50 text-gray-500'
-                    }`}>
-                    {task.priority}
-                  </span>
-                </div>
-              ))}
+                ))
+              ) : (
+                <p className="text-sm text-gray-500">No pending tasks</p>
+              )}
             </div>
           </div>
 
@@ -165,23 +204,24 @@ const Dashboard: React.FC = () => {
           <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
             <SectionHeader title="Scheduled Posts" linkText="Calendar" />
             <div className="space-y-4">
-              {[
-                { id: 1, platform: 'LinkedIn', time: 'Today, 2:00 PM', content: 'The future of solo-ops...' },
-                { id: 2, platform: 'Instagram', time: 'Tomorrow, 10:00 AM', content: 'Launch day countdown!' },
-              ].map(post => (
-                <div key={post.id} className="flex gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center text-blue-600 shrink-0">
-                    <Calendar size={18} />
-                  </div>
-                  <div className="overflow-hidden">
-                    <p className="text-sm font-bold text-gray-900 truncate">{post.content}</p>
-                    <div className="flex items-center gap-2 mt-1">
-                      <span className="text-xs text-blue-600 font-semibold">{post.platform}</span>
-                      <span className="text-[10px] text-gray-400">{post.time}</span>
+              {upcomingPosts.length > 0 ? (
+                upcomingPosts.map(post => (
+                  <div key={post.id} className="flex gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center text-blue-600 shrink-0">
+                      <Calendar size={18} />
+                    </div>
+                    <div className="overflow-hidden">
+                      <p className="text-sm font-bold text-gray-900 truncate">{post.content || post.text || ''}</p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className="text-xs text-blue-600 font-semibold">{post.platform}</span>
+                        <span className="text-[10px] text-gray-400">{new Date(post.scheduled_at || post.time || '').toLocaleString()}</span>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                ))
+              ) : (
+                <p className="text-sm text-gray-500">No scheduled posts</p>
+              )}
             </div>
           </div>
         </div>
@@ -196,7 +236,7 @@ const Dashboard: React.FC = () => {
             <h3 className="font-bold">AI Insights</h3>
           </div>
           <p className="text-sm text-indigo-100 mb-6 leading-relaxed">
-            "You have 3 leads that haven't been contacted in 48 hours. Reaching out now could increase conversion by 30%."
+            {aiInsightText}
           </p>
           <button className="w-full py-2.5 bg-white text-indigo-600 font-bold rounded-lg text-sm hover:bg-indigo-50 transition-colors">
             Execute AI Action
@@ -207,21 +247,22 @@ const Dashboard: React.FC = () => {
         <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
           <SectionHeader title="Needs Reply" linkText="Inbox" />
           <div className="space-y-4">
-            {[
-              { name: 'Sarah Miller', text: 'Pricing for the pro plan?', platform: 'WhatsApp' },
-              { name: 'Dave Wilson', text: 'Can we move our call?', platform: 'LinkedIn' },
-            ].map((msg, idx) => (
-              <div key={idx} className="flex items-center gap-3 p-2 hover:bg-gray-50 rounded-lg transition-all cursor-pointer">
-                <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center font-bold text-gray-500 text-xs">
-                  {msg.name.charAt(0)}
+            {unreadMsgs.length > 0 ? (
+              unreadMsgs.map((msg, idx) => (
+                <div key={msg.id || idx} className="flex items-center gap-3 p-2 hover:bg-gray-50 rounded-lg transition-all cursor-pointer">
+                  <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center font-bold text-gray-500 text-xs">
+                    {msg.sender.charAt(0)}
+                  </div>
+                  <div className="flex-1 overflow-hidden">
+                    <p className="text-sm font-bold text-gray-900 truncate">{msg.sender}</p>
+                    <p className="text-xs text-gray-500 truncate">{msg.text}</p>
+                  </div>
+                  <span className="text-[10px] font-bold text-blue-500 bg-blue-50 px-1.5 py-0.5 rounded">{msg.platform}</span>
                 </div>
-                <div className="flex-1 overflow-hidden">
-                  <p className="text-sm font-bold text-gray-900 truncate">{msg.name}</p>
-                  <p className="text-xs text-gray-500 truncate">{msg.text}</p>
-                </div>
-                <span className="text-[10px] font-bold text-blue-500 bg-blue-50 px-1.5 py-0.5 rounded">{msg.platform}</span>
-              </div>
-            ))}
+              ))
+            ) : (
+              <p className="text-sm text-gray-500">No unread messages</p>
+            )}
           </div>
         </div>
 
@@ -229,24 +270,25 @@ const Dashboard: React.FC = () => {
         <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
           <SectionHeader title="Recent Leads" linkText="CRM" />
           <div className="space-y-4">
-            {[
-              { name: 'TechFlow Inc.', industry: 'SaaS', status: 'Hot' },
-              { name: 'Greenery Co.', industry: 'E-commerce', status: 'Warm' },
-            ].map((lead, idx) => (
-              <div key={idx} className="flex items-center justify-between p-2 rounded-lg border border-transparent hover:border-gray-100 hover:bg-gray-50 transition-all">
-                <div className="flex items-center gap-3">
-                  <div className="w-2 h-2 rounded-full bg-blue-500" />
-                  <div>
-                    <p className="text-sm font-bold text-gray-900">{lead.name}</p>
-                    <p className="text-xs text-gray-400">{lead.industry}</p>
+            {recentLeads.length > 0 ? (
+              recentLeads.map((lead, idx) => (
+                <div key={lead.id || idx} className="flex items-center justify-between p-2 rounded-lg border border-transparent hover:border-gray-100 hover:bg-gray-50 transition-all">
+                  <div className="flex items-center gap-3">
+                    <div className="w-2 h-2 rounded-full bg-blue-500" />
+                    <div>
+                      <p className="text-sm font-bold text-gray-900">{lead.name}</p>
+                      <p className="text-xs text-gray-400">{lead.source}</p>
+                    </div>
                   </div>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase ${lead.status === 'new' ? 'bg-red-50 text-red-600' : 'bg-orange-50 text-orange-600'
+                    }`}>
+                    {lead.status}
+                  </span>
                 </div>
-                <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase ${lead.status === 'Hot' ? 'bg-red-50 text-red-600' : 'bg-orange-50 text-orange-600'
-                  }`}>
-                  {lead.status}
-                </span>
-              </div>
-            ))}
+              ))
+            ) : (
+              <p className="text-sm text-gray-500">No recent leads</p>
+            )}
           </div>
         </div>
       </div>
