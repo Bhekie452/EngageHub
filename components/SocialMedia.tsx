@@ -158,6 +158,16 @@ const SocialMedia: React.FC = () => {
       } else if (code && state === 'youtube_oauth') {
         handleYouTubeCallback(code);
       } else if (code && state === 'twitter_oauth') {
+        // Guard against double-processing (React strict mode / re-renders)
+        if (sessionStorage.getItem('twitter_callback_processed') || sessionStorage.getItem('twitter_callback_processing')) {
+          console.log('Twitter OAuth callback already processed/processing, skipping');
+          return;
+        }
+        sessionStorage.setItem('twitter_callback_processing', 'true');
+
+        // Clean URL IMMEDIATELY to prevent re-trigger on re-render
+        window.history.replaceState({}, '', window.location.pathname);
+
         handleTwitterCallback(code);
       } else if (code && state === 'tiktok_oauth') {
         // Handle TikTok callback - use same guard as TikTokOAuthHandler to prevent duplicates
@@ -474,7 +484,6 @@ const SocialMedia: React.FC = () => {
       // Exchange code for token using centralized library
       const tokenData = await exchangeTwitterCodeForToken(code);
 
-
       // Get Twitter profile
       const profileData = await getTwitterProfile(tokenData.accessToken);
 
@@ -508,15 +517,15 @@ const SocialMedia: React.FC = () => {
       alert(`✅ Connected to Twitter: ${accountName}!`);
       fetchConnectedAccounts();
 
-      // Clean up URL
-      const returnUrl = sessionStorage.getItem('twitter_oauth_return') || window.location.pathname;
-      window.history.replaceState({}, '', returnUrl);
-      sessionStorage.removeItem('twitter_oauth_return');
+      // Mark as successfully processed
+      sessionStorage.setItem('twitter_callback_processed', 'true');
     } catch (err: any) {
       console.error('Twitter callback error:', err);
       alert(`Failed to connect Twitter: ${err.message || 'Unknown error'}`);
     } finally {
       setIsLoading(false);
+      // Clean up processing flag (allow retry if it failed)
+      sessionStorage.removeItem('twitter_callback_processing');
     }
   };
 

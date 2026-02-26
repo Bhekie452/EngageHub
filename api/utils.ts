@@ -20,14 +20,233 @@ const handleGetPostEngagement = async (req: VercelRequest, res: VercelResponse) 
   }
 };
 
-// Handler for processing scheduled posts
+// Helper: compute next recurrence date from a recurrence rule and a base date
+function computeNextRecurrence(baseDate: Date, recurrenceRule: string): Date | null {
+  if (!recurrenceRule) return null;
+  const freqMatch = recurrenceRule.match(/FREQ=(\w+)/i);
+  const untilMatch = recurrenceRule.match(/UNTIL=([^\s;]+)/i);
+  if (!freqMatch) return null;
+
+  const freq = freqMatch[1].toUpperCase();
+  const untilDate = untilMatch ? new Date(untilMatch[1]) : null;
+
+  const next = new Date(baseDate);
+  switch (freq) {
+    case 'DAILY':
+      next.setDate(next.getDate() + 1);
+      break;
+    case 'WEEKLY':
+      next.setDate(next.getDate() + 7);
+      break;
+    case 'MONTHLY':
+      next.setMonth(next.getMonth() + 1);
+      break;
+    case 'EVERY WEEKDAY':
+    case 'EVERYWEEKDAY': {
+      // advance to the next weekday (Mon-Fri)
+      next.setDate(next.getDate() + 1);
+      while (next.getDay() === 0 || next.getDay() === 6) {
+        next.setDate(next.getDate() + 1);
+      }
+      break;
+    }
+    default:
+      next.setDate(next.getDate() + 7); // fallback to weekly
+  }
+
+  // If the next occurrence is past the end date, stop recurring
+  if (untilDate && next > untilDate) return null;
+  return next;
+}
+
+// Handler for processing scheduled posts — publishes all posts whose scheduled_for <= now
 const handleProcessScheduledPosts = async (req: VercelRequest, res: VercelResponse) => {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method Not Allowed' });
   }
 
   try {
-    return res.status(200).json({ status: 'success', message: 'Scheduled posts processing triggered' });
+    const now = new Date().toISOString();
+    console.log('[process-scheduled] Checking for due posts at', now);
+
+    // Fetch all posts that are scheduled and due
+    const { data: duePosts, error: fetchError } = await supabase
+      .from('posts')
+      .select('*')
+      .eq('status', 'scheduled')
+      .lte('scheduled_for', now)
+      .order('scheduled_for', { ascending: true })
+      .limit(20); // process max 20 per run to avoid timeouts
+
+    if (fetchError) {
+      console.error('[process-scheduled] Error fetching due posts:', fetchError);
+      return res.status(500).json({ error: 'Failed to fetch scheduled posts' });
+    }
+
+    if (!duePosts || duePosts.length === 0) {
+      console.log('[process-scheduled] No due posts found');
+      return res.status(200).json({ status: 'success', processed: 0, message: 'No scheduled posts due' });
+    }
+
+    console.log(`[process-scheduled] Found ${duePosts.length} due posts`);
+
+    const results: any[] = [];
+
+    for (const post of duePosts) {
+      const postId = post.id;
+      const workspaceId = post.workspace_id;
+      const platforms: string[] = post.platforms || [];
+      const content = post.content || '';
+      const mediaUrls = post.media_urls || [];
+
+      try {
+        // Mark as publishing to prevent double-processing
+        await supabase
+          .from('posts')
+          .update({ status: 'publishing' })
+          .eq('id', postId)
+          .eq('status', 'scheduled');
+
+        // Fetch account tokens for the workspace
+        const { data: accountRows } = await supabase
+          .from('social_accounts')
+          .select('id, platform, account_id, access_token, refresh_token, platform_data')
+          .eq('workspace_id', workspaceId)
+          .eq('is_active', true)
+          .in('platform', platforms.map((p: string) => (p || '').toLowerCase()));
+
+        const accountTokens: Record<string, any> = {};
+        for (const row of accountRows || []) {
+          const plat = (row.platform || '').toLowerCase();
+          if (!plat || !row.access_token) continue;
+
+          if (plat === 'facebook') {
+            const pages = row.platform_data?.pages || [];
+            if (pages.length > 0) {
+              accountTokens[plat] = {
+                id: row.id,
+                social_account_id: row.id,
+                account_id: pages[0].pageId,
+                access_token: pages[0].pageAccessToken
+              };
+            } else {
+              accountTokens[plat] = {
+                id: row.id,
+                social_account_id: row.id,
+                account_id: row.account_id || 'me',
+                access_token: row.access_token
+              };
+            }
+          } else {
+            accountTokens[plat] = {
+              id: row.id,
+              social_account_id: row.id,
+              account_id: row.account_id || '',
+              access_token: row.access_token
+            };
+          }
+        }
+
+        // Call the publish-post endpoint internally via self-invocation
+        const origin = process.env.VERCEL_URL
+          ? `https://${process.env.VERCEL_URL}`
+          : process.env.NEXTAUTH_URL || 'https://engage-hub-ten.vercel.app';
+
+        const publishRes = await fetch(`${origin}/api/utils?endpoint=publish-post`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            content,
+            platforms,
+            mediaUrls,
+            workspaceId,
+            postId,
+            accountTokens: Object.keys(accountTokens).length ? accountTokens : undefined,
+          }),
+        });
+
+        const publishData = await publishRes.json().catch(() => ({}));
+
+        if (publishRes.ok && publishData.success) {
+          // Mark post as published
+          await supabase
+            .from('posts')
+            .update({
+              status: 'published',
+              published_at: new Date().toISOString(),
+            })
+            .eq('id', postId);
+
+          // Save platform post IDs to post_publications
+          const platformPostIds = publishData.platformPostIds || {};
+          for (const [platform, platformPostId] of Object.entries(platformPostIds)) {
+            const row = (accountRows || []).find((r: any) => (r.platform || '').toLowerCase() === platform.toLowerCase());
+            if (row?.id && platformPostId) {
+              await supabase.from('post_publications').upsert({
+                post_id: postId,
+                social_account_id: row.id,
+                platform: platform.toLowerCase(),
+                platform_post_id: platformPostId as string,
+                status: 'published',
+                published_at: new Date().toISOString(),
+              }, { onConflict: 'post_id,social_account_id' });
+            }
+          }
+
+          // Handle recurring: create next occurrence
+          if (post.is_recurring && post.recurrence_rule) {
+            const baseDate = new Date(post.scheduled_for);
+            const nextDate = computeNextRecurrence(baseDate, post.recurrence_rule);
+            if (nextDate) {
+              const { id, created_at, updated_at, published_at, ...postTemplate } = post;
+              await supabase.from('posts').insert({
+                ...postTemplate,
+                status: 'scheduled',
+                scheduled_for: nextDate.toISOString(),
+                published_at: null,
+              });
+              console.log(`[process-scheduled] Created next recurring post for ${nextDate.toISOString()}`);
+            } else {
+              console.log(`[process-scheduled] Recurring series ended for post ${postId}`);
+            }
+          }
+
+          results.push({ postId, status: 'published', platforms: publishData.platforms });
+          console.log(`[process-scheduled] Published post ${postId}`);
+        } else {
+          // Publish failed — revert to scheduled so it retries next time
+          const failedPlatforms = publishData.failed || [];
+          await supabase
+            .from('posts')
+            .update({ status: 'scheduled' })
+            .eq('id', postId);
+
+          results.push({ postId, status: 'failed', error: failedPlatforms });
+          console.error(`[process-scheduled] Failed to publish post ${postId}:`, failedPlatforms);
+        }
+      } catch (postErr: any) {
+        // Revert to scheduled on error
+        await supabase
+          .from('posts')
+          .update({ status: 'scheduled' })
+          .eq('id', postId);
+
+        results.push({ postId, status: 'error', error: postErr.message });
+        console.error(`[process-scheduled] Error processing post ${postId}:`, postErr);
+      }
+    }
+
+    const published = results.filter(r => r.status === 'published').length;
+    const failed = results.filter(r => r.status !== 'published').length;
+    console.log(`[process-scheduled] Done: ${published} published, ${failed} failed`);
+
+    return res.status(200).json({
+      status: 'success',
+      processed: duePosts.length,
+      published,
+      failed,
+      results,
+    });
   } catch (error) {
     console.error('Error processing scheduled posts:', error);
     return res.status(500).json({ error: 'Failed to process scheduled posts' });

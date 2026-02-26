@@ -72,6 +72,43 @@ import { useYouTubeSession } from '../src/hooks/useYouTubeSession';
 // Added 'all_list' to the allowed tabs to fix the assignment error on line 66
 type ContentTab = 'all' | 'all_list' | 'create' | 'drafts' | 'scheduled' | 'published' | 'calendar' | 'templates' | 'hashtags' | 'ai';
 
+// Compute the next recurrence date from a recurrence rule string (e.g. FREQ=WEEKLY;UNTIL=2026-06-30)
+function computeNextRecurrence(baseDate: Date, recurrenceRule: string): Date | null {
+  if (!recurrenceRule) return null;
+  const freqMatch = recurrenceRule.match(/FREQ=(\w+)/i);
+  const untilMatch = recurrenceRule.match(/UNTIL=([^\s;]+)/i);
+  if (!freqMatch) return null;
+
+  const freq = freqMatch[1].toUpperCase();
+  const untilDate = untilMatch ? new Date(untilMatch[1]) : null;
+
+  const next = new Date(baseDate);
+  switch (freq) {
+    case 'DAILY':
+      next.setDate(next.getDate() + 1);
+      break;
+    case 'WEEKLY':
+      next.setDate(next.getDate() + 7);
+      break;
+    case 'MONTHLY':
+      next.setMonth(next.getMonth() + 1);
+      break;
+    case 'EVERYWEEKDAY':
+    case 'EVERY WEEKDAY': {
+      next.setDate(next.getDate() + 1);
+      while (next.getDay() === 0 || next.getDay() === 6) {
+        next.setDate(next.getDate() + 1);
+      }
+      break;
+    }
+    default:
+      next.setDate(next.getDate() + 7);
+  }
+
+  if (untilDate && next > untilDate) return null;
+  return next;
+}
+
 const Content: React.FC = () => {
   const { user } = useAuth(); // Get authenticated user
   const [activeTab, setActiveTab] = useState<ContentTab>('create');
@@ -165,7 +202,23 @@ const Content: React.FC = () => {
       const workspaceId = workspaces[0].id;
       setCurrentWorkspaceId(workspaceId);
 
-      // 2. Fetch everything else in parallel
+      // 2. Process any due scheduled posts in the background (fire-and-forget)
+      // This supplements the daily cron — ensures posts publish promptly when user opens the page
+      fetch('/api/utils?endpoint=process-scheduled-posts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      }).then(async (res) => {
+        const data = await res.json().catch(() => ({}));
+        if (data.published > 0) {
+          console.log(`[loadContentData] Auto-published ${data.published} scheduled post(s)`);
+          // Refresh posts list to show newly published posts
+          fetchPosts(workspaceId);
+        }
+      }).catch((err) => {
+        console.warn('[loadContentData] Failed to process scheduled posts:', err);
+      });
+
+      // 3. Fetch everything else in parallel
       await Promise.all([
         fetchPosts(workspaceId),
         fetchCampaigns(workspaceId),
@@ -350,7 +403,7 @@ const Content: React.FC = () => {
   const [scheduleMode, setScheduleMode] = useState<'now' | 'later'>('now');
   const [isRecur, setIsRecur] = useState(false);
   const [recurFrequency, setRecurFrequency] = useState('Weekly');
-  const [recurUntil, setRecurUntil] = useState('2024-12-31');
+  const [recurUntil, setRecurUntil] = useState('2026-12-31');
   const [isSubmitting, setIsSubmitting] = useState(false); // Valid state for loading
   const [editingPost, setEditingPost] = useState<any | null>(null);
   const [viewingPost, setViewingPost] = useState<any | null>(null);
@@ -1381,6 +1434,41 @@ const Content: React.FC = () => {
         } catch (e) {
           console.warn('Publish API call failed:', e);
           toast.error('Post saved. Could not reach publish service; try again later.');
+        }
+      } else {
+        // Scheduled post — show confirmation with date/time
+        const scheduledAt = new Date(`${scheduleDate} ${scheduleTime}`);
+        toast.success(`Post scheduled for ${scheduledAt.toLocaleDateString()} at ${scheduledAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} 📅`);
+      }
+
+      // Handle recurring: if isRecur is enabled, create the next scheduled occurrence
+      if (isRecur && postId && !editingPost) {
+        try {
+          const baseDate = scheduleMode === 'later' && scheduleDate
+            ? new Date(`${scheduleDate} ${scheduleTime}`)
+            : new Date();
+          const freq = recurFrequency.toUpperCase().replace(/\s+/g, '');
+          const rule = `FREQ=${freq};UNTIL=${recurUntil}`;
+          const nextDate = computeNextRecurrence(baseDate, rule);
+          if (nextDate) {
+            await supabase.from('posts').insert({
+              workspace_id: workspaceId,
+              created_by: user.id,
+              content: postContent,
+              platforms: selectedPlatforms,
+              status: 'scheduled',
+              scheduled_for: nextDate.toISOString(),
+              is_recurring: true,
+              recurrence_rule: rule,
+              media_urls: mediaForDb,
+              link_url: linkUrl,
+              location: location,
+              content_type: uploadedVideos.length > 0 ? 'video' : uploadedImages.length > 0 ? 'image' : 'text',
+            });
+            toast.success(`Next recurring post scheduled for ${nextDate.toLocaleDateString()} ${nextDate.toLocaleTimeString()}`);
+          }
+        } catch (recurErr) {
+          console.warn('Failed to create next recurring post:', recurErr);
         }
       }
 
