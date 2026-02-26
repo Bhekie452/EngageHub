@@ -1965,36 +1965,74 @@ export const analyticsService = {
     const workspaceId = await getWorkspaceIdForCurrentUser();
     if (!workspaceId) throw new Error('No workspace found');
 
-    // Get all published posts with their publications
+    console.log('[FetchAll] Workspace ID:', workspaceId);
+
+    // Strategy 1: Get posts from post_publications (if any exist)
     const { data: publications, error: pubErr } = await supabase
       .from('post_publications')
-      .select(`
-        id,
-        post_id,
-        platform,
-        platform_post_id,
-        platform_url,
-        status,
-        posts!inner (
-          id,
-          content,
-          link_url,
-          workspace_id
-        )
-      `)
-      .eq('status', 'published')
-      .eq('posts.workspace_id', workspaceId);
+      .select('id, post_id, platform, platform_post_id, platform_url, status')
+      .in('status', ['published', 'pending', 'publishing']);
 
-    if (pubErr) {
-      console.error('[FetchAll] Error fetching publications:', pubErr);
-      throw new Error('Failed to fetch published posts');
+    console.log('[FetchAll] post_publications query:', { count: publications?.length ?? 0, error: pubErr?.message });
+
+    // Strategy 2: Get all published/scheduled posts directly from posts table
+    const { data: directPosts, error: postsErr } = await supabase
+      .from('posts')
+      .select('id, content, platforms, link_url, status, published_at, social_account_ids')
+      .eq('workspace_id', workspaceId)
+      .in('status', ['published', 'scheduled', 'draft']);
+
+    console.log('[FetchAll] Direct posts query:', { count: directPosts?.length ?? 0, error: postsErr?.message });
+
+    // Build a unified list of posts to process
+    type PostToProcess = { postId: string; platform: string; externalUrl: string | null; label: string };
+    const postsToProcess: PostToProcess[] = [];
+    const processedPostPlatforms = new Set<string>();
+
+    // Add from post_publications first (these have platform-specific data)
+    if (publications && publications.length > 0) {
+      for (const pub of publications) {
+        // Find which workspace this post belongs to
+        const matchingPost = directPosts?.find(p => p.id === pub.post_id);
+        if (!matchingPost) continue; // Not in this workspace
+        
+        const key = `${pub.post_id}:${pub.platform}`;
+        if (processedPostPlatforms.has(key)) continue;
+        processedPostPlatforms.add(key);
+
+        postsToProcess.push({
+          postId: pub.post_id,
+          platform: pub.platform,
+          externalUrl: pub.platform_url || matchingPost.link_url || null,
+          label: matchingPost.content?.slice(0, 30) || 'Untitled',
+        });
+      }
     }
 
-    if (!publications || publications.length === 0) {
-      return { postsProcessed: 0, commentsStored: 0, platforms: [], errors: ['No published posts found'] };
+    // Add remaining posts from direct query (if not already added via publications)
+    if (directPosts && directPosts.length > 0) {
+      for (const post of directPosts) {
+        const platforms = post.platforms || [];
+        for (const platform of platforms) {
+          const key = `${post.id}:${platform}`;
+          if (processedPostPlatforms.has(key)) continue;
+          processedPostPlatforms.add(key);
+
+          postsToProcess.push({
+            postId: post.id,
+            platform: platform,
+            externalUrl: post.link_url || null,
+            label: post.content?.slice(0, 30) || 'Untitled',
+          });
+        }
+      }
     }
 
-    console.log(`[FetchAll] Found ${publications.length} published posts to process`);
+    console.log('[FetchAll] Total posts to process:', postsToProcess.length);
+
+    if (postsToProcess.length === 0) {
+      return { postsProcessed: 0, commentsStored: 0, platforms: [], errors: ['No posts found in your workspace. Create and publish posts first.'] };
+    }
 
     // Count engagement_actions before
     const { data: beforeCount } = await supabase
@@ -2008,21 +2046,18 @@ export const analyticsService = {
     const platformsSet = new Set<string>();
     const errors: string[] = [];
 
-    for (const pub of publications) {
+    for (const item of postsToProcess) {
       try {
-        const post = (pub as any).posts;
-        const postTitle = post?.content?.slice(0, 30) || 'Untitled';
-        const platform = pub.platform;
-        platformsSet.add(platform);
+        platformsSet.add(item.platform);
 
-        console.log(`[FetchAll] Processing: ${platform} - ${postTitle}`);
-        onProgress?.(postsProcessed + 1, publications.length, platform, postTitle);
+        console.log(`[FetchAll] Processing: ${item.platform} - ${item.label}`);
+        onProgress?.(postsProcessed + 1, postsToProcess.length, item.platform, item.label);
 
         // Call the existing function which fetches comments and stores them in engagement_actions
         await this.getPostEngagementSummary(
-          pub.post_id,
-          platform,
-          pub.platform_url || post?.link_url || null
+          item.postId,
+          item.platform,
+          item.externalUrl
         );
 
         postsProcessed++;
@@ -2030,7 +2065,7 @@ export const analyticsService = {
         // Small delay to avoid rate limiting
         await new Promise(resolve => setTimeout(resolve, 500));
       } catch (err: any) {
-        const msg = `Failed for ${pub.platform} post ${pub.post_id}: ${err.message || err}`;
+        const msg = `Failed for ${item.platform} post ${item.postId}: ${err.message || err}`;
         console.warn('[FetchAll]', msg);
         errors.push(msg);
       }
@@ -2045,7 +2080,7 @@ export const analyticsService = {
     const countAfter = afterCount?.length ?? 0;
     const commentsStored = countAfter - countBefore;
 
-    console.log(`[FetchAll] Done. Processed ${postsProcessed}/${publications.length} posts. New comments stored: ${commentsStored}`);
+    console.log(`[FetchAll] Done. Processed ${postsProcessed}/${postsToProcess.length} posts. New comments stored: ${commentsStored}`);
 
     return {
       postsProcessed,
