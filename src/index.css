@@ -1,5 +1,20 @@
 @import "tailwindcss";
 
+@theme {
+  /* Map CSS variables to Tailwind color utilities */
+  --color-sidebar: var(--sidebar-bg);
+  --color-sidebar-text: var(--sidebar-text);
+  --color-sidebar-active: var(--sidebar-active-bg);
+  --color-sidebar-activeText: var(--sidebar-active-text);
+  --color-brand-50: var(--brand-color-50);
+  --color-brand-100: var(--brand-color-100);
+  --color-brand-500: var(--brand-color);
+  --color-brand-600: var(--brand-color);
+  --color-brand-700: var(--brand-color-700);
+  --color-brand-800: var(--brand-color-700);
+  --color-brand-900: var(--brand-color-700);
+}
+
 body {
   font-family: 'Inter', sans-serif;
   transition: background-color 0.3s ease;

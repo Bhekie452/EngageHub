@@ -53,6 +53,18 @@ export const useTheme = create<ThemeState>((set, get) => ({
         root.style.setProperty('--brand-color-100', hexToRgba(color, 0.1));
         root.style.setProperty('--brand-color-700', color);
 
+        // Also update sidebar active highlight to match new primary color
+        const sidebarColor = get().sidebarColor;
+        const getBrightness = (hex: string) => {
+            const r = parseInt(hex.slice(1, 3), 16);
+            const g = parseInt(hex.slice(3, 5), 16);
+            const b = parseInt(hex.slice(5, 7), 16);
+            return (r * 299 + g * 587 + b * 114) / 1000;
+        };
+        const isDarkSidebar = getBrightness(sidebarColor) < 128;
+        root.style.setProperty('--sidebar-active-text', isDarkSidebar ? '#ffffff' : color);
+        root.style.setProperty('--sidebar-active-bg', isDarkSidebar ? 'rgba(255, 255, 255, 0.1)' : hexToRgba(color, 0.1));
+
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
             await supabase.from('profiles').update({ primary_color: color }).eq('id', user.id);
