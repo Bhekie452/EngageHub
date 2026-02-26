@@ -479,7 +479,7 @@ export const analyticsService = {
                 || fbAccount.access_token;
               const feedUrl = `https://graph.facebook.com/v21.0/${fbAccount.account_id}/posts` +
                 `?fields=id,message,created_time` +
-                `&limit=25&access_token=${pageAccessTokenForMatch}`;
+                `&limit=100&access_token=${pageAccessTokenForMatch}`;
               const feedRes = await fetch(feedUrl);
               const feedJson = await feedRes.json();
               if (!feedJson.error && Array.isArray(feedJson.data)) {
@@ -579,47 +579,36 @@ export const analyticsService = {
                   
                   // ✅ ALSO store each comment in engagement_actions for CRM harvesting
                   for (const comment of graphData.comments.data) {
-                    try {
-                      const commenterId = comment.from?.id;
-                      const commenterName = comment.from?.name;
-                      
-                      // Skip if no commenter info
-                      if (!commenterId && !commenterName) continue;
-                      
-                      const actionId = comment.id || `fb_${fbPostId}_${commenterId || 'anon'}_${Date.now()}`;
-                      
-                      // Check if already exists to avoid constraint errors
-                      const { data: existing } = await supabase
-                        .from('engagement_actions')
-                        .select('id')
-                        .eq('platform', 'facebook')
-                        .eq('platform_post_id', fbPostId)
-                        .eq('platform_action_id', actionId)
-                        .eq('action_type', 'comment')
-                        .maybeSingle();
-                      
-                      if (!existing) {
-                        await supabase.from('engagement_actions').insert({
-                          workspace_id: workspace_id,
-                          user_id: user?.id,
-                          platform: 'facebook',
-                          platform_post_id: fbPostId,
-                          platform_user_id: commenterId || null,
-                          platform_action_id: actionId,
-                          action_type: 'comment',
-                          source: 'native',
-                          action_data: {
-                            from_id: commenterId,
-                            from_name: commenterName,
-                            message: comment.message || '',
-                            profile_url: commenterId ? `https://facebook.com/${commenterId}` : null,
-                          },
-                          created_at: comment.created_time || new Date().toISOString(),
-                        });
-                        console.log('[Analytics] Stored FB comment:', commenterName);
-                      }
-                    } catch (insertErr) {
-                      console.warn('[Analytics] Failed to store FB comment in engagement_actions:', insertErr);
+                    const commenterId = comment.from?.id;
+                    const commenterName = comment.from?.name;
+                    
+                    // Skip if no commenter info
+                    if (!commenterId && !commenterName) continue;
+                    
+                    const actionId = comment.id || `fb_${fbPostId}_${commenterId || 'anon'}_${Date.now()}`;
+                    
+                    const { error: upsertErr } = await supabase.from('engagement_actions').upsert({
+                      workspace_id: workspace_id,
+                      user_id: user?.id,
+                      platform: 'facebook',
+                      platform_post_id: fbPostId,
+                      platform_user_id: commenterId || null,
+                      platform_action_id: actionId,
+                      action_type: 'comment',
+                      source: 'native',
+                      action_data: {
+                        from_id: commenterId,
+                        from_name: commenterName,
+                        message: comment.message || '',
+                        profile_url: commenterId ? `https://facebook.com/${commenterId}` : null,
+                      },
+                      created_at: comment.created_time || new Date().toISOString(),
+                    }, { onConflict: 'platform,platform_post_id,platform_action_id,action_type', ignoreDuplicates: true });
+                    
+                    if (upsertErr) {
+                      console.warn('[Analytics] Failed to store FB comment:', upsertErr.message, upsertErr.code);
+                    } else {
+                      console.log('[Analytics] Stored FB comment:', commenterName);
                     }
                   }
                   console.log('[Analytics] Stored FB comments in engagement_actions for CRM harvesting');
@@ -915,43 +904,32 @@ export const analyticsService = {
                   
                   // ✅ ALSO store each comment in engagement_actions for CRM harvesting
                   for (const comment of commentsJson.data) {
-                    try {
-                      if (!comment.username) continue;
-                      
-                      const actionId = comment.id || `ig_${igMediaId}_${comment.username}_${Date.now()}`;
-                      
-                      // Check if already exists
-                      const { data: existing } = await supabase
-                        .from('engagement_actions')
-                        .select('id')
-                        .eq('platform', 'instagram')
-                        .eq('platform_post_id', igMediaId)
-                        .eq('platform_action_id', actionId)
-                        .eq('action_type', 'comment')
-                        .maybeSingle();
-                      
-                      if (!existing) {
-                        await supabase.from('engagement_actions').insert({
-                          workspace_id: workspace_id,
-                          user_id: user?.id,
-                          platform: 'instagram',
-                          platform_post_id: igMediaId,
-                          platform_user_id: comment.username,
-                          platform_action_id: actionId,
-                          action_type: 'comment',
-                          source: 'native',
-                          action_data: {
-                            from_id: comment.username,
-                            from_name: comment.username,
-                            message: comment.text || '',
-                            profile_url: `https://instagram.com/${comment.username}`,
-                          },
-                          created_at: comment.timestamp || new Date().toISOString(),
-                        });
-                        console.log('[Analytics] Stored IG comment:', comment.username);
-                      }
-                    } catch (insertErr) {
-                      console.warn('[Analytics] Failed to store IG comment in engagement_actions:', insertErr);
+                    if (!comment.username) continue;
+                    
+                    const actionId = comment.id || `ig_${igMediaId}_${comment.username}_${Date.now()}`;
+                    
+                    const { error: upsertErr } = await supabase.from('engagement_actions').upsert({
+                      workspace_id: workspace_id,
+                      user_id: user?.id,
+                      platform: 'instagram',
+                      platform_post_id: igMediaId,
+                      platform_user_id: comment.username,
+                      platform_action_id: actionId,
+                      action_type: 'comment',
+                      source: 'native',
+                      action_data: {
+                        from_id: comment.username,
+                        from_name: comment.username,
+                        message: comment.text || '',
+                        profile_url: `https://instagram.com/${comment.username}`,
+                      },
+                      created_at: comment.timestamp || new Date().toISOString(),
+                    }, { onConflict: 'platform,platform_post_id,platform_action_id,action_type', ignoreDuplicates: true });
+                    
+                    if (upsertErr) {
+                      console.warn('[Analytics] Failed to store IG comment:', upsertErr.message, upsertErr.code);
+                    } else {
+                      console.log('[Analytics] Stored IG comment:', comment.username);
                     }
                   }
                   console.log('[Analytics] Stored IG comments in engagement_actions for CRM harvesting');
@@ -1391,44 +1369,33 @@ export const analyticsService = {
             
             // ✅ ALSO store each YouTube comment in engagement_actions for CRM harvesting
             for (const comment of ytComments.data) {
-              try {
-                if (!comment.author) continue;
-                const channelId = comment.authorChannelId || comment.authorChannelUrl?.replace(/.*\/channel\//, '') || comment.author;
-                const actionId = comment.id || `yt_${videoId}_${channelId}_${Date.now()}`;
-                
-                // Check if already exists
-                const { data: existing } = await supabase
-                  .from('engagement_actions')
-                  .select('id')
-                  .eq('platform', 'youtube')
-                  .eq('platform_post_id', videoId)
-                  .eq('platform_action_id', actionId)
-                  .eq('action_type', 'comment')
-                  .maybeSingle();
-                
-                if (!existing) {
-                  await supabase.from('engagement_actions').insert({
-                    workspace_id: workspace_id,
-                    user_id: user?.id,
-                    platform: 'youtube',
-                    platform_post_id: videoId,
-                    platform_user_id: channelId,
-                    platform_action_id: actionId,
-                    action_type: 'comment',
-                    source: 'native',
-                    action_data: {
-                      from_id: channelId,
-                      from_name: comment.author,
-                      message: comment.text || '',
-                      profile_url: comment.authorChannelUrl || `https://youtube.com/channel/${channelId}`,
-                      avatar: comment.authorProfileImageUrl || '',
-                    },
-                    created_at: comment.publishedAt || new Date().toISOString(),
-                  });
-                  console.log('[Analytics] Stored YT comment:', comment.author);
-                }
-              } catch (insertErr) {
-                console.warn('[Analytics] Failed to store YT comment in engagement_actions:', insertErr);
+              if (!comment.author) continue;
+              const channelId = comment.authorChannelId || comment.authorChannelUrl?.replace(/.*\/channel\//, '') || comment.author;
+              const actionId = comment.id || `yt_${videoId}_${channelId}_${Date.now()}`;
+              
+              const { error: upsertErr } = await supabase.from('engagement_actions').upsert({
+                workspace_id: workspace_id,
+                user_id: user?.id,
+                platform: 'youtube',
+                platform_post_id: videoId,
+                platform_user_id: channelId,
+                platform_action_id: actionId,
+                action_type: 'comment',
+                source: 'native',
+                action_data: {
+                  from_id: channelId,
+                  from_name: comment.author,
+                  message: comment.text || '',
+                  profile_url: comment.authorChannelUrl || `https://youtube.com/channel/${channelId}`,
+                  avatar: comment.authorProfileImageUrl || '',
+                },
+                created_at: comment.publishedAt || new Date().toISOString(),
+              }, { onConflict: 'platform,platform_post_id,platform_action_id,action_type', ignoreDuplicates: true });
+              
+              if (upsertErr) {
+                console.warn('[Analytics] Failed to store YT comment:', upsertErr.message, upsertErr.code);
+              } else {
+                console.log('[Analytics] Stored YT comment:', comment.author);
               }
             }
             console.log('[Analytics] Stored YT comments in engagement_actions for CRM harvesting');
@@ -1471,44 +1438,33 @@ export const analyticsService = {
           
           // ✅ ALSO store each YouTube subscriber in engagement_actions for CRM harvesting
           for (const sub of ytSubs.data) {
-            try {
-              const snippet = sub.subscriberSnippet;
-              if (!snippet || !snippet.channelId) continue;
-              
-              const actionId = `sub_${snippet.channelId}`;
-              
-              // Check if already exists
-              const { data: existing } = await supabase
-                .from('engagement_actions')
-                .select('id')
-                .eq('platform', 'youtube')
-                .eq('platform_post_id', 'channel_subscription')
-                .eq('platform_action_id', actionId)
-                .eq('action_type', 'subscribe')
-                .maybeSingle();
-              
-              if (!existing) {
-                await supabase.from('engagement_actions').insert({
-                  workspace_id: workspace_id,
-                  user_id: user?.id,
-                  platform: 'youtube',
-                  platform_post_id: 'channel_subscription',
-                  platform_user_id: snippet.channelId,
-                  platform_action_id: actionId,
-                  action_type: 'subscribe',
-                  source: 'native',
-                  action_data: {
-                    from_id: snippet.channelId,
-                    from_name: snippet.title || 'YouTube User',
-                    profile_url: `https://youtube.com/channel/${snippet.channelId}`,
-                    avatar: snippet.thumbnails?.default?.url || snippet.thumbnails?.medium?.url || '',
-                  },
-                  created_at: snippet.publishedAt || new Date().toISOString(),
-                });
-                console.log('[Analytics] Stored YT subscriber:', snippet.title);
-              }
-            } catch (insertErr) {
-              console.warn('[Analytics] Failed to store YT subscriber in engagement_actions:', insertErr);
+            const snippet = sub.subscriberSnippet;
+            if (!snippet || !snippet.channelId) continue;
+            
+            const actionId = `sub_${snippet.channelId}`;
+            
+            const { error: upsertErr } = await supabase.from('engagement_actions').upsert({
+              workspace_id: workspace_id,
+              user_id: user?.id,
+              platform: 'youtube',
+              platform_post_id: 'channel_subscription',
+              platform_user_id: snippet.channelId,
+              platform_action_id: actionId,
+              action_type: 'subscribe',
+              source: 'native',
+              action_data: {
+                from_id: snippet.channelId,
+                from_name: snippet.title || 'YouTube User',
+                profile_url: `https://youtube.com/channel/${snippet.channelId}`,
+                avatar: snippet.thumbnails?.default?.url || snippet.thumbnails?.medium?.url || '',
+              },
+              created_at: snippet.publishedAt || new Date().toISOString(),
+            }, { onConflict: 'platform,platform_post_id,platform_action_id,action_type', ignoreDuplicates: true });
+            
+            if (upsertErr) {
+              console.warn('[Analytics] Failed to store YT subscriber:', upsertErr.message, upsertErr.code);
+            } else {
+              console.log('[Analytics] Stored YT subscriber:', snippet.title);
             }
           }
           console.log('[Analytics] Stored YT subscribers in engagement_actions for CRM harvesting');
@@ -2028,10 +1984,15 @@ export const analyticsService = {
       }
     }
 
-    console.log('[FetchAll] Total posts to process:', postsToProcess.length);
+    console.log('[FetchAll] Total posts to process (before filter):', postsToProcess.length);
 
-    if (postsToProcess.length === 0) {
-      return { postsProcessed: 0, commentsStored: 0, platforms: [], errors: ['No posts found in your workspace. Create and publish posts first.'] };
+    // Only process platforms that actually have engagement APIs
+    const engageablePlatforms = new Set(['facebook', 'instagram', 'youtube', 'tiktok']);
+    const filteredPosts = postsToProcess.filter(p => engageablePlatforms.has(p.platform.toLowerCase()));
+    console.log('[FetchAll] Posts with engageable platforms:', filteredPosts.length, '(skipped', postsToProcess.length - filteredPosts.length, 'twitter/linkedin/whatsapp)');
+
+    if (filteredPosts.length === 0) {
+      return { postsProcessed: 0, commentsStored: 0, platforms: [], errors: ['No posts found for platforms that support engagement fetching (Facebook, Instagram, YouTube, TikTok).'] };
     }
 
     // Count engagement_actions before
@@ -2046,12 +2007,12 @@ export const analyticsService = {
     const platformsSet = new Set<string>();
     const errors: string[] = [];
 
-    for (const item of postsToProcess) {
+    for (const item of filteredPosts) {
       try {
         platformsSet.add(item.platform);
 
         console.log(`[FetchAll] Processing: ${item.platform} - ${item.label}`);
-        onProgress?.(postsProcessed + 1, postsToProcess.length, item.platform, item.label);
+        onProgress?.(postsProcessed + 1, filteredPosts.length, item.platform, item.label);
 
         // Call the existing function which fetches comments and stores them in engagement_actions
         await this.getPostEngagementSummary(
@@ -2080,7 +2041,7 @@ export const analyticsService = {
     const countAfter = afterCount?.length ?? 0;
     const commentsStored = countAfter - countBefore;
 
-    console.log(`[FetchAll] Done. Processed ${postsProcessed}/${postsToProcess.length} posts. New comments stored: ${commentsStored}`);
+    console.log(`[FetchAll] Done. Processed ${postsProcessed}/${filteredPosts.length} posts. New comments stored: ${commentsStored}`);
 
     return {
       postsProcessed,
