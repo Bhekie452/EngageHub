@@ -362,29 +362,19 @@ export const analyticsService = {
           }
         }
 
-        // Add REACH mock data for demo if not available from real API
-        const postIdHash = postId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-        metrics.impressions = metrics.impressions || (metrics.views < 10 ? 10 : Math.floor(metrics.views * 1.5)) + (postIdHash % 5);
-        metrics.ctr = metrics.ctr || Number(((metrics.views / (metrics.impressions || 1)) * 100).toFixed(1));
-        metrics.unique_viewers = metrics.unique_viewers || Math.floor(metrics.views * 0.8) + 1;
-        metrics.avg_view_duration = metrics.avg_view_duration || '1:02';
-        metrics.watch_time = metrics.watch_time || Number((metrics.views * 0.02).toFixed(2));
-        metrics.traffic_sources = [
-          { label: 'Channel pages', value: 35.0 },
-          { label: 'Other YouTube features', value: 30.0 },
-          { label: 'Direct or unknown', value: 15.0 },
-          { label: 'Suggested videos', value: 15.0 },
-          { label: 'Browse features', value: 5.0 }
-        ];
+        // previously there were mock fallbacks here; remove them so that only
+        // actual metrics from the database / APIs are used.  Missing values will
+        // remain undefined or zero and be handled by the UI accordingly.
+        // (no-op placeholder)
+        // metrics.impressions etc are left untouched
+        
+        // metrics.dislikes, likes_ratio, etc are not seeded with fake numbers
+        // to ensure dashboard reflects real data only
+        
+        // leaving the block intentionally empty
+        
+        ;
 
-        // Add ENGAGEMENT mock data
-        metrics.dislikes = metrics.dislikes || Math.floor(metrics.likes * 0.05);
-        metrics.likes_ratio = metrics.likes_ratio || 98.2;
-        metrics.channel_likes_ratio = 95.4;
-        metrics.end_screen_clicks = metrics.end_screen_clicks || 1.2;
-        metrics.device_types = metrics.device_types || [
-          { label: 'Computer', value: 100.0 }
-        ];
       }
     } catch (e) {
       console.error('Error fetching YouTube metrics:', e);
@@ -1880,10 +1870,7 @@ export const analyticsService = {
       // Silently ignore if YouTube not connected
     }
 
-    // Mock other platform followers for high-fidelity feel
-    platformStats.instagram.followers = 8200;
-    platformStats.linkedin.followers = 12500;
-    platformStats.twitter.followers = 2400;
+    // follower counts are populated above from real API results; do not use hard-coded values
 
     const breakdown = Object.entries(platformStats).map(([platform, stats]: [string, any]) => ({
       platform: platform.charAt(0).toUpperCase() + platform.slice(1),

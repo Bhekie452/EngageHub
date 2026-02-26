@@ -8,8 +8,8 @@ export function useInbox(workspaceId: string | null) {
 
   const fetchMessages = useCallback(async (category?: string) => {
     if (!workspaceId) {
-      // Use mock data if no workspace
-      setMessages(getMockMessages());
+      // no workspace yet – just clear messages
+      setMessages([]);
       return;
     }
 
@@ -18,18 +18,11 @@ export function useInbox(workspaceId: string | null) {
 
     try {
       const data = await inboxService.getAll(workspaceId, category);
-      
-      if (data.length > 0) {
-        setMessages(data);
-      } else {
-        // Fall back to mock data if no real messages
-        setMessages(getMockMessages());
-      }
+      setMessages(data || []);
     } catch (err) {
       console.error('[useInbox] Error fetching messages:', err);
       setError(err instanceof Error ? err.message : 'Failed to fetch messages');
-      // Fall back to mock data on error
-      setMessages(getMockMessages());
+      setMessages([]);
     } finally {
       setLoading(false);
     }
