@@ -57,9 +57,10 @@ Deno.serve(async (req: Request) => {
             ? `https://graph.facebook.com/${c.from.id}/picture?type=square`
             : null,
         },
-        source: 'facebook',
-        platform_object_id: c.id,
-        like_count: c.like_count ?? 0,
+        source: 'native',
+        platform_action_id: c.id,
+        platform_user_id: c.from?.id ?? null,
+        synced: true,
         created_at: c.created_time,
       }));
 
@@ -82,8 +83,10 @@ Deno.serve(async (req: Request) => {
         user_name: l.name,
         user_avatar: `https://graph.facebook.com/${l.id}/picture?type=square`,
       },
-      source: 'facebook',
-      platform_object_id: `like_${platformPostId}_${l.id}`,
+      source: 'native',
+      platform_action_id: `like_${platformPostId}_${l.id}`,
+      platform_user_id: l.id,
+      synced: true,
       created_at: new Date().toISOString(),
     }));
 

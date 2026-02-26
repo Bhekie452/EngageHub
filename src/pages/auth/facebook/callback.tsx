@@ -74,6 +74,7 @@ export default function FacebookCallback() {
         if (data.debug) {
           console.log('🔍 DEBUG - Raw pages from Facebook API:', JSON.stringify(data.debug.rawPages, null, 2));
           console.log('🔍 DEBUG - Permissions granted:', data.debug.permissions);
+          console.log('🔍 DEBUG - Token permissions:', data.debug.tokenPermissions);
         }
         if (data.pages) {
           data.pages.forEach((p: any) => {

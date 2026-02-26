@@ -503,12 +503,19 @@ async function handleFacebookWebhook(req: VercelRequest, res: VercelResponse) {
                 await supabase.from('engagement_actions').insert({
                   workspace_id: account.workspace_id,
                   social_account_id: account.id,
+                  user_id: account.workspace_id, // Use workspace_id as fallback for user_id
                   platform: 'facebook',
                   action_type: 'comment',
-                  platform_comment_id: commentId,
-                  user_name: from,
-                  content: message,
-                  performed_at: createdTime
+                  platform_post_id: postId,
+                  platform_action_id: commentId,
+                  platform_user_id: from,
+                  action_data: {
+                    user_name: from,
+                    comment_text: message,
+                  },
+                  source: 'native',
+                  synced: true,
+                  created_at: createdTime
                 });
               }
             }

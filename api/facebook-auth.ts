@@ -420,6 +420,19 @@ async function handleFacebookSimple(req: VercelRequest, res: VercelResponse) {
       throw new Error(longTermData.error.message);
     }
 
+    // Debug: inspect token permissions
+    let tokenPermissions: string[] = [];
+    try {
+      const debugResp = await fetch(
+        `https://graph.facebook.com/v21.0/me/permissions?access_token=${longTermData.access_token}`
+      );
+      const debugData = await debugResp.json();
+      console.log('[handleFacebookSimple] Token permissions:', JSON.stringify(debugData));
+      tokenPermissions = (debugData.data || []).map((p: any) => `${p.permission}:${p.status}`);
+    } catch (e) {
+      console.warn('[handleFacebookSimple] Could not fetch permissions:', e);
+    }
+
     // Get user's pages with nested IG expansion + category
     const pagesResponse = await fetch(
       `https://graph.facebook.com/v21.0/me/accounts?` +
@@ -431,27 +444,48 @@ async function handleFacebookSimple(req: VercelRequest, res: VercelResponse) {
     const pagesData = await pagesResponse.json();
     console.log('[handleFacebookSimple] Raw pages API response:', JSON.stringify(pagesData));
 
-    // Map pages - IG details come from nested expansion
+    // Map pages - try nested expansion first, then fallback to page-token query
     const rawPages = pagesData.data || [];
-    const mappedPages = rawPages.map((page: any) => {
-      const igRef = page.instagram_business_account;
-      const igId = igRef?.id || null;
-      const igUsername = igRef?.username || null;
+    const mappedPages = await Promise.all(
+      rawPages.map(async (page: any) => {
+        let igRef = page.instagram_business_account;
+        let igId = igRef?.id || null;
+        let igUsername = igRef?.username || null;
 
-      console.log(`[handleFacebookSimple] Page "${page.name}" (${page.id}) → IG id=${igId}, username=${igUsername}`);
+        // Fallback: if IG not returned via user token, try with the page's own access token
+        if (!igId && page.access_token) {
+          try {
+            console.log(`[handleFacebookSimple] Trying page-token IG lookup for "${page.name}" (${page.id})`);
+            const pageIgResp = await fetch(
+              `https://graph.facebook.com/v21.0/${page.id}?fields=instagram_business_account{id,username,profile_picture_url}&access_token=${page.access_token}`
+            );
+            const pageIgData = await pageIgResp.json();
+            console.log(`[handleFacebookSimple] Page-token IG result for "${page.name}":`, JSON.stringify(pageIgData));
+            if (pageIgData.instagram_business_account) {
+              igRef = pageIgData.instagram_business_account;
+              igId = igRef.id || null;
+              igUsername = igRef.username || null;
+            }
+          } catch (e) {
+            console.warn(`[handleFacebookSimple] Page-token IG lookup failed for "${page.name}":`, e);
+          }
+        }
 
-      return {
-        pageId: page.id,
-        pageName: page.name,
-        name: page.name,
-        category: page.category || 'Unknown',
-        accessToken: page.access_token,
-        instagramBusinessAccount: igRef || null,
-        instagramBusinessAccountId: igId,
-        instagramBusinessAccountUsername: igUsername,
-        hasInstagram: !!igId,
-      };
-    });
+        console.log(`[handleFacebookSimple] Page "${page.name}" (${page.id}) → IG id=${igId}, username=${igUsername}`);
+
+        return {
+          pageId: page.id,
+          pageName: page.name,
+          name: page.name,
+          category: page.category || 'Unknown',
+          accessToken: page.access_token,
+          instagramBusinessAccount: igRef || null,
+          instagramBusinessAccountId: igId,
+          instagramBusinessAccountUsername: igUsername,
+          hasInstagram: !!igId,
+        };
+      })
+    );
 
     // Get user profile
     const profileResponse = await fetch(
@@ -476,6 +510,7 @@ async function handleFacebookSimple(req: VercelRequest, res: VercelResponse) {
       workspaceId: workspaceId,
       debug: {
         permissions: longTermData.scope || 'N/A',
+        tokenPermissions: tokenPermissions,
         pagesSummary: pagesData.summary || null,
         rawPages: rawPages.map((p: any) => ({
           id: p.id,
