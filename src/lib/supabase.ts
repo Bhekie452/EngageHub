@@ -17,6 +17,11 @@ export const supabase = createClient(
       persistSession: true,
       autoRefreshToken: true,
       detectSessionInUrl: true,
+      storageKey: 'engagehub-auth',
+      // Disable Navigator LockManager to prevent timeout issues in some browsers
+      lock: async (_name: string, _acquireTimeout: number, fn: () => Promise<any>) => {
+        return await fn();
+      },
     },
     global: {
       headers: {
