@@ -1,15 +1,3 @@
-  // Close toolbar dropdown on outside click
-  const toolbarDropdownRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!showToolbarDropdown) return;
-    function handleClickOutside(event: MouseEvent) {
-      if (toolbarDropdownRef.current && !toolbarDropdownRef.current.contains(event.target as Node)) {
-        setShowToolbarDropdown(false);
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [showToolbarDropdown]);
 import React, { useState, useEffect, useRef } from 'react';
 import {
   PenTool,
@@ -145,6 +133,19 @@ const Content: React.FC = () => {
   const [aiGeneratorOpen, setAiGeneratorOpen] = useState(false);
   const [aiImageGeneratorOpen, setAiImageGeneratorOpen] = useState(false);
   const [showToolbarDropdown, setShowToolbarDropdown] = useState(false);
+
+  // Close toolbar dropdown on outside click
+  const toolbarDropdownRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!showToolbarDropdown) return;
+    function handleClickOutside(event: MouseEvent) {
+      if (toolbarDropdownRef.current && !toolbarDropdownRef.current.contains(event.target as Node)) {
+        setShowToolbarDropdown(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showToolbarDropdown]);
 
   const toast = useToast();
 

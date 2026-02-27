@@ -101,7 +101,7 @@ const Dashboard: React.FC = () => {
   }, [wonDeals]);
 
   // prepare dashboard panels
-  const pendingTasks = tasks.filter(t => t.status === 'pending').slice(0, 3);
+  const pendingTasks = tasks.filter(t => t.status === 'todo').slice(0, 3);
   const upcomingPosts = scheduledPosts.slice(0, 2);
   const unreadMsgs = messages.filter(m => m.unread).slice(0, 2);
   const recentLeads = leads.slice(0, 2);
@@ -186,7 +186,7 @@ const Dashboard: React.FC = () => {
                     <div className="w-5 h-5 rounded border border-gray-300 flex items-center justify-center group-hover:border-blue-500 group-hover:bg-blue-50 transition-all">
                       <CheckCircle2 size={12} className="text-transparent group-hover:text-blue-500" />
                     </div>
-                    <span className="text-sm text-gray-700 flex-1">{task.title || task.text}</span>
+                    <span className="text-sm text-gray-700 flex-1">{task.title}</span>
                     <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase ${task.priority === 'high' ? 'bg-red-50 text-red-600' :
                         task.priority === 'medium' ? 'bg-amber-50 text-amber-600' : 'bg-gray-50 text-gray-500'
                       }`}>
@@ -211,10 +211,10 @@ const Dashboard: React.FC = () => {
                       <Calendar size={18} />
                     </div>
                     <div className="overflow-hidden">
-                      <p className="text-sm font-bold text-gray-900 truncate">{post.content || post.text || ''}</p>
+                      <p className="text-sm font-bold text-gray-900 truncate">{post.content || ''}</p>
                       <div className="flex items-center gap-2 mt-1">
                         <span className="text-xs text-blue-600 font-semibold">{post.platform}</span>
-                        <span className="text-[10px] text-gray-400">{new Date(post.scheduled_at || post.time || '').toLocaleString()}</span>
+                        <span className="text-[10px] text-gray-400">{new Date(post.scheduled_for || '').toLocaleString()}</span>
                       </div>
                     </div>
                   </div>
