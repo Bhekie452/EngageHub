@@ -1,3 +1,15 @@
+  // Close toolbar dropdown on outside click
+  const toolbarDropdownRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!showToolbarDropdown) return;
+    function handleClickOutside(event: MouseEvent) {
+      if (toolbarDropdownRef.current && !toolbarDropdownRef.current.contains(event.target as Node)) {
+        setShowToolbarDropdown(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showToolbarDropdown]);
 import React, { useState, useEffect, useRef } from 'react';
 import {
   PenTool,
@@ -132,6 +144,7 @@ const Content: React.FC = () => {
   const [currentWorkspaceId, setCurrentWorkspaceId] = useState<string | null>(null);
   const [aiGeneratorOpen, setAiGeneratorOpen] = useState(false);
   const [aiImageGeneratorOpen, setAiImageGeneratorOpen] = useState(false);
+  const [showToolbarDropdown, setShowToolbarDropdown] = useState(false);
 
   const toast = useToast();
 
@@ -1740,7 +1753,8 @@ const Content: React.FC = () => {
                   </div>
                 </div>
                 <button
-                  onClick={() => window.dispatchEvent(new CustomEvent('navigate', { detail: { section: 'Social Media' } }))}
+                  onClick={() => window.dispatchEvent(new CustomEvent('navigate', { detail: { section: 'Social Media' } }))
+                  }
                   className="px-4 py-2 bg-amber-600 text-white text-xs font-bold rounded-lg hover:bg-amber-700 transition-all shadow-sm shadow-amber-200"
                 >
                   Connect Now
@@ -1809,35 +1823,46 @@ const Content: React.FC = () => {
 
                     {/* Toolbar */}
                     <div className="px-4 py-3 bg-[#fcfcfd] border-t border-gray-100 flex items-center justify-between relative">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 relative" ref={toolbarDropdownRef}>
                         <button
-                          onClick={() => imageInputRef.current?.click()}
+                          onClick={() => setShowToolbarDropdown((prev) => !prev)}
                           className="p-1.5 text-gray-400 hover:text-blue-600 transition-all"
-                          title="Add image"
+                          title="More options"
                         >
-                          <ImageIcon size={18} />
+                          <Plus size={20} />
                         </button>
-                        <button
-                          onClick={() => videoInputRef.current?.click()}
-                          className="p-1.5 text-gray-400 hover:text-blue-600 transition-all"
-                          title="Add video"
-                        >
-                          <Video size={18} />
-                        </button>
-                        <button
-                          onClick={() => setShowLinkInput(!showLinkInput)}
-                          className="p-1.5 text-gray-400 hover:text-blue-600 transition-all"
-                          title="Add link"
-                        >
-                          <LinkIcon size={18} />
-                        </button>
-                        <button
-                          onClick={() => setShowLocationInput(!showLocationInput)}
-                          className="p-1.5 text-gray-400 hover:text-blue-600 transition-all"
-                          title="Add location"
-                        >
-                          <MapPin size={18} />
-                        </button>
+                        {showToolbarDropdown && (
+                          <div className="absolute left-0 top-full mt-2 bg-white border border-gray-200 rounded-lg shadow-xl p-2 z-50 min-w-[180px] flex flex-col gap-1 animate-in fade-in slide-in-from-top-2 duration-200">
+                            <button
+                              onClick={() => { setShowToolbarDropdown(false); imageInputRef.current?.click(); }}
+                              className="flex items-center gap-2 px-3 py-2 text-gray-700 hover:bg-gray-50 rounded transition-all w-full text-left"
+                            >
+                              <ImageIcon size={18} />
+                              <span>Add Image</span>
+                            </button>
+                            <button
+                              onClick={() => { setShowToolbarDropdown(false); videoInputRef.current?.click(); }}
+                              className="flex items-center gap-2 px-3 py-2 text-gray-700 hover:bg-gray-50 rounded transition-all w-full text-left"
+                            >
+                              <Video size={18} />
+                              <span>Add Video</span>
+                            </button>
+                            <button
+                              onClick={() => { setShowToolbarDropdown(false); setShowLinkInput(!showLinkInput); }}
+                              className="flex items-center gap-2 px-3 py-2 text-gray-700 hover:bg-gray-50 rounded transition-all w-full text-left"
+                            >
+                              <LinkIcon size={18} />
+                              <span>Add Link</span>
+                            </button>
+                            <button
+                              onClick={() => { setShowToolbarDropdown(false); setShowLocationInput(!showLocationInput); }}
+                              className="flex items-center gap-2 px-3 py-2 text-gray-700 hover:bg-gray-50 rounded transition-all w-full text-left"
+                            >
+                              <MapPin size={18} />
+                              <span>Add Location</span>
+                            </button>
+                          </div>
+                        )}
                         <button
                           onClick={() => setShowEmojiPicker(!showEmojiPicker)}
                           className="p-1.5 text-gray-400 hover:text-blue-600 transition-all"
@@ -1906,7 +1931,7 @@ const Content: React.FC = () => {
                               className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                             />
                             {selectedPlatforms.some((p) => (p || '').toLowerCase() === 'youtube') && (
-                              <p className="text-xs text-gray-500">For YouTube: paste a direct video file URL (e.g. https://your-storage.com/video.mp4), not a YouTube watch/shorts link.</p>
+                              <p className="text-xs text-gray-500">For YouTube: paste a direct video file URL (e.g. from Storage or a CDN), not a YouTube watch/shorts link.</p>
                             )}
                             <button
                               onClick={handleInsertLink}
@@ -2029,7 +2054,9 @@ const Content: React.FC = () => {
                           <AlertCircle size={16} className="text-amber-600 mt-0.5 flex-shrink-0" />
                           <div className="flex-1">
                             <p className="text-xs font-semibold text-amber-800">No social media accounts connected</p>
-                            <p className="text-xs text-amber-700 mt-1">Connect your accounts in the <button onClick={() => { window.dispatchEvent(new CustomEvent('navigate', { detail: { section: 'Social Media' } })); window.location.hash = '#social-media'; }} className="underline font-bold">Social Media</button> section to start publishing.</p>
+                            <p className="text-xs text-amber-700 mt-1">Connect your accounts in the <button onClick={() => { window.dispatchEvent(new CustomEvent('navigate', { detail: { section: 'Social Media' } }));
+                              window.location.hash = '#social-media';
+                            }} className="underline font-bold">Social Media</button> section to start publishing.</p>
                           </div>
                         </div>
                       )}
@@ -2936,8 +2963,8 @@ const Content: React.FC = () => {
                                       return (
                                         <button
                                           key={`${post.id}-platform-icon-${platformId}-${idx}`}
-                                          onClick={() => { console.log('[Content] YouTube icon clicked (alt), setting viewingMetrics:', post.id, platformId); setViewingMetrics({ post, platform: platformId }) }}
-                                          className="p-1.5 rounded-lg bg-white border border-gray-100 shadow-sm flex items-center justify-center transition-transform hover:scale-110"
+                                          onClick={(e) => { e.stopPropagation(); console.log('[Content] YouTube icon clicked (alt), setting viewingMetrics:', post.id, platformId); setViewingMetrics({ post, platform: platformId }) }}
+                                          className="p-1.5 rounded-lg bg-white border border-gray-100 shadow-sm flex items-center justify-center transition-transform hover:scale-110 cursor-pointer active:scale-95"
                                           title={`View ${pData?.label || platformId} metrics`}
                                         >
                                           {pData ? React.cloneElement(pData.icon as React.ReactElement, { size: 14 }) : <Share2 size={14} />}
@@ -3513,7 +3540,7 @@ const Content: React.FC = () => {
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                     {viewingPost.media_urls.map((url: string, idx: number) => (
                       <div key={idx} className="relative rounded-lg overflow-hidden border border-gray-200">
-                        {url.match(/\.(mp4|webm|mov)$/i) ? (
+                        {url.match(/\.(mp4|webm|ogg|mov|m4v)$/i) ? (
                           <video src={url} className="w-full h-32 object-cover" controls />
                         ) : (
                           <img src={url} alt={`Media ${idx + 1}`} className="w-full h-32 object-cover" />
@@ -3993,6 +4020,9 @@ const Content: React.FC = () => {
                               </AreaChart>
                             </ResponsiveContainer>
                           </div>
+                          <button className="mt-4 text-[11px] font-black uppercase tracking-widest text-[#065fd4] hover:text-[#0556bf] transition-colors py-2 px-4 rounded-lg bg-blue-50/50 hover:bg-blue-100/50">
+                            See more
+                          </button>
                         </div>
 
                         {/* Traffic Sources & Funnel Row */}
@@ -4133,49 +4163,58 @@ const Content: React.FC = () => {
                             </div>
                           </div>
 
-                          {/* Likes vs Dislikes */}
+                          {/* Viewers also watch */}
                           <div className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-xl p-8 shadow-sm">
-                            <h4 className="text-xl font-bold text-gray-900 dark:text-white mb-2">Likes (vs dislikes)</h4>
-                            <p className="text-sm text-gray-500 mb-8">Since published</p>
-
-                            <div className="space-y-6">
-                              <div className="space-y-2">
-                                <div className="flex justify-between items-center text-xs">
-                                  <span className="font-medium text-gray-600 dark:text-slate-400">This video</span>
-                                  <span className="font-bold text-gray-900 dark:text-white">{engagementData?.metrics?.likes_ratio || 0}%</span>
-                                </div>
-                                <div className="h-2 bg-gray-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                                  <div className="h-full bg-pink-500" style={{ width: `${engagementData?.metrics?.likes_ratio || 0}%` }} />
-                                </div>
+                            <h4 className="text-xl font-bold text-gray-900 dark:text-white mb-2">Viewers also watch</h4>
+                            <p className="text-sm text-gray-500 mb-8">Last 90 days</p>
+                            <div className="aspect-video bg-gray-50 dark:bg-slate-800 rounded-xl flex items-center justify-center text-center p-6">
+                              <div className="max-w-xs space-y-2">
+                                <Info className="mx-auto text-gray-300 mb-4" size={32} />
+                                <p className="text-[11px] font-medium text-gray-400 leading-relaxed">
+                                  Not enough eligible audience data to show this report. <span className="text-blue-500 cursor-pointer">Learn more</span>
+                                </p>
                               </div>
-
-                              <div className="space-y-2">
-                                <div className="flex justify-between items-center text-xs">
-                                  <span className="font-medium text-gray-600 dark:text-slate-400">Channel average</span>
-                                  <span className="font-bold text-gray-900 dark:text-white">{engagementData?.metrics?.channel_likes_ratio || 0}%</span>
-                                </div>
-                                <div className="h-2 bg-gray-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                                  <div className="h-full bg-gray-300 dark:bg-slate-600" style={{ width: `${engagementData?.metrics?.channel_likes_ratio || 0}%` }} />
-                                </div>
-                              </div>
-
-                              <button className="mt-4 text-[11px] font-black uppercase tracking-widest text-[#065fd4] hover:text-[#0556bf] transition-colors py-2 px-4 rounded-lg bg-blue-50/50 hover:bg-blue-100/50">
-                                See more
-                              </button>
                             </div>
                           </div>
 
-                          {/* End Screen Click Rate */}
+                          {/* Device Type */}
                           <div className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-xl p-8 shadow-sm">
-                            <h4 className="text-xl font-bold text-gray-900 dark:text-white mb-2">End screen element click rate</h4>
-                            <p className="text-sm text-gray-500 mb-8">Since uploaded (lifetime)</p>
-                            <div className="flex justify-between items-center bg-gray-50/50 dark:bg-slate-800/50 p-4 rounded-xl border border-gray-100 dark:border-slate-800">
-                              <span className="text-sm font-medium text-gray-600 dark:text-slate-300">This video</span>
-                              <div className="flex items-center gap-2">
-                                <div className="w-2 h-2 rounded-full bg-pink-500" />
-                                <span className="text-lg font-black text-gray-900 dark:text-white">{engagementData?.metrics?.end_screen_clicks || 0}%</span>
+                            <h4 className="text-xl font-bold text-gray-900 dark:text-white mb-2">Device type</h4>
+                            <p className="text-sm text-gray-500 mb-8">Watch time (hours) · Since uploaded (lifetime)</p>
+
+                            <div className="space-y-4">
+                              {(engagementData?.metrics?.device_types || []).map((device, i) => (
+                                <div key={i} className="space-y-2">
+                                  <div className="flex justify-between items-center text-xs">
+                                    <div className="flex items-center gap-2">
+                                      <div className="w-2 h-2 rounded-full bg-purple-900 dark:bg-purple-500" />
+                                      <span className="font-medium text-gray-600 dark:text-slate-400">{device.label}</span>
+                                    </div>
+                                    <span className="font-bold text-gray-900 dark:text-white">{device.value.toFixed(1)}%</span>
+                                  </div>
+                                  <div className="h-2 bg-gray-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                                    <div className="h-full bg-purple-900 dark:bg-purple-500" style={{ width: `${device.value}%` }} />
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* Watch time from subscribers */}
+                          <div className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-xl p-8 shadow-sm">
+                            <h4 className="text-xl font-bold text-gray-900 dark:text-white mb-2">Watch time from subscribers</h4>
+                            <p className="text-sm text-gray-500 mb-8">Watch time · Since uploaded (lifetime)</p>
+                            <div className="aspect-video bg-gray-50 dark:bg-slate-800 rounded-xl flex items-center justify-center text-center p-6">
+                              <div className="max-w-xs space-y-2">
+                                <Info className="mx-auto text-gray-300 mb-4" size={32} />
+                                <p className="text-[11px] font-medium text-gray-400 leading-relaxed">
+                                  Nothing to show for these dates
+                                </p>
                               </div>
                             </div>
+                            <button className="mt-6 text-[11px] font-black uppercase tracking-widest text-[#065fd4] hover:text-[#0556bf] transition-colors py-2 px-4 rounded-lg bg-blue-50/50 hover:bg-blue-100/50">
+                              See more
+                            </button>
                           </div>
                         </div>
                       </div>
