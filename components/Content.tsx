@@ -2315,6 +2315,8 @@ const Content: React.FC = () => {
                               if (!url || typeof url !== 'string') return false;
                               // Accept base64 data URLs
                               if (url.startsWith('data:image/')) return true;
+                              // Accept any http(s) URL (Supabase storage URLs don't have file extensions)
+                              if (url.startsWith('http://') || url.startsWith('https://')) return true;
                               // Accept file extensions
                               return /\.(jpg|jpeg|png|gif|webp)$/i.test(url);
                             });
@@ -2322,6 +2324,8 @@ const Content: React.FC = () => {
                               if (!url || typeof url !== 'string') return false;
                               // Accept base64 data URLs
                               if (url.startsWith('data:image/')) return true;
+                              // Accept Supabase storage image URLs
+                              if ((url.startsWith('http://') || url.startsWith('https://')) && url.includes('/images/')) return true;
                               // Accept file extensions
                               return /\.(jpg|jpeg|png|gif|webp)$/i.test(url);
                             });
