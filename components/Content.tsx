@@ -2242,7 +2242,7 @@ const Content: React.FC = () => {
 
                 {/* Right Side: Preview */}
                 <div className="lg:col-span-5 bg-[#f8f9fb] p-6 flex flex-col items-center">
-                  <div className="w-full bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden flex flex-col h-full max-w-[340px]">
+                  <div className="w-full bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden flex flex-col h-full">
                     <div className="p-4 border-b border-gray-100 flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <div className="flex items-center gap-2 px-2 py-0.5 bg-indigo-600 text-white rounded text-[10px] font-bold">
