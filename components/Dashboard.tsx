@@ -1,5 +1,5 @@
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import {
   Calendar,
   MessageSquare,
@@ -24,10 +24,6 @@ import { useTasks } from '../src/hooks/useTasks';
 import { useWorkspace } from '../src/hooks/useWorkspace';
 import { useInbox } from '../src/hooks/useInbox';
 import { useLeads } from '../src/hooks/useLeads';
-
-
-// default empty array; will compute below using real data
-const chartData: Array<{ name: string; revenue: number }> = []; // filled later
 
 
 const StatCard = ({ title, value, change, icon: Icon, color }: any) => (
@@ -72,33 +68,37 @@ const Dashboard: React.FC = () => {
   const totalRevenue = wonDeals.reduce((sum, d) => sum + (d.amount || 0), 0);
   const winRate = deals.length > 0 ? (wonDeals.length / deals.length * 100).toFixed(1) : '0';
 
-  // compute weekly revenue chart (last 7 days)
-  const now = new Date();
-  const dailyMap: Record<string, number> = {};
-  for (let i = 0; i < 7; i++) {
-    const d = new Date(now);
-    d.setDate(now.getDate() - i);
-    const key = d.toLocaleDateString('en-US', { weekday: 'short' });
-    dailyMap[key] = 0;
-  }
-  wonDeals.forEach(d => {
-    if (d.created_at) {
-      const dt = new Date(d.created_at);
-      const diff = now.getTime() - dt.getTime();
-      if (diff < 7 * 24 * 60 * 60 * 1000) {
-        const key = dt.toLocaleDateString('en-US', { weekday: 'short' });
-        if (dailyMap[key] !== undefined) {
-          dailyMap[key] += Number(d.amount) || 0;
+  // compute weekly revenue chart (last 7 days) - use useMemo to prevent recreation
+  const chartData = useMemo(() => {
+    const now = new Date();
+    const dailyMap: Record<string, number> = {};
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(now);
+      d.setDate(now.getDate() - i);
+      const key = d.toLocaleDateString('en-US', { weekday: 'short' });
+      dailyMap[key] = 0;
+    }
+    wonDeals.forEach(d => {
+      if (d.created_at) {
+        const dt = new Date(d.created_at);
+        const diff = now.getTime() - dt.getTime();
+        if (diff < 7 * 24 * 60 * 60 * 1000) {
+          const key = dt.toLocaleDateString('en-US', { weekday: 'short' });
+          if (dailyMap[key] !== undefined) {
+            dailyMap[key] += Number(d.amount) || 0;
+          }
         }
       }
+    });
+    const data: Array<{ name: string; revenue: number }> = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(now);
+      d.setDate(now.getDate() - i);
+      const key = d.toLocaleDateString('en-US', { weekday: 'short' });
+      data.push({ name: key, revenue: dailyMap[key] || 0 });
     }
-  });
-  for (let i = 6; i >= 0; i--) {
-    const d = new Date(now);
-    d.setDate(now.getDate() - i);
-    const key = d.toLocaleDateString('en-US', { weekday: 'short' });
-    chartData.push({ name: key, revenue: dailyMap[key] || 0 });
-  }
+    return data;
+  }, [wonDeals]);
 
   // prepare dashboard panels
   const pendingTasks = tasks.filter(t => t.status === 'pending').slice(0, 3);

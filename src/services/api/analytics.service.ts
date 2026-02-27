@@ -1,4 +1,5 @@
 import { supabase } from '../../lib/supabase';
+import { ensureMutable } from '../../lib/queryClient';
 
 export type AnalyticsEventType =
   | 'session_start'
@@ -383,9 +384,9 @@ export const analyticsService = {
 
     // Facebook metrics - fetch from sync-facebook-engagement or from database
     let fbConnected = false;
-    let facebookActivity: any[] = [];
-    let instagramActivity: any[] = [];
-    let tiktokActivity: any[] = [];
+    let facebookActivity: any[] = Array.from([]);
+    let instagramActivity: any[] = Array.from([]);
+    let tiktokActivity: any[] = Array.from([]);
     try {
       if ((platform || '').toLowerCase() === 'facebook' && workspace_id) {
         // Get Facebook access token from social_accounts

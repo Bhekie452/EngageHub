@@ -1,10 +1,13 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { analyticsService, AnalyticsDailyRow, AnalyticsEventInput } from '../services/api/analytics.service';
+import { ensureMutable } from '../lib/queryClient';
+
+// Utility to ensure returned data is mutable
 
 export function useAnalyticsDaily(fromDay: string, toDay: string) {
   return useQuery({
     queryKey: ['analytics', 'daily', fromDay, toDay],
-    queryFn: () => analyticsService.getDaily(fromDay, toDay),
+    queryFn: () => analyticsService.getDaily(fromDay, toDay).then(ensureMutable),
   });
 }
 
@@ -33,7 +36,7 @@ export function useAnalyticsRollupDay() {
 export function useGlobalSocialSummary() {
   return useQuery({
     queryKey: ['analytics', 'global-social'],
-    queryFn: () => analyticsService.getGlobalSocialSummary(),
+    queryFn: () => analyticsService.getGlobalSocialSummary().then(ensureMutable),
   });
 }
 

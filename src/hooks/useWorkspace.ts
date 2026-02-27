@@ -21,15 +21,19 @@ export function useWorkspace() {
         setError(null)
 
         // First try to get workspace from workspace_members
+        // Using a more robust query approach
         const { data: memberData, error: memberError } = await supabase
           .from('workspace_members')
           .select('workspace_id')
           .eq('user_id', user.id)
           .limit(1)
-          .single()
 
-        if (memberData && !memberError) {
-          setWorkspaceId(memberData.workspace_id)
+        // Handle potential errors or empty results
+        if (memberError) {
+          console.warn('[useWorkspace] workspace_members query error:', memberError.message)
+          // Don't fail immediately - try the fallback
+        } else if (memberData && memberData.length > 0 && memberData[0]) {
+          setWorkspaceId(memberData[0].workspace_id)
           return
         }
 
@@ -39,10 +43,11 @@ export function useWorkspace() {
           .select('id')
           .eq('owner_id', user.id)
           .limit(1)
-          .single()
 
-        if (ownerData && !ownerError) {
-          setWorkspaceId(ownerData.id)
+        if (ownerError) {
+          console.warn('[useWorkspace] workspaces query error:', ownerError.message)
+        } else if (ownerData && ownerData.length > 0 && ownerData[0]) {
+          setWorkspaceId(ownerData[0].id)
           return
         }
 
@@ -73,6 +78,7 @@ export function useWorkspace() {
         }
 
       } catch (err) {
+        console.error('[useWorkspace] Unexpected error:', err)
         setError(err instanceof Error ? err.message : 'Failed to fetch workspace')
       } finally {
         setLoading(false)

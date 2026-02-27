@@ -75,14 +75,4 @@ export function useInbox(workspaceId: string | null) {
   };
 }
 
-// Mock messages for fallback when no real data
-function getMockMessages(): InboxMessage[] {
-  return [
-    { id: '1', sender: 'Sarah Miller', text: 'Hi, I saw your latest post on LinkedIn. Do you offer consulting for small teams?', platform: 'linkedin', category: 'dms', time: new Date(Date.now() - 10 * 60000).toISOString(), unread: true, source: 'engagement' },
-    { id: '2', sender: 'Marcus Chen', text: 'Payment confirmed for the Q3 audit. Looking forward to the results!', platform: 'email', category: 'email', time: new Date(Date.now() - 60 * 60000).toISOString(), unread: false, source: 'messages' },
-    { id: '3', sender: 'Emma Watson', text: 'Hey! Loved the new video. Would love to collab on a reel soon.', platform: 'instagram', category: 'comments', time: new Date(Date.now() - 3 * 60 * 60000).toISOString(), unread: true, source: 'engagement' },
-    { id: '4', sender: 'WhatsApp Lead', text: 'Is the early bird pricing still available for the course?', platform: 'whatsapp', category: 'whatsapp', time: new Date(Date.now() - 5 * 60 * 60000).toISOString(), unread: false, source: 'messages' },
-    { id: '5', sender: 'Web Guest #402', text: 'Where can I find your pricing page?', platform: 'webchat', category: 'webchat', time: new Date(Date.now() - 24 * 60 * 60000).toISOString(), unread: false, source: 'messages' },
-    { id: '6', sender: '+1 (555) 0123', text: 'Missed call from unknown number', platform: 'missed', category: 'missed', time: new Date(Date.now() - 24 * 60 * 60000).toISOString(), unread: true, source: 'messages' },
-  ];
-}
+
