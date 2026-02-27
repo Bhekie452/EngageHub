@@ -1,32 +1,29 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
+import appHandler from '../src/server-api/app.cjs';
+import facebookAuthHandler from '../src/server-api/facebook-auth.cjs';
+import utilsHandler from '../src/server-api/utils.cjs';
 
-const mapping: Record<string, string> = {
-  app: '../src/server-api/app.cjs',
-  'facebook-auth': '../src/server-api/facebook-auth.cjs',
-  inbox: '../src/server-api/inbox', // Still needs creation/fix if missing
-  oauth: '../src/server-api/oauth',
-  utils: '../src/server-api/utils.cjs',
-  facebook: '../src/server-api/facebook-auth.cjs',
-  'tiktok-callback-redirect': '../src/server-api/tiktok-callback-redirect',
+const mapping: Record<string, any> = {
+  app: appHandler,
+  'facebook-auth': facebookAuthHandler,
+  facebook: facebookAuthHandler,
+  utils: utilsHandler,
 };
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const slug = req.query.slug as string[] | undefined;
   const primary = Array.isArray(slug) && slug.length > 0 ? slug[0] : (req.query.route as string) || (req.query.action as string) || (req.query.endpoint as string) || 'app';
 
-  const modulePath = mapping[String(primary).toLowerCase()];
-  if (!modulePath) {
+  const handlerFunc = mapping[String(primary).toLowerCase()];
+  
+  if (!handlerFunc) {
     return res.status(404).json({ error: 'API route not found', requested: primary });
   }
 
   try {
-    const mod = await import(modulePath);
-    if (mod && typeof mod.default === 'function') {
-      return await mod.default(req, res);
-    }
-    return res.status(500).json({ error: 'Handler did not export default function' });
+    return await handlerFunc(req, res);
   } catch (err: any) {
-    console.error('[catch-all] Error loading handler for', primary, err);
+    console.error('[catch-all] Error executing handler for', primary, err);
     return res.status(500).json({ error: 'Internal server error', details: err?.message });
   }
 }
