@@ -1,6 +1,6 @@
-async function handleFacebookAuth(req, res) {
+export default async function handleFacebookAuth(req, res) {
   const { code, state } = req.query;
-  const clientId = process.env.FACEBOOK_APP_ID;
+  const clientId = process.env.FACEBOOK_APP_ID || process.env.VITE_FACEBOOK_APP_ID;
   const clientSecret = process.env.FACEBOOK_APP_SECRET;
   
   const redirectUri = process.env.NODE_ENV === 'production' 
@@ -69,6 +69,3 @@ async function handleFacebookAuth(req, res) {
   console.log('[facebook-auth] Initiating OAuth flow');
   return res.redirect(facebookAuthUrl.toString());
 }
-
-module.exports = handleFacebookAuth;
-module.exports.default = handleFacebookAuth;

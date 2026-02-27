@@ -1,4 +1,4 @@
-const { createClient } = require('@supabase/supabase-js');
+import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = process.env.SUPABASE_URL || 'https://zourlqrkoyugzymxkbgn.supabase.co';
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpvdXJscXJrb3l1Z3p5bXhrYmduIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2ODIxMTM2MiwiZXhwIjoyMDgzNzg3MzYyfQ.ic8p6qw_KJw5QtojcZwpIJ7ISJo3bxz9ef5RQA1wzfM';
@@ -70,7 +70,7 @@ async function handlePublishPost(req, res) {
   }
 }
 
-async function handleUtils(req, res) {
+export default async function handleUtils(req, res) {
   const endpoint = req.query.endpoint || req.params.endpoint;
   const method = req.method;
 
@@ -112,6 +112,3 @@ async function handleUtils(req, res) {
 
   return res.status(404).json({ error: 'Endpoint not found' });
 }
-
-module.exports = handleUtils;
-module.exports.default = handleUtils;

@@ -8,33 +8,40 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Modular handlers
-const handleApp = require('./src/server-api/app.cjs');
-const handleUtils = require('./src/server-api/utils.cjs');
-const handleFacebookAuth = require('./src/server-api/facebook-auth.cjs');
+// Wrapper to bridge CJS and ESM
+const bridge = (modulePath) => async (req, res) => {
+  try {
+    const mod = await import(modulePath);
+    const handler = mod.default || mod;
+    return await handler(req, res);
+  } catch (err) {
+    console.error(`Error loading ESM module ${modulePath}:`, err);
+    res.status(500).json({ error: 'Internal Server Error', details: err.message });
+  }
+};
 
-// Route Mappings
-app.all('/api/app', handleApp);
+// Route Mappings using the bridge to load ESM handlers
+app.all('/api/app', bridge('./src/server-api/app.js'));
 
 // Utils handler supports both query and path format
-app.all('/api/utils', handleUtils);
+app.all('/api/utils', bridge('./src/server-api/utils.js'));
 app.all('/api/utils/:endpoint', (req, res) => {
   req.query.endpoint = req.params.endpoint;
-  return handleUtils(req, res);
+  return bridge('./src/server-api/utils.js')(req, res);
 });
 
-// Facebook Auth routes - keeping both for legacy support
-app.all('/api/facebook-auth', handleFacebookAuth);
+// Facebook Auth routes
+app.all('/api/facebook-auth', bridge('./src/server-api/facebook-auth.js'));
 
 app.get('/api/auth', async (req, res) => {
   const { provider } = req.query;
-  if (provider === 'facebook') return handleFacebookAuth(req, res);
+  if (provider === 'facebook') return bridge('./src/server-api/facebook-auth.js')(req, res);
   return res.status(404).json({ error: 'Provider not found' });
 });
 
 app.post('/api/auth', async (req, res) => {
   const { provider, action } = req.query;
-  if (provider === 'facebook' && action === 'token') return handleFacebookAuth(req, res);
+  if (provider === 'facebook' && action === 'token') return bridge('./src/server-api/facebook-auth.js')(req, res);
   return res.status(404).json({ error: 'Action not found' });
 });
 

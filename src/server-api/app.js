@@ -1,12 +1,11 @@
-const { createClient } = require('@supabase/supabase-js');
+import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = process.env.SUPABASE_URL || 'https://zourlqrkoyugzymxkbgn.supabase.co';
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpvdXJscXJrb3l1Z3p5bXhrYmduIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2ODIxMTM2MiwiZXhwIjoyMDgzNzg3MzYyfQ.ic8p6qw_KJw5QtojcZwpIJ7ISJo3bxz9ef5RQA1wzfM';
 
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
-console.log('[DEBUG] Supabase client initialized');
 
-async function handleApp(req, res) {
+export default async function handleApp(req, res) {
   const { action, method: actionMethod, workspaceId, platformPostId, platform } = req.query;
 
   console.log(`[App API] Action: ${action}, Method: ${actionMethod}, Platform: ${platform}`);
@@ -95,6 +94,3 @@ async function handleApp(req, res) {
     return res.status(500).json({ error: 'internal_error', message: error.message });
   }
 }
-
-module.exports = handleApp;
-module.exports.default = handleApp;
