@@ -723,6 +723,28 @@ const Content: React.FC = () => {
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [uploadedImages, setUploadedImages] = useState<string[]>([]);
   const [uploadedVideos, setUploadedVideos] = useState<string[]>([]);
+  // --- Cleanup Blob URLs ---
+  const lastUploadedMedia = useRef<string[]>([]);
+  useEffect(() => {
+    // Revoke URLs that are removed from the state
+    const currentMedia = [...uploadedImages, ...uploadedVideos];
+    lastUploadedMedia.current.forEach(url => {
+      if (url.startsWith('blob:') && !currentMedia.includes(url)) {
+        URL.revokeObjectURL(url);
+      }
+    });
+    lastUploadedMedia.current = currentMedia;
+  }, [uploadedImages, uploadedVideos]);
+
+  // Handle unmount specifically
+  useEffect(() => {
+    return () => {
+      lastUploadedMedia.current.forEach(url => {
+        if (url.startsWith('blob:')) URL.revokeObjectURL(url);
+      });
+    };
+  }, []);
+
   const [linkUrl, setLinkUrl] = useState('');
   const [showLinkInput, setShowLinkInput] = useState(false);
   const [location, setLocation] = useState('');
@@ -801,14 +823,21 @@ const Content: React.FC = () => {
     const files = e.target.files;
     if (!files) return;
     for (const file of Array.from(files) as File[]) {
-      const publicUrl = await uploadFileToStorage(file, 'images');
-      if (publicUrl) {
-        setUploadedImages(prev => [...prev, publicUrl]);
-      } else {
-        const reader = new FileReader();
-        reader.onloadend = () => setUploadedImages(prev => [...prev, reader.result as string]);
-        reader.readAsDataURL(file as Blob);
-      }
+      // 1. Create instant local preview
+      const localUrl = URL.createObjectURL(file);
+      setUploadedImages(prev => [...prev, localUrl]);
+
+      // 2. Upload in background
+      uploadFileToStorage(file, 'images').then(publicUrl => {
+        if (publicUrl) {
+          // Replace local blob URL with permanent public URL
+          setUploadedImages(prev => prev.map(url => url === localUrl ? publicUrl : url));
+        } else {
+          // Fallback handled inside uploadFileToStorage for TikTok etc, 
+          // but we already have the blob URL in state for preview.
+          // Note: if upload fails, we keep the blob URL for now.
+        }
+      });
     }
     e.target.value = '';
   };
@@ -837,6 +866,10 @@ const Content: React.FC = () => {
     const files = e.target.files;
     if (!files) return;
     for (const file of Array.from(files) as File[]) {
+      // 1. Create instant local preview
+      const localUrl = URL.createObjectURL(file);
+      setUploadedVideos(prev => [...prev, localUrl]);
+
       // --- TikTok pre-upload validation ---
       const isTikTokSelected = selectedPlatforms.some((p) => (p || '').toLowerCase() === 'tiktok');
       if (isTikTokSelected) {
@@ -850,23 +883,32 @@ const Content: React.FC = () => {
               `Video too small for TikTok (${width}×${height}). Minimum resolution is 360p. ` +
               `Re-encode with ffmpeg: ffmpeg -i input.mp4 -vf "scale=720:1280" -c:v libx264 -c:a aac output.mp4`
             );
+            // Cleanup on error
+            setUploadedVideos(prev => prev.filter(v => v !== localUrl));
+            URL.revokeObjectURL(localUrl);
             e.target.value = '';
-            return;
+            continue;
           }
           if (duration < 1) {
             toast.error('Video is too short for TikTok (min 1 second).');
+            setUploadedVideos(prev => prev.filter(v => v !== localUrl));
+            URL.revokeObjectURL(localUrl);
             e.target.value = '';
-            return;
+            continue;
           }
           if (duration > 600) {
             toast.error('Video is too long for TikTok (max 10 minutes).');
+            setUploadedVideos(prev => prev.filter(v => v !== localUrl));
+            URL.revokeObjectURL(localUrl);
             e.target.value = '';
-            return;
+            continue;
           }
           if (file.size > 4 * 1024 * 1024 * 1024) {
             toast.error('Video is too large for TikTok (max 4 GB).');
+            setUploadedVideos(prev => prev.filter(v => v !== localUrl));
+            URL.revokeObjectURL(localUrl);
             e.target.value = '';
-            return;
+            continue;
           }
           // Warn (non-blocking) if short side < 720
           if (shortSide < 720) {
@@ -878,14 +920,13 @@ const Content: React.FC = () => {
         }
       }
 
-      const publicUrl = await uploadFileToStorage(file, 'videos');
-      if (publicUrl) {
-        setUploadedVideos(prev => [...prev, publicUrl]);
-      } else {
-        const reader = new FileReader();
-        reader.onloadend = () => setUploadedVideos(prev => [...prev, reader.result as string]);
-        reader.readAsDataURL(file as Blob);
-      }
+      // 2. Upload in background
+      uploadFileToStorage(file, 'videos').then(publicUrl => {
+        if (publicUrl) {
+          // Replace local blob URL with permanent public URL
+          setUploadedVideos(prev => prev.map(url => url === localUrl ? publicUrl : url));
+        }
+      });
     }
     e.target.value = '';
   };
@@ -2004,6 +2045,8 @@ const Content: React.FC = () => {
                                   <img
                                     src={img}
                                     alt={`Upload ${index + 1}`}
+                                    crossOrigin="anonymous"
+                                    referrerPolicy="no-referrer"
                                     className="w-full h-20 object-cover rounded-lg border border-gray-200"
                                   />
                                   <button
@@ -2313,6 +2356,8 @@ const Content: React.FC = () => {
                             // Get images from multiple sources - accept base64 data URLs too
                             const imagesFromState = uploadedImages.filter((url: any) => {
                               if (!url || typeof url !== 'string') return false;
+                              // Accept local blob URLs
+                              if (url.startsWith('blob:')) return true;
                               // Accept base64 data URLs
                               if (url.startsWith('data:image/')) return true;
                               // Accept any http(s) URL (Supabase storage URLs don't have file extensions)
@@ -2322,6 +2367,8 @@ const Content: React.FC = () => {
                             });
                             const imagesFromPost = (editingPost?.media_urls || []).filter((url: any) => {
                               if (!url || typeof url !== 'string') return false;
+                              // Accept local blob URLs
+                              if (url.startsWith('blob:')) return true;
                               // Accept base64 data URLs
                               if (url.startsWith('data:image/')) return true;
                               // Accept Supabase storage image URLs
@@ -2342,6 +2389,8 @@ const Content: React.FC = () => {
                                       <img
                                         src={images[0]}
                                         alt="Post image"
+                                        crossOrigin="anonymous"
+                                        referrerPolicy="no-referrer"
                                         className="w-full rounded-lg"
                                         style={{ maxHeight: '250px', objectFit: 'contain' }}
                                       />
@@ -2353,6 +2402,8 @@ const Content: React.FC = () => {
                                           <img
                                             src={img}
                                             alt={`Post image ${idx + 1}`}
+                                            crossOrigin="anonymous"
+                                            referrerPolicy="no-referrer"
                                             className="w-full rounded-lg"
                                             style={{ maxHeight: '150px', objectFit: 'contain' }}
                                           />
@@ -2480,6 +2531,8 @@ const Content: React.FC = () => {
                                   <img
                                     src={uploadedImages[0]}
                                     alt="Post"
+                                    crossOrigin="anonymous"
+                                    referrerPolicy="no-referrer"
                                     className="w-full rounded-lg"
                                     style={{ maxHeight: '300px', objectFit: 'contain' }}
                                   />
@@ -2491,6 +2544,8 @@ const Content: React.FC = () => {
                                       <img
                                         src={img}
                                         alt={`Post ${idx + 1}`}
+                                        crossOrigin="anonymous"
+                                        referrerPolicy="no-referrer"
                                         className="w-full h-32 object-cover rounded-lg"
                                       />
                                     </div>
