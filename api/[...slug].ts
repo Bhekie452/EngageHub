@@ -1,12 +1,12 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
 
 const mapping: Record<string, string> = {
-  app: '../src/server-api/app',
-  'facebook-auth': '../src/server-api/facebook-auth',
-  inbox: '../src/server-api/inbox',
+  app: '../src/server-api/app.cjs',
+  'facebook-auth': '../src/server-api/facebook-auth.cjs',
+  inbox: '../src/server-api/inbox', // Still needs creation/fix if missing
   oauth: '../src/server-api/oauth',
-  utils: '../src/server-api/utils',
-  facebook: '../src/server-api/facebook-auth',
+  utils: '../src/server-api/utils.cjs',
+  facebook: '../src/server-api/facebook-auth.cjs',
   'tiktok-callback-redirect': '../src/server-api/tiktok-callback-redirect',
 };
 
